@@ -1,0 +1,58 @@
+# TaskMaster Example Configuration
+# Copy this file to default.toml and modify the settings below
+
+[server]
+# HTTP server configuration
+host = "127.0.0.1"
+port = 3000
+
+[blockchain]
+# Quantus node WebSocket URL - change to your node's address
+node_url = "ws://127.0.0.1:9944"
+
+# Wallet configuration for sending transactions
+# IMPORTANT: Change these for production use!
+wallet_name = "task_master_wallet"
+wallet_password = "change_me_to_secure_password_123"
+
+# How long before transactions can be reversed (in hours)
+reversal_period_hours = 12
+
+[candidates]
+# GraphQL endpoint that provides candidate addresses
+# Expected query: { candidates }
+# Expected response: { "data": { "candidates": ["qz...", "qz..."] } }
+graphql_url = "http://localhost:4000/graphql"
+
+# How often to refresh the candidates list (in minutes)
+refresh_interval_minutes = 30
+
+[task_generation]
+# How often to generate new tasks (in minutes)
+# Default: every hour
+generation_interval_minutes = 60
+
+# Number of taskees to select each round
+taskees_per_round = 5
+
+[reverser]
+# How many minutes before end_time to reverse uncompleted tasks
+# This provides a buffer for task completion
+early_reversal_minutes = 2
+
+# How often to check for tasks that need reversal (in seconds)
+check_interval_seconds = 30
+
+[data]
+# CSV file to store all task data (persistent across restarts)
+csv_file_path = "tasks.csv"
+
+[logging]
+# Log level: error, warn, info, debug, trace
+level = "info"
+
+# Example environment variable overrides:
+# TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
+# TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
+# TASKMASTER_CANDIDATES__GRAPHQL_URL="https://your-api.com/graphql"
+# TASKMASTER_LOGGING__LEVEL="debug"

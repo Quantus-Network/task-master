@@ -1,0 +1,42 @@
+# TaskMaster Configuration
+
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[blockchain]
+# Quantus node WebSocket URL
+node_url = "ws://127.0.0.1:9944"
+
+# Wallet configuration for transactions
+wallet_name = "task_master_wallet"
+wallet_password = "secure_password_change_me"
+
+# Reversal period for transactions (in hours)
+reversal_period_hours = 12
+
+[candidates]
+# GraphQL endpoint to fetch candidate addresses
+graphql_url = "http://localhost:4000/graphql"
+# How often to refresh candidates (in minutes)
+refresh_interval_minutes = 30
+
+[task_generation]
+# How often to generate new tasks (in minutes)
+generation_interval_minutes = 60
+# Number of taskees to select each round
+taskees_per_round = 5
+
+[reverser]
+# How many minutes before end_time to reverse uncompleted tasks
+early_reversal_minutes = 2
+# How often to check for tasks to reverse (in seconds)
+check_interval_seconds = 30
+
+[data]
+# CSV file to store task data
+csv_file_path = "tasks.csv"
+
+[logging]
+# Log level: error, warn, info, debug, trace
+level = "info"
