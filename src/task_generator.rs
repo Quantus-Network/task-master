@@ -1,6 +1,5 @@
-use crate::csv_persistence::{CsvPersistence, TaskRecord};
+use crate::db_persistence::{DbPersistence, TaskRecord};
 use rand::prelude::*;
-use std::collections::HashSet;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TaskGeneratorError {
@@ -9,7 +8,7 @@ pub enum TaskGeneratorError {
     #[error("Not enough candidates for selection")]
     InsufficientCandidates,
     #[error("CSV error: {0}")]
-    Csv(#[from] crate::csv_persistence::CsvError),
+    Database(#[from] crate::db_persistence::DbError),
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
     #[error("JSON parsing error: {0}")]
@@ -21,15 +20,15 @@ pub type TaskGeneratorResult<T> = Result<T, TaskGeneratorError>;
 #[derive(Debug, Clone)]
 pub struct TaskGenerator {
     candidates: Vec<String>,
-    csv: std::sync::Arc<CsvPersistence>,
+    db: std::sync::Arc<DbPersistence>,
     http_client: reqwest::Client,
 }
 
 impl TaskGenerator {
-    pub fn new(csv: std::sync::Arc<CsvPersistence>) -> Self {
+    pub fn new(db: std::sync::Arc<DbPersistence>) -> Self {
         Self {
             candidates: Vec::new(),
-            csv,
+            db,
             http_client: reqwest::Client::new(),
         }
     }
@@ -126,7 +125,7 @@ impl TaskGenerator {
         Ok(tasks)
     }
 
-    /// Save generated tasks to CSV
+    /// Save generated tasks to database
     pub async fn save_tasks(&self, tasks: Vec<TaskRecord>) -> TaskGeneratorResult<()> {
         for task in tasks {
             tracing::debug!(
@@ -137,7 +136,9 @@ impl TaskGenerator {
                 task.usdc_amount,
                 task.task_url
             );
-            self.csv.add_task(task).await?;
+            // Ensure address exists in database
+            self.db.add_address(task.quan_address.clone(), None).await?;
+            self.db.add_task(task).await?;
         }
         Ok(())
     }
@@ -147,7 +148,8 @@ impl TaskGenerator {
         &self,
         count: usize,
     ) -> TaskGeneratorResult<Vec<TaskRecord>> {
-        let tasks = self.generate_tasks(count).await?;
+        let mut tasks = self.generate_tasks(count).await?;
+        self.ensure_unique_task_urls(&mut tasks).await?;
         self.save_tasks(tasks.clone()).await?;
         Ok(tasks)
     }
@@ -167,13 +169,9 @@ impl TaskGenerator {
         &self,
         tasks: &mut [TaskRecord],
     ) -> TaskGeneratorResult<()> {
-        let all_tasks = self.csv.get_all_tasks().await;
-        let existing_urls: HashSet<String> = all_tasks.iter().map(|t| t.task_url.clone()).collect();
-
-        let _rng = rand::rng();
-
         for task in tasks {
-            while existing_urls.contains(&task.task_url) {
+            // Keep checking if URL exists and regenerate if needed
+            while let Some(_existing_task) = self.db.find_task_by_url(&task.task_url).await? {
                 tracing::warn!(
                     "Task URL collision detected, regenerating: {}",
                     task.task_url
@@ -201,15 +199,23 @@ impl TaskGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csv_persistence::CsvPersistence;
+    use crate::db_persistence::DbPersistence;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_generate_random_amount() {
+    async fn create_test_db() -> Arc<DbPersistence> {
         let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let generator = TaskGenerator::new(csv);
+        let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
+        Arc::new(DbPersistence::new(&db_url).await.unwrap())
+    }
+
+    #[test]
+    fn test_generate_random_quan_amount() {
+        let generator = TaskGenerator {
+            candidates: Vec::new(),
+            db: Arc::new(unsafe { std::mem::zeroed() }), // Mock for this simple test
+            http_client: reqwest::Client::new(),
+        };
 
         for _ in 0..100 {
             let quan_amount = generator.generate_random_quan_amount();
@@ -219,9 +225,11 @@ mod tests {
 
     #[test]
     fn test_generate_task_url() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let generator = TaskGenerator::new(csv);
+        let generator = TaskGenerator {
+            candidates: Vec::new(),
+            db: Arc::new(unsafe { std::mem::zeroed() }), // Mock for this simple test
+            http_client: reqwest::Client::new(),
+        };
 
         for _ in 0..100 {
             let task_url = generator.generate_task_url();
@@ -232,9 +240,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_tasks() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let mut generator = TaskGenerator::new(csv);
+        let db = create_test_db().await;
+        let mut generator = TaskGenerator::new(db);
 
         // Add some test candidates
         generator.candidates = vec![
@@ -261,9 +268,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_candidates() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let generator = TaskGenerator::new(csv);
+        let db = create_test_db().await;
+        let generator = TaskGenerator::new(db);
 
         let result = generator.generate_tasks(1).await;
         assert!(matches!(result, Err(TaskGeneratorError::NoCandidates)));

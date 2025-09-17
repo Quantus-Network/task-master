@@ -6,7 +6,7 @@
 //! HTTP API requests.
 
 pub mod config;
-pub mod csv_persistence;
+pub mod db_persistence;
 pub mod http_server;
 pub mod reverser;
 pub mod task_generator;
@@ -14,14 +14,14 @@ pub mod transaction_manager;
 
 // Re-export commonly used types
 pub use config::Config;
-pub use csv_persistence::{CsvPersistence, TaskRecord, TaskStatus};
+pub use db_persistence::{Address, DbPersistence, TaskRecord, TaskStatus};
 pub use http_server::{AppState, CompleteTaskRequest, CompleteTaskResponse};
 pub use reverser::{ReversalStats, ReverserService};
 pub use task_generator::TaskGenerator;
 pub use transaction_manager::TransactionManager;
 
 // Re-export errors
-pub use csv_persistence::CsvError;
+pub use db_persistence::DbError;
 pub use http_server::HttpServerError;
 pub use reverser::ReverserError;
 pub use task_generator::TaskGeneratorError;

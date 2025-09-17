@@ -1,4 +1,4 @@
-use crate::csv_persistence::{CsvPersistence, TaskRecord};
+use crate::db_persistence::{DbPersistence, TaskRecord};
 use chrono::Utc;
 use quantus_cli::chain::client::QuantusClient;
 use quantus_cli::cli::reversible::{cancel_transaction, schedule_transfer};
@@ -13,7 +13,7 @@ pub enum TransactionError {
     #[error("Wallet error: {0}")]
     Wallet(#[from] quantus_cli::error::WalletError),
     #[error("CSV error: {0}")]
-    Csv(#[from] crate::csv_persistence::CsvError),
+    Database(#[from] crate::db_persistence::DbError),
     #[error("Transaction not found: {0}")]
     TransactionNotFound(String),
     #[error("Invalid transaction state: {0}")]
@@ -25,7 +25,7 @@ pub type TransactionResult<T> = Result<T, TransactionError>;
 pub struct TransactionManager {
     client: Arc<RwLock<QuantusClient>>,
     keypair: QuantumKeyPair,
-    csv: Arc<CsvPersistence>,
+    db: Arc<DbPersistence>,
     reversal_period: chrono::Duration,
 }
 
@@ -34,7 +34,7 @@ impl TransactionManager {
         node_url: &str,
         wallet_name: &str,
         wallet_password: &str,
-        csv: Arc<CsvPersistence>,
+        db: Arc<DbPersistence>,
         reversal_period: chrono::Duration,
     ) -> TransactionResult<Self> {
         // Connect to Quantus node
@@ -72,7 +72,7 @@ impl TransactionManager {
         Ok(Self {
             client,
             keypair,
-            csv,
+            db,
             reversal_period,
         })
     }
@@ -80,9 +80,9 @@ impl TransactionManager {
     /// Send a reversible transaction for a task
     pub async fn send_reversible_transaction(&self, task_id: &str) -> TransactionResult<()> {
         let task = self
-            .csv
+            .db
             .get_task(task_id)
-            .await
+            .await?
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
 
         tracing::info!(
@@ -109,10 +109,8 @@ impl TransactionManager {
         let end_time = send_time + self.reversal_period;
 
         // Update task with transaction details
-        self.csv
-            .update_task(task_id, |task| {
-                task.set_transaction_sent(format!("0x{:x}", tx_hash), send_time, end_time);
-            })
+        self.db
+            .update_task_transaction(task_id, format!("0x{:x}", tx_hash), send_time, end_time)
             .await?;
 
         tracing::info!(
@@ -127,24 +125,26 @@ impl TransactionManager {
     /// Cancel/reverse a transaction
     pub async fn reverse_transaction(&self, task_id: &str) -> TransactionResult<()> {
         let task = self
-            .csv
+            .db
             .get_task(task_id)
-            .await
+            .await?
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
 
-        if task.tx_hash.is_empty() {
-            return Err(TransactionError::InvalidState(
-                "Task has no transaction hash to reverse".to_string(),
-            ));
-        }
+        let reversible_tx_id = task.reversible_tx_id.as_ref().ok_or_else(|| {
+            TransactionError::InvalidState(
+                "Task has no reversible transaction ID to reverse".to_string(),
+            )
+        })?;
 
         // Remove "0x" prefix if present for the cancel call
-        let tx_hash_str = task.tx_hash.strip_prefix("0x").unwrap_or(&task.tx_hash);
+        let tx_hash_str = reversible_tx_id
+            .strip_prefix("0x")
+            .unwrap_or(reversible_tx_id);
 
         tracing::info!(
             "Reversing transaction for task {} (tx: {})",
             task_id,
-            task.tx_hash
+            reversible_tx_id
         );
 
         let client = self.client.read().await;
@@ -153,10 +153,8 @@ impl TransactionManager {
         drop(client);
 
         // Update task status
-        self.csv
-            .update_task(task_id, |task| {
-                task.mark_reversed();
-            })
+        self.db
+            .update_task_status(task_id, crate::db_persistence::TaskStatus::Reversed)
             .await?;
 
         tracing::info!(
@@ -185,14 +183,15 @@ impl TransactionManager {
                     tracing::error!("Failed to process task {}: {}", task.task_id, e);
 
                     // Mark task as failed
-                    if let Err(csv_err) = self
-                        .csv
-                        .update_task(&task.task_id, |task| {
-                            task.mark_failed();
-                        })
+                    if let Err(db_err) = self
+                        .db
+                        .update_task_status(
+                            &task.task_id,
+                            crate::db_persistence::TaskStatus::Failed,
+                        )
                         .await
                     {
-                        tracing::error!("Failed to mark task as failed: {}", csv_err);
+                        tracing::error!("Failed to mark task as failed: {}", db_err);
                     }
                 }
             }
@@ -273,7 +272,7 @@ impl TransactionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csv_persistence::CsvPersistence;
+    use crate::db_persistence::DbPersistence;
     use tempfile::NamedTempFile;
 
     // Note: These tests would require a running Quantus node
@@ -288,15 +287,17 @@ mod tests {
     #[tokio::test]
     async fn test_wallet_address_format() {
         // This test can run without a node connection
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-
         // This will fail without a node, but we can test the error handling
+        let temp_file = NamedTempFile::new().unwrap();
+        let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
+        let db = Arc::new(DbPersistence::new(&db_url).await.unwrap());
+
+        // This will fail with connection error
         let result = TransactionManager::new(
             "ws://invalid-url:9944",
             "test_wallet",
             "test_password",
-            csv,
+            db,
             chrono::Duration::hours(12),
         )
         .await;

@@ -5,14 +5,14 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
-mod csv_persistence;
+mod db_persistence;
 mod http_server;
 mod reverser;
 mod task_generator;
 mod transaction_manager;
 
 use config::Config;
-use csv_persistence::CsvPersistence;
+use db_persistence::DbPersistence;
 use reverser::start_reverser_service;
 use task_generator::TaskGenerator;
 use transaction_manager::TransactionManager;
@@ -46,8 +46,8 @@ struct Args {
 pub enum AppError {
     #[error("Configuration error: {0}")]
     Config(#[from] ::config::ConfigError),
-    #[error("CSV error: {0}")]
-    Csv(#[from] csv_persistence::CsvError),
+    #[error("Database error: {0}")]
+    Database(#[from] db_persistence::DbError),
     #[error("Transaction manager error: {0}")]
     Transaction(#[from] transaction_manager::TransactionError),
     #[error("Task generator error: {0}")]
@@ -88,15 +88,13 @@ async fn main() -> AppResult<()> {
     info!("Node URL: {}", config.blockchain.node_url);
     info!("Wallet: {}", config.blockchain.wallet_name);
 
-    // Initialize CSV persistence
-    let csv_path = config.get_csv_path();
-    info!("CSV file path: {}", csv_path.display());
-    let csv = Arc::new(CsvPersistence::new(csv_path));
+    // Initialize database persistence
+    let db_url = config.get_database_url();
+    info!("Database URL: {}", db_url);
+    let db = Arc::new(DbPersistence::new(db_url).await?);
 
-    // Load existing tasks from CSV
-    csv.load().await?;
-    let initial_task_count = csv.task_count().await;
-    info!("Loaded {} existing tasks from CSV", initial_task_count);
+    let initial_task_count = db.task_count().await?;
+    info!("Loaded {} existing tasks from database", initial_task_count);
 
     // Initialize transaction manager
     info!("Connecting to Quantus node...");
@@ -105,7 +103,7 @@ async fn main() -> AppResult<()> {
             &config.blockchain.node_url,
             &config.blockchain.wallet_name,
             &config.blockchain.wallet_password,
-            csv.clone(),
+            db.clone(),
             config.get_reversal_period_duration(),
         )
         .await?,
@@ -131,7 +129,7 @@ async fn main() -> AppResult<()> {
     }
 
     // Initialize task generator
-    let mut task_generator = TaskGenerator::new(csv.clone());
+    let mut task_generator = TaskGenerator::new(db.clone());
 
     // Initial candidate refresh
     info!("Fetching initial candidates...");
@@ -157,10 +155,10 @@ async fn main() -> AppResult<()> {
     let server_address = config.get_server_address();
     info!("Starting HTTP server on {}", server_address);
 
-    let server_csv = csv.clone();
+    let server_db = db.clone();
     let server_addr_clone = server_address.clone();
     let server_task = tokio::spawn(async move {
-        http_server::start_server(server_csv, &server_addr_clone)
+        http_server::start_server(server_db, &server_addr_clone)
             .await
             .map_err(|e| AppError::Server(e.to_string()))
     });
@@ -204,7 +202,7 @@ async fn main() -> AppResult<()> {
             result.await??;
         }
         result = start_reverser_service(
-            csv.clone(),
+            db.clone(),
             transaction_manager.clone(),
             config.get_reverser_check_duration(),
             config.get_early_reversal_duration().num_minutes(),

@@ -34,8 +34,8 @@ early_reversal_minutes = 2
 check_interval_seconds = 30
 
 [data]
-# CSV file to store task data
-csv_file_path = "tasks.csv"
+# Database configuration
+database_url = "sqlite:taskmaster.db"
 
 [logging]
 # Log level: error, warn, info, debug, trace

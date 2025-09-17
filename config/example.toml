@@ -44,8 +44,8 @@ early_reversal_minutes = 2
 check_interval_seconds = 30
 
 [data]
-# CSV file to store all task data (persistent across restarts)
-csv_file_path = "tasks.csv"
+# Database configuration
+database_url = "sqlite:taskmaster.db"
 
 [logging]
 # Log level: error, warn, info, debug, trace
@@ -55,4 +55,5 @@ level = "info"
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
 # TASKMASTER_CANDIDATES__GRAPHQL_URL="https://your-api.com/graphql"
+# TASKMASTER_DATA__DATABASE_URL="sqlite:/path/to/taskmaster.db"
 # TASKMASTER_LOGGING__LEVEL="debug"

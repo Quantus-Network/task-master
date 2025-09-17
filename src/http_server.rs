@@ -10,12 +10,12 @@ use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::csv_persistence::CsvPersistence;
+use crate::db_persistence::DbPersistence;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpServerError {
-    #[error("CSV error: {0}")]
-    Csv(#[from] crate::csv_persistence::CsvError),
+    #[error("Database error: {0}")]
+    Database(#[from] crate::db_persistence::DbError),
     #[error("Task not found: {0}")]
     TaskNotFound(String),
     #[error("Invalid task URL format: {0}")]
@@ -28,7 +28,7 @@ pub type HttpServerResult<T> = Result<T, HttpServerError>;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
-    pub csv: Arc<CsvPersistence>,
+    pub db: Arc<DbPersistence>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,7 +72,7 @@ pub fn create_router(state: AppState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive())
+                .layer(CorsLayer::permissive()),
         )
         .with_state(state)
 }
@@ -89,26 +89,34 @@ async fn health_check() -> Json<HealthResponse> {
 
 /// Get service status and task counts
 async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse>, StatusCode> {
-    let status_counts = state.csv.status_counts().await;
-    let total_tasks = state.csv.task_count().await;
+    let status_counts = state
+        .db
+        .status_counts()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let total_tasks = state
+        .db
+        .task_count()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response = StatusResponse {
         status: "running".to_string(),
-        total_tasks,
+        total_tasks: total_tasks as usize,
         pending_tasks: status_counts
-            .get(&crate::csv_persistence::TaskStatus::Pending)
+            .get(&crate::db_persistence::TaskStatus::Pending)
             .copied()
             .unwrap_or(0),
         completed_tasks: status_counts
-            .get(&crate::csv_persistence::TaskStatus::Completed)
+            .get(&crate::db_persistence::TaskStatus::Completed)
             .copied()
             .unwrap_or(0),
         reversed_tasks: status_counts
-            .get(&crate::csv_persistence::TaskStatus::Reversed)
+            .get(&crate::db_persistence::TaskStatus::Reversed)
             .copied()
             .unwrap_or(0),
         failed_tasks: status_counts
-            .get(&crate::csv_persistence::TaskStatus::Failed)
+            .get(&crate::db_persistence::TaskStatus::Failed)
             .copied()
             .unwrap_or(0),
     };
@@ -121,7 +129,10 @@ async fn complete_task(
     State(state): State<AppState>,
     Json(payload): Json<CompleteTaskRequest>,
 ) -> Result<Json<CompleteTaskResponse>, (StatusCode, Json<CompleteTaskResponse>)> {
-    tracing::info!("Received task completion request for URL: {}", payload.task_url);
+    tracing::info!(
+        "Received task completion request for URL: {}",
+        payload.task_url
+    );
 
     // Validate task URL format (12 digits)
     if payload.task_url.len() != 12 || !payload.task_url.chars().all(|c| c.is_ascii_digit()) {
@@ -134,9 +145,9 @@ async fn complete_task(
     }
 
     // Find task by URL
-    let task = match state.csv.find_task_by_url(&payload.task_url).await {
-        Some(task) => task,
-        None => {
+    let task = match state.db.find_task_by_url(&payload.task_url).await {
+        Ok(Some(task)) => task,
+        Ok(None) => {
             let response = CompleteTaskResponse {
                 success: false,
                 message: format!("Task not found with URL: {}", payload.task_url),
@@ -144,14 +155,22 @@ async fn complete_task(
             };
             return Err((StatusCode::NOT_FOUND, Json(response)));
         }
+        Err(_) => {
+            let response = CompleteTaskResponse {
+                success: false,
+                message: "Database error".to_string(),
+                task_id: None,
+            };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+        }
     };
 
     // Check if task is in a valid state for completion
     match task.status {
-        crate::csv_persistence::TaskStatus::Pending => {
+        crate::db_persistence::TaskStatus::Pending => {
             // Task can be completed
         }
-        crate::csv_persistence::TaskStatus::Completed => {
+        crate::db_persistence::TaskStatus::Completed => {
             let response = CompleteTaskResponse {
                 success: false,
                 message: "Task is already completed".to_string(),
@@ -159,7 +178,7 @@ async fn complete_task(
             };
             return Err((StatusCode::CONFLICT, Json(response)));
         }
-        crate::csv_persistence::TaskStatus::Reversed => {
+        crate::db_persistence::TaskStatus::Reversed => {
             let response = CompleteTaskResponse {
                 success: false,
                 message: "Task has already been reversed".to_string(),
@@ -167,7 +186,7 @@ async fn complete_task(
             };
             return Err((StatusCode::CONFLICT, Json(response)));
         }
-        crate::csv_persistence::TaskStatus::Failed => {
+        crate::db_persistence::TaskStatus::Failed => {
             let response = CompleteTaskResponse {
                 success: false,
                 message: "Task has failed and cannot be completed".to_string(),
@@ -178,9 +197,11 @@ async fn complete_task(
     }
 
     // Mark task as completed
-    match state.csv.update_task(&task.task_id, |task| {
-        task.mark_completed();
-    }).await {
+    match state
+        .db
+        .update_task_status(&task.task_id, crate::db_persistence::TaskStatus::Completed)
+        .await
+    {
         Ok(()) => {
             tracing::info!("Task {} marked as completed", task.task_id);
             let response = CompleteTaskResponse {
@@ -205,8 +226,12 @@ async fn complete_task(
 /// List all tasks (for debugging/monitoring)
 async fn list_all_tasks(
     State(state): State<AppState>,
-) -> Result<Json<Vec<crate::csv_persistence::TaskRecord>>, StatusCode> {
-    let tasks = state.csv.get_all_tasks().await;
+) -> Result<Json<Vec<crate::db_persistence::TaskRecord>>, StatusCode> {
+    let tasks = state
+        .db
+        .get_all_tasks()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(tasks))
 }
 
@@ -214,16 +239,20 @@ async fn list_all_tasks(
 async fn get_task(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
-) -> Result<Json<crate::csv_persistence::TaskRecord>, StatusCode> {
-    match state.csv.get_task(&task_id).await {
-        Some(task) => Ok(Json(task)),
-        None => Err(StatusCode::NOT_FOUND),
+) -> Result<Json<crate::db_persistence::TaskRecord>, StatusCode> {
+    match state.db.get_task(&task_id).await {
+        Ok(Some(task)) => Ok(Json(task)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
 /// Start the HTTP server
-pub async fn start_server(csv: Arc<CsvPersistence>, bind_address: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let state = AppState { csv };
+pub async fn start_server(
+    db: Arc<DbPersistence>,
+    bind_address: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let state = AppState { db };
     let app = create_router(state);
 
     tracing::info!("Starting HTTP server on {}", bind_address);
@@ -237,17 +266,22 @@ pub async fn start_server(csv: Arc<CsvPersistence>, bind_address: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csv_persistence::{CsvPersistence, TaskRecord, TaskStatus};
+    use crate::db_persistence::{DbPersistence, TaskRecord, TaskStatus};
     use axum::http::StatusCode;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
     use tower::ServiceExt; // for `oneshot`
 
+    async fn create_test_db() -> Arc<DbPersistence> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
+        Arc::new(DbPersistence::new(&db_url).await.unwrap())
+    }
+
     #[tokio::test]
     async fn test_health_check() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let state = AppState { csv };
+        let db = create_test_db().await;
+        let state = AppState { db };
         let app = create_router(state);
 
         let response = app
@@ -265,23 +299,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_task_success() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
+        let db = create_test_db().await;
 
-        // Add a test task
-        let mut task = TaskRecord::new(
-            "qztest123".to_string(),
-            5000,
-            "123456789012".to_string(),
-        );
+        // Add address and task
+        db.add_address("qztest123".to_string(), None).await.unwrap();
+        let mut task = TaskRecord::new("qztest123".to_string(), 5000, "123456789012".to_string());
         task.set_transaction_sent(
             "0x123".to_string(),
             chrono::Utc::now(),
             chrono::Utc::now() + chrono::Duration::hours(1),
         );
-        csv.add_task(task).await.unwrap();
+        db.add_task(task).await.unwrap();
 
-        let state = AppState { csv };
+        let state = AppState { db };
         let app = create_router(state);
 
         let request_body = CompleteTaskRequest {
@@ -294,7 +324,9 @@ mod tests {
                     .uri("/complete")
                     .method("POST")
                     .header("content-type", "application/json")
-                    .body(axum::body::Body::from(serde_json::to_string(&request_body).unwrap()))
+                    .body(axum::body::Body::from(
+                        serde_json::to_string(&request_body).unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
@@ -305,9 +337,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_task_not_found() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let state = AppState { csv };
+        let db = create_test_db().await;
+        let state = AppState { db };
         let app = create_router(state);
 
         let request_body = CompleteTaskRequest {
@@ -320,7 +351,9 @@ mod tests {
                     .uri("/complete")
                     .method("POST")
                     .header("content-type", "application/json")
-                    .body(axum::body::Body::from(serde_json::to_string(&request_body).unwrap()))
+                    .body(axum::body::Body::from(
+                        serde_json::to_string(&request_body).unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
@@ -331,9 +364,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_task_invalid_format() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
-        let state = AppState { csv };
+        let db = create_test_db().await;
+        let state = AppState { db };
         let app = create_router(state);
 
         let request_body = CompleteTaskRequest {
@@ -346,7 +378,9 @@ mod tests {
                     .uri("/complete")
                     .method("POST")
                     .header("content-type", "application/json")
-                    .body(axum::body::Body::from(serde_json::to_string(&request_body).unwrap()))
+                    .body(axum::body::Body::from(
+                        serde_json::to_string(&request_body).unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
@@ -357,18 +391,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let csv = Arc::new(CsvPersistence::new(temp_file.path()));
+        let db = create_test_db().await;
 
-        // Add some test tasks with different statuses
-        let mut task1 = TaskRecord::new("qztest1".to_string(), 1000, "111111111111".to_string());
-        task1.mark_completed();
-        csv.add_task(task1).await.unwrap();
+        // Add addresses and tasks with different statuses
+        db.add_address("qztest1".to_string(), None).await.unwrap();
+        db.add_address("qztest2".to_string(), None).await.unwrap();
+
+        let task1 = TaskRecord::new("qztest1".to_string(), 1000, "111111111111".to_string());
+        let task1_id = task1.task_id.clone();
+        db.add_task(task1).await.unwrap();
+        db.update_task_status(&task1_id, TaskStatus::Completed)
+            .await
+            .unwrap();
 
         let task2 = TaskRecord::new("qztest2".to_string(), 2000, "222222222222".to_string());
-        csv.add_task(task2).await.unwrap();
+        db.add_task(task2).await.unwrap();
 
-        let state = AppState { csv };
+        let state = AppState { db };
         let app = create_router(state);
 
         let response = app

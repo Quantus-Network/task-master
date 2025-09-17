@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -46,7 +45,7 @@ pub struct ReverserConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataConfig {
-    pub csv_file_path: String,
+    pub database_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,8 +63,8 @@ impl Config {
         settings.try_deserialize()
     }
 
-    pub fn get_csv_path(&self) -> PathBuf {
-        PathBuf::from(&self.data.csv_file_path)
+    pub fn get_database_url(&self) -> &str {
+        &self.data.database_url
     }
 
     pub fn get_server_address(&self) -> String {
@@ -119,7 +118,7 @@ impl Default for Config {
                 check_interval_seconds: 30,
             },
             data: DataConfig {
-                csv_file_path: "tasks.csv".to_string(),
+                database_url: "sqlite:taskmaster.db".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
