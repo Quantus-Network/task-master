@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use csv::{ReaderBuilder, WriterBuilder};
+use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -47,8 +48,9 @@ impl std::str::FromStr for TaskStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRecord {
     pub task_id: String,
-    pub recipient: String,
-    pub amount: u64,
+    pub quan_address: String,
+    pub quan_amount: u64,
+    pub usdc_amount: u64,
     #[serde(with = "chrono::serde::ts_seconds_option")]
     pub send_time: Option<DateTime<Utc>>,
     #[serde(with = "chrono::serde::ts_seconds_option")]
@@ -60,11 +62,15 @@ pub struct TaskRecord {
 }
 
 impl TaskRecord {
-    pub fn new(recipient: String, amount: u64, task_url: String) -> Self {
+    pub fn new(quan_address: String, quan_amount: u64, task_url: String) -> Self {
+        let mut rng = rand::rng();
+        let usdc_amount = rng.random_range(1..=25);
+
         Self {
             task_id: Uuid::new_v4().to_string(),
-            recipient,
-            amount,
+            quan_address,
+            quan_amount,
+            usdc_amount,
             send_time: None,
             end_time: None,
             task_url,
@@ -288,8 +294,9 @@ mod tests {
 
         // Test finding task
         let found = csv.get_task(&task_id).await.unwrap();
-        assert_eq!(found.recipient, "qztest123");
-        assert_eq!(found.amount, 5000);
+        assert_eq!(found.quan_address, "qztest123");
+        assert_eq!(found.quan_amount, 5000);
+        assert!(found.usdc_amount >= 1 && found.usdc_amount <= 25);
         assert_eq!(found.task_url, "123456789012");
 
         // Test updating task

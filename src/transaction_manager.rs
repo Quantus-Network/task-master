@@ -86,10 +86,10 @@ impl TransactionManager {
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
 
         tracing::info!(
-            "Sending reversible transaction for task {} to {} (amount: {})",
+            "Sending reversible transaction for task {} to {} (quan_amount: {})",
             task_id,
-            task.recipient,
-            task.amount
+            task.quan_address,
+            task.quan_amount
         );
 
         // Send the transaction
@@ -97,8 +97,8 @@ impl TransactionManager {
         let tx_hash = schedule_transfer(
             &*client,
             &self.keypair,
-            &task.recipient,
-            task.amount as u128, // Convert to u128 for quantus-cli
+            &task.quan_address,
+            task.quan_amount as u128, // Convert to u128 for quantus-cli
         )
         .await?;
 

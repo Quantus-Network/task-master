@@ -70,24 +70,26 @@ impl ReverserService {
             return Ok(());
         }
 
-        tracing::info!(
-            "Found {} tasks ready for reversal",
-            tasks_to_reverse.len()
-        );
+        tracing::info!("Found {} tasks ready for reversal", tasks_to_reverse.len());
 
         let mut reversal_count = 0;
         let mut error_count = 0;
 
         for task in tasks_to_reverse {
             tracing::info!(
-                "Reversing task {} (recipient: {}, amount: {}, tx: {})",
+                "Reversing task {} (quan_address: {}, quan_amount: {}, usdc_amount: {}, tx: {})",
                 task.task_id,
-                task.recipient,
-                task.amount,
+                task.quan_address,
+                task.quan_amount,
+                task.usdc_amount,
                 task.tx_hash
             );
 
-            match self.transaction_manager.reverse_transaction(&task.task_id).await {
+            match self
+                .transaction_manager
+                .reverse_transaction(&task.task_id)
+                .await
+            {
                 Ok(()) => {
                     reversal_count += 1;
                     tracing::info!("Successfully reversed task {}", task.task_id);
@@ -97,9 +99,13 @@ impl ReverserService {
                     tracing::error!("Failed to reverse task {}: {}", task.task_id, e);
 
                     // Mark task as failed if reversal failed
-                    if let Err(csv_err) = self.csv.update_task(&task.task_id, |task| {
-                        task.mark_failed();
-                    }).await {
+                    if let Err(csv_err) = self
+                        .csv
+                        .update_task(&task.task_id, |task| {
+                            task.mark_failed();
+                        })
+                        .await
+                    {
                         tracing::error!(
                             "Failed to mark task {} as failed after reversal error: {}",
                             task.task_id,
@@ -197,9 +203,7 @@ pub async fn start_reverser_service(
         early_reversal_minutes,
     );
 
-    tokio::spawn(async move {
-        reverser.start().await
-    })
+    tokio::spawn(async move { reverser.start().await })
 }
 
 #[cfg(test)]

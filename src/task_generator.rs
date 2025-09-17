@@ -114,11 +114,11 @@ impl TaskGenerator {
 
         let mut tasks = Vec::new();
 
-        for recipient in selected_candidates {
-            let amount = self.generate_random_amount();
+        for quan_address in selected_candidates {
+            let quan_amount = self.generate_random_quan_amount();
             let task_url = self.generate_task_url();
 
-            let task = TaskRecord::new(recipient, amount, task_url);
+            let task = TaskRecord::new(quan_address, quan_amount, task_url);
             tasks.push(task);
         }
 
@@ -130,10 +130,11 @@ impl TaskGenerator {
     pub async fn save_tasks(&self, tasks: Vec<TaskRecord>) -> TaskGeneratorResult<()> {
         for task in tasks {
             tracing::debug!(
-                "Saving task: {} -> {} (amount: {}, url: {})",
+                "Saving task: {} -> {} (quan_amount: {}, usdc_amount: {}, url: {})",
                 task.task_id,
-                task.recipient,
-                task.amount,
+                task.quan_address,
+                task.quan_amount,
+                task.usdc_amount,
                 task.task_url
             );
             self.csv.add_task(task).await?;
@@ -184,7 +185,7 @@ impl TaskGenerator {
         Ok(())
     }
 
-    fn generate_random_amount(&self) -> u64 {
+    fn generate_random_quan_amount(&self) -> u64 {
         let mut rng = rand::rng();
         rng.random_range(1000..=9999)
     }
@@ -211,8 +212,8 @@ mod tests {
         let generator = TaskGenerator::new(csv);
 
         for _ in 0..100 {
-            let amount = generator.generate_random_amount();
-            assert!(amount >= 1000 && amount <= 9999);
+            let quan_amount = generator.generate_random_quan_amount();
+            assert!(quan_amount >= 1000 && quan_amount <= 9999);
         }
     }
 
@@ -246,8 +247,9 @@ mod tests {
         assert_eq!(tasks.len(), 2);
 
         for task in &tasks {
-            assert!(task.recipient.starts_with("qztest"));
-            assert!(task.amount >= 1000 && task.amount <= 9999);
+            assert!(task.quan_address.starts_with("qztest"));
+            assert!(task.quan_amount >= 1000 && task.quan_amount <= 9999);
+            assert!(task.usdc_amount >= 1 && task.usdc_amount <= 25);
             assert_eq!(task.task_url.len(), 12);
             assert!(task.task_url.chars().all(|c| c.is_ascii_digit()));
         }

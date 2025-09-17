@@ -26,7 +26,7 @@ A Rust-based task management server that creates reversible blockchain transacti
 ### Data Flow
 
 1. Candidates are fetched from a GraphQL endpoint
-2. Random taskees are selected and tasks are created
+2. Random taskees are selected and tasks are created with QUAN and USDC amounts
 3. Reversible transactions are sent to the Quantus blockchain
 4. Tasks are stored in CSV with pending status
 5. HTTP API allows tasks to be marked as completed
@@ -201,8 +201,9 @@ Tasks are stored in CSV format with the following schema:
 | Field | Type | Description |
 |-------|------|-------------|
 | task_id | UUID | Unique task identifier |
-| recipient | String | Quantus address (starts with 'qz') |
-| amount | Number | Transaction amount (1000-9999) |
+| quan_address | String | Quantus address (starts with 'qz') |
+| quan_amount | Number | Quantus transaction amount (1000-9999) |
+| usdc_amount | Number | USDC reward amount for task completion (1-25) |
 | send_time | Timestamp | When transaction was sent |
 | end_time | Timestamp | When transaction expires |
 | task_url | String | 12-digit random task identifier |
@@ -257,6 +258,8 @@ Available levels: `error`, `warn`, `info`, `debug`, `trace`
 - **Task Generation Rate**: Tasks created per hour
 - **Transaction Success Rate**: Percentage of successful blockchain transactions
 - **Reversal Rate**: Percentage of tasks that get reversed
+- **Average QUAN Amount**: Monitor transaction amounts (1000-9999)
+- **Average USDC Reward**: Monitor reward amounts (1-25)
 - **API Response Time**: HTTP endpoint performance
 - **Wallet Balance**: Ensure sufficient funds for transactions
 
@@ -271,6 +274,7 @@ Available levels: `error`, `warn`, `info`, `debug`, `trace`
 2024-01-01T12:05:01Z INFO  Successfully processed 5 transactions
 2024-01-01T12:07:30Z INFO  Task 550e8400-e29b-41d4-a716-446655440000 marked as completed
 2024-01-01T12:30:00Z INFO  Found 2 tasks ready for reversal
+2024-01-01T12:30:01Z INFO  Reversing task abc123 (quan_address: qz..., quan_amount: 2500, usdc_amount: 15, tx: 0x...)
 ```
 
 ## Development
