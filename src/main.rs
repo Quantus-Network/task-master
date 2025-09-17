@@ -6,6 +6,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
 mod db_persistence;
+mod graphql_client;
 mod http_server;
 mod reverser;
 mod signature_verification;
@@ -14,6 +15,7 @@ mod transaction_manager;
 
 use config::Config;
 use db_persistence::DbPersistence;
+use graphql_client::GraphqlClient;
 use reverser::start_reverser_service;
 use task_generator::TaskGenerator;
 use transaction_manager::TransactionManager;
@@ -41,6 +43,10 @@ struct Args {
     /// Run once and exit (for testing)
     #[arg(long)]
     run_once: bool,
+
+    /// Sync transfers from GraphQL and store addresses
+    #[arg(long)]
+    sync_transfers: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -59,6 +65,8 @@ pub enum AppError {
     Server(String),
     #[error("Join error: {0}")]
     Join(#[from] tokio::task::JoinError),
+    #[error("GraphQL error: {0}")]
+    Graphql(#[from] graphql_client::GraphqlError),
 }
 
 type AppResult<T> = Result<T, AppError>;
@@ -96,6 +104,17 @@ async fn main() -> AppResult<()> {
 
     let initial_task_count = db.task_count().await?;
     info!("Loaded {} existing tasks from database", initial_task_count);
+
+    if args.sync_transfers {
+        info!("Running in sync-transfers mode");
+        let graphql_client = GraphqlClient::new((*db).clone());
+        let (transfer_count, address_count) = graphql_client.sync_transfers_and_addresses().await?;
+        info!(
+            "Sync completed successfully: {} transfers processed, {} addresses stored",
+            transfer_count, address_count
+        );
+        return Ok(());
+    }
 
     // Initialize transaction manager
     info!("Connecting to Quantus node...");

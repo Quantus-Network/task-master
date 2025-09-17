@@ -7,6 +7,7 @@
 
 pub mod config;
 pub mod db_persistence;
+pub mod graphql_client;
 pub mod http_server;
 pub mod reverser;
 pub mod signature_verification;
@@ -16,6 +17,7 @@ pub mod transaction_manager;
 // Re-export commonly used types
 pub use config::Config;
 pub use db_persistence::{Address, DbPersistence, TaskRecord, TaskStatus};
+pub use graphql_client::{GraphqlClient, SyncStats, Transfer};
 pub use http_server::{AppState, CompleteTaskRequest, CompleteTaskResponse};
 pub use reverser::{ReversalStats, ReverserService};
 pub use task_generator::TaskGenerator;
@@ -23,6 +25,7 @@ pub use transaction_manager::TransactionManager;
 
 // Re-export errors
 pub use db_persistence::DbError;
+pub use graphql_client::GraphqlError;
 pub use http_server::HttpServerError;
 pub use reverser::ReverserError;
 pub use signature_verification::{EthAddressAssociation, SignatureError};

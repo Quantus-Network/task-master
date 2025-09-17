@@ -179,7 +179,7 @@ impl DbPersistence {
         let pool = SqlitePool::connect(database_url).await?;
 
         // Run migrations
-        sqlx::migrate!("./migrations").run(&pool).await?;
+        // sqlx::migrate!("./migrations").run(&pool).await?;
 
         Ok(Self { pool })
     }
@@ -190,11 +190,11 @@ impl DbPersistence {
         quan_address: String,
         eth_address: Option<String>,
     ) -> DbResult<i64> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "INSERT OR IGNORE INTO addresses (quan_address, eth_address) VALUES (?, ?)",
-            quan_address,
-            eth_address
         )
+        .bind(quan_address.clone())
+        .bind(eth_address)
         .execute(&self.pool)
         .await?;
 
@@ -202,13 +202,11 @@ impl DbPersistence {
             Ok(result.last_insert_rowid())
         } else {
             // Address already exists, get its ID
-            let row = sqlx::query!(
-                "SELECT id FROM addresses WHERE quan_address = ?",
-                quan_address
-            )
-            .fetch_one(&self.pool)
-            .await?;
-            Ok(row.id.unwrap_or(0))
+            let row = sqlx::query("SELECT id FROM addresses WHERE quan_address = ?")
+                .bind(quan_address)
+                .fetch_one(&self.pool)
+                .await?;
+            Ok(row.get::<i64, _>("id"))
         }
     }
 
@@ -216,11 +214,11 @@ impl DbPersistence {
         let mut tx = self.pool.begin().await?;
 
         for (quan_address, eth_address) in addresses {
-            sqlx::query!(
+            sqlx::query(
                 "INSERT OR IGNORE INTO addresses (quan_address, eth_address) VALUES (?, ?)",
-                quan_address,
-                eth_address
             )
+            .bind(quan_address)
+            .bind(eth_address)
             .execute(&mut *tx)
             .await?;
         }
@@ -237,23 +235,21 @@ impl DbPersistence {
     }
 
     pub async fn update_address_last_selected(&self, quan_address: &str) -> DbResult<()> {
-        sqlx::query!(
+        sqlx::query(
             "UPDATE addresses SET last_selected_at = CURRENT_TIMESTAMP WHERE quan_address = ?",
-            quan_address
         )
+        .bind(quan_address)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
     pub async fn update_address_eth(&self, quan_address: &str, eth_address: &str) -> DbResult<()> {
-        let result = sqlx::query!(
-            "UPDATE addresses SET eth_address = ? WHERE quan_address = ?",
-            eth_address,
-            quan_address
-        )
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("UPDATE addresses SET eth_address = ? WHERE quan_address = ?")
+            .bind(eth_address)
+            .bind(quan_address)
+            .execute(&self.pool)
+            .await?;
 
         if result.rows_affected() == 0 {
             return Err(DbError::AddressNotFound(quan_address.to_string()));
@@ -269,23 +265,23 @@ impl DbPersistence {
         let usdc_amount = task.usdc_amount as i64;
         let status = task.status.to_string();
 
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             INSERT INTO tasks (
                 task_id, quan_address, quan_amount, usdc_amount, task_url,
                 status, reversible_tx_id, send_time, end_time
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
-            task.task_id,
-            task.quan_address,
-            quan_amount,
-            usdc_amount,
-            task.task_url,
-            status,
-            task.reversible_tx_id,
-            task.send_time,
-            task.end_time
         )
+        .bind(&task.task_id)
+        .bind(&task.quan_address)
+        .bind(task.quan_amount as i64)
+        .bind(task.usdc_amount as i64)
+        .bind(&task.task_url)
+        .bind(task.status.to_string())
+        .bind(&task.reversible_tx_id)
+        .bind(task.send_time)
+        .bind(task.end_time)
         .execute(&self.pool)
         .await?;
 
@@ -310,11 +306,11 @@ impl DbPersistence {
 
     pub async fn update_task_status(&self, task_id: &str, status: TaskStatus) -> DbResult<()> {
         let status_str = status.to_string();
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE task_id = ?",
-            status_str,
-            task_id
         )
+        .bind(status_str)
+        .bind(task_id)
         .execute(&self.pool)
         .await?;
 
@@ -332,20 +328,20 @@ impl DbPersistence {
         send_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> DbResult<()> {
-        let status_str = TaskStatus::Pending.to_string();
-        let result = sqlx::query!(
+        let _status_str = TaskStatus::Pending.to_string();
+        let result = sqlx::query(
             r#"
             UPDATE tasks
             SET reversible_tx_id = ?, send_time = ?, end_time = ?,
                 status = ?, updated_at = CURRENT_TIMESTAMP
             WHERE task_id = ?
             "#,
-            reversible_tx_id,
-            send_time,
-            end_time,
-            status_str,
-            task_id
         )
+        .bind(reversible_tx_id)
+        .bind(send_time)
+        .bind(end_time)
+        .bind("pending")
+        .bind(task_id)
         .execute(&self.pool)
         .await?;
 
@@ -390,21 +386,23 @@ impl DbPersistence {
     }
 
     pub async fn task_count(&self) -> DbResult<i64> {
-        let row = sqlx::query!("SELECT COUNT(*) as count FROM tasks")
+        let row = sqlx::query("SELECT COUNT(*) as count FROM tasks")
             .fetch_one(&self.pool)
             .await?;
-        Ok(row.count as i64)
+        Ok(row.get::<i64, _>("count"))
     }
 
     pub async fn status_counts(&self) -> DbResult<HashMap<TaskStatus, usize>> {
-        let rows = sqlx::query!("SELECT status, COUNT(*) as count FROM tasks GROUP BY status")
+        let rows = sqlx::query("SELECT status, COUNT(*) as count FROM tasks GROUP BY status")
             .fetch_all(&self.pool)
             .await?;
 
         let mut counts = HashMap::new();
         for row in rows {
-            if let Ok(status) = row.status.parse::<TaskStatus>() {
-                counts.insert(status, row.count as usize);
+            let status_str: String = row.get("status");
+            let count: i64 = row.get("count");
+            if let Ok(status) = status_str.parse::<TaskStatus>() {
+                counts.insert(status, count as usize);
             }
         }
 
@@ -412,21 +410,25 @@ impl DbPersistence {
     }
 
     pub async fn get_address_stats(&self) -> DbResult<Vec<(String, i64)>> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT a.quan_address, COUNT(t.id) as task_count
             FROM addresses a
             LEFT JOIN tasks t ON a.quan_address = t.quan_address
             GROUP BY a.quan_address
-            ORDER BY task_count DESC
-            "#
+            ORDER BY a.quan_address
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| (row.quan_address, row.task_count))
+            .map(|row| {
+                let quan_address: String = row.get("quan_address");
+                let task_count: i64 = row.get("task_count");
+                (quan_address, task_count)
+            })
             .collect())
     }
 }

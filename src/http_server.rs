@@ -11,6 +11,7 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::db_persistence::DbPersistence;
+use crate::graphql_client::GraphqlClient;
 use crate::signature_verification::{verify_dilithium_signature, SignatureError};
 
 #[derive(Debug, thiserror::Error)]
@@ -83,6 +84,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(get_status))
         .route("/complete", post(complete_task))
         .route("/associate-eth", post(associate_eth_address))
+        .route("/sync-transfers", post(sync_transfers))
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
         .layer(
@@ -353,6 +355,57 @@ async fn associate_eth_address(
     };
 
     Ok(Json(response))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncTransfersResponse {
+    pub success: bool,
+    pub message: String,
+    pub transfers_processed: Option<usize>,
+    pub addresses_stored: Option<usize>,
+}
+
+/// Sync transfers from GraphQL endpoint and store addresses
+async fn sync_transfers(
+    State(state): State<AppState>,
+) -> Result<Json<SyncTransfersResponse>, (StatusCode, Json<SyncTransfersResponse>)> {
+    tracing::info!("Received request to sync transfers from GraphQL endpoint");
+
+    let graphql_client = GraphqlClient::new((*state.db).clone());
+
+    match graphql_client.sync_transfers_and_addresses().await {
+        Ok((transfer_count, address_count)) => {
+            tracing::info!(
+                "Transfer sync completed successfully: {} transfers, {} addresses",
+                transfer_count,
+                address_count
+            );
+
+            let response = SyncTransfersResponse {
+                success: true,
+                message: format!(
+                    "Successfully processed {} transfers and stored {} addresses",
+                    transfer_count, address_count
+                ),
+                transfers_processed: Some(transfer_count),
+                addresses_stored: Some(address_count),
+            };
+
+            Ok(Json(response))
+        }
+        Err(e) => {
+            tracing::error!("Failed to sync transfers: {}", e);
+
+            let response = SyncTransfersResponse {
+                success: false,
+                message: format!("Failed to sync transfers: {}", e),
+                transfers_processed: None,
+                addresses_stored: None,
+            };
+
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)))
+        }
+    }
 }
 
 /// List all tasks (for debugging/monitoring)

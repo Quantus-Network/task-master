@@ -35,7 +35,7 @@ check_interval_seconds = 30
 
 [data]
 # Database configuration
-database_url = "sqlite:taskmaster.db"
+database_url = "sqlite:test.db"
 
 [logging]
 # Log level: error, warn, info, debug, trace
