@@ -171,7 +171,7 @@ pub type DbResult<T> = Result<T, DbError>;
 
 #[derive(Debug, Clone)]
 pub struct DbPersistence {
-    pool: SqlitePool,
+    pub pool: SqlitePool,
 }
 
 impl DbPersistence {
@@ -243,6 +243,22 @@ impl DbPersistence {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    pub async fn update_address_eth(&self, quan_address: &str, eth_address: &str) -> DbResult<()> {
+        let result = sqlx::query!(
+            "UPDATE addresses SET eth_address = ? WHERE quan_address = ?",
+            eth_address,
+            quan_address
+        )
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(DbError::AddressNotFound(quan_address.to_string()));
+        }
+
         Ok(())
     }
 

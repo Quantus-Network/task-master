@@ -11,6 +11,7 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::db_persistence::DbPersistence;
+use crate::signature_verification::{verify_dilithium_signature, SignatureError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpServerError {
@@ -36,11 +37,25 @@ pub struct CompleteTaskRequest {
     pub task_url: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AssociateEthAddressRequest {
+    pub quan_address: String,
+    pub eth_address: String,
+    pub signature: String,
+    pub public_key: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CompleteTaskResponse {
     pub success: bool,
     pub message: String,
     pub task_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AssociateEthAddressResponse {
+    pub success: bool,
+    pub message: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -67,6 +82,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/status", get(get_status))
         .route("/complete", post(complete_task))
+        .route("/associate-eth", post(associate_eth_address))
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
         .layer(
@@ -221,6 +237,122 @@ async fn complete_task(
             Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)))
         }
     }
+}
+
+/// Associate an Ethereum address with a Quantus address using signature verification
+async fn associate_eth_address(
+    State(state): State<AppState>,
+    Json(payload): Json<AssociateEthAddressRequest>,
+) -> Result<Json<AssociateEthAddressResponse>, (StatusCode, Json<AssociateEthAddressResponse>)> {
+    tracing::info!(
+        "Received ETH address association request for quan_address: {} -> eth_address: {} (pubkey: {})",
+        payload.quan_address,
+        payload.eth_address,
+        payload.public_key
+    );
+
+    // Verify the signature
+    match verify_dilithium_signature(
+        &payload.quan_address,
+        &payload.eth_address,
+        &payload.signature,
+        &payload.public_key,
+    ) {
+        Ok(true) => {
+            tracing::info!("Signature verification successful");
+        }
+        Ok(false) => {
+            let response = AssociateEthAddressResponse {
+                success: false,
+                message: "Signature verification failed".to_string(),
+            };
+            return Err((StatusCode::UNAUTHORIZED, Json(response)));
+        }
+        Err(SignatureError::VerificationFailed) => {
+            tracing::warn!("Dilithium signature verification failed");
+            let response = AssociateEthAddressResponse {
+                success: false,
+                message: "Dilithium signature verification failed".to_string(),
+            };
+            return Err((StatusCode::UNAUTHORIZED, Json(response)));
+        }
+        Err(e) => {
+            tracing::error!("Signature verification error: {}", e);
+            let response = AssociateEthAddressResponse {
+                success: false,
+                message: format!("Signature verification failed: {}", e),
+            };
+            return Err((StatusCode::BAD_REQUEST, Json(response)));
+        }
+    }
+
+    // Check if the quan_address exists in the database
+    let addresses = match state.db.get_all_addresses().await {
+        Ok(addrs) => addrs,
+        Err(_) => {
+            let response = AssociateEthAddressResponse {
+                success: false,
+                message: "Database error while checking addresses".to_string(),
+            };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+        }
+    };
+
+    let quan_address_exists = addresses
+        .iter()
+        .any(|addr| addr.quan_address == payload.quan_address);
+
+    if !quan_address_exists {
+        // Add the quan_address to the database if it doesn't exist
+        if let Err(_) = state
+            .db
+            .add_address(
+                payload.quan_address.clone(),
+                Some(payload.eth_address.clone()),
+            )
+            .await
+        {
+            let response = AssociateEthAddressResponse {
+                success: false,
+                message: "Failed to add address to database".to_string(),
+            };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+        }
+        tracing::info!(
+            "Added new quan_address {} with eth_address {}",
+            payload.quan_address,
+            payload.eth_address
+        );
+    } else {
+        // Update existing address with eth_address
+        match state
+            .db
+            .update_address_eth(&payload.quan_address, &payload.eth_address)
+            .await
+        {
+            Ok(_) => {
+                tracing::info!(
+                    "Updated quan_address {} with eth_address {}",
+                    payload.quan_address,
+                    payload.eth_address
+                );
+            }
+            Err(_) => {
+                let response = AssociateEthAddressResponse {
+                    success: false,
+                    message: "Failed to update address in database".to_string(),
+                };
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+            }
+        }
+    }
+
+    let response = AssociateEthAddressResponse {
+        success: true,
+        message: "Ethereum address associated successfully".to_string(),
+    };
+
+    Ok(Json(response))
 }
 
 /// List all tasks (for debugging/monitoring)

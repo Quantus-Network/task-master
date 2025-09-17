@@ -148,6 +148,31 @@ curl -X POST http://localhost:3000/complete \
 }
 ```
 
+### Associate ETH Address
+
+Associate an Ethereum address with a Quantus address using Dilithium signature verification:
+
+```bash
+curl -X POST http://localhost:3000/associate-eth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quan_address": "qz5CiMhML4GNdPP3ZFdTGZqQyU7hcU8aKJPXqQq8RgHq1b6a",
+    "eth_address": "0x742d35Cc6634C0532925a3b8D9C0ACC27D7B8b9f",
+    "signature": "0x1a2b3c4d5e6f...",
+    "public_key": "0x1234567890abcdef..."
+  }'
+```
+
+The signature must be created by signing the ETH address (without 0x prefix) using the Dilithium private key. The public_key must be the corresponding Dilithium public key that derives the quan_address when hashed.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Ethereum address associated successfully"
+}
+```
+
 ### Health Check
 
 ```bash

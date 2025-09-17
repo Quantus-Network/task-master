@@ -8,6 +8,7 @@ mod config;
 mod db_persistence;
 mod http_server;
 mod reverser;
+mod signature_verification;
 mod task_generator;
 mod transaction_manager;
 
