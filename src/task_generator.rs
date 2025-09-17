@@ -87,6 +87,30 @@ impl TaskGenerator {
         Ok(())
     }
 
+    /// Refresh candidates from local database addresses
+    pub async fn refresh_candidates_from_db(&mut self) -> TaskGeneratorResult<()> {
+        tracing::info!("Refreshing candidates from local database");
+
+        let addresses = self.db.get_all_addresses().await?;
+
+        let mut new_candidates = Vec::new();
+        for address in addresses {
+            // Validate that it's a proper quantus address (starts with qz)
+            if address.quan_address.starts_with("qz") && address.quan_address.len() > 10 {
+                new_candidates.push(address.quan_address);
+            } else {
+                tracing::warn!("Invalid candidate address format: {}", address.quan_address);
+            }
+        }
+
+        self.candidates = new_candidates;
+        tracing::info!(
+            "Refreshed {} candidates from database",
+            self.candidates.len()
+        );
+        Ok(())
+    }
+
     /// Generate tasks by randomly selecting taskees
     pub async fn generate_tasks(&self, count: usize) -> TaskGeneratorResult<Vec<TaskRecord>> {
         if self.candidates.is_empty() {

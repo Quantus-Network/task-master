@@ -47,6 +47,10 @@ struct Args {
     /// Sync transfers from GraphQL and store addresses
     #[arg(long)]
     sync_transfers: bool,
+
+    /// Test address selection from database
+    #[arg(long)]
+    test_selection: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -113,6 +117,50 @@ async fn main() -> AppResult<()> {
             "Sync completed successfully: {} transfers processed, {} addresses stored",
             transfer_count, address_count
         );
+        return Ok(());
+    }
+
+    if args.test_selection {
+        info!("Running in test-selection mode");
+        let mut task_generator = TaskGenerator::new(db.clone());
+
+        // Load candidates from database
+        if let Err(e) = task_generator.refresh_candidates_from_db().await {
+            error!("Failed to refresh candidates from database: {}", e);
+            return Err(AppError::TaskGenerator(e));
+        }
+
+        info!(
+            "Loaded {} candidates from database",
+            task_generator.candidates_count()
+        );
+
+        // Test generating tasks
+        let test_count = 5; // Generate 5 test tasks
+        match task_generator.generate_tasks(test_count).await {
+            Ok(tasks) => {
+                info!("Successfully generated {} test tasks:", tasks.len());
+                for task in &tasks {
+                    info!(
+                        "  Task {}: {} -> {} QUAN (URL: {})",
+                        task.task_id, task.quan_address, task.quan_amount, task.task_url
+                    );
+                }
+
+                // Optionally save the tasks to database
+                info!("Saving test tasks to database...");
+                if let Err(e) = task_generator.save_tasks(tasks).await {
+                    error!("Failed to save test tasks: {}", e);
+                    return Err(AppError::TaskGenerator(e));
+                }
+                info!("Test tasks saved successfully!");
+            }
+            Err(e) => {
+                error!("Failed to generate test tasks: {}", e);
+                return Err(AppError::TaskGenerator(e));
+            }
+        }
+
         return Ok(());
     }
 
