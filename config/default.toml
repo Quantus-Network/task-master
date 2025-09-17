@@ -6,11 +6,12 @@ port = 3000
 
 [blockchain]
 # Quantus node WebSocket URL
-node_url = "ws://127.0.0.1:9944"
+# node_url = "ws://127.0.0.1:9944"
+node_url = "wss://a.t.res.fm"
 
 # Wallet configuration for transactions
-wallet_name = "task_master_wallet"
-wallet_password = "secure_password_change_me"
+wallet_name = "test_seed_wallet2"
+wallet_password = "test123"
 
 # Reversal period for transactions (in hours)
 reversal_period_hours = 12

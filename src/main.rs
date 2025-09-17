@@ -51,6 +51,18 @@ struct Args {
     /// Test address selection from database
     #[arg(long)]
     test_selection: bool,
+
+    /// Test sending a reversible transaction
+    #[arg(long)]
+    test_transaction: bool,
+
+    /// Destination address for test transaction
+    #[arg(long, requires = "test_transaction")]
+    destination: Option<String>,
+
+    /// Amount for test transaction (in QUAN units)
+    #[arg(long, requires = "test_transaction")]
+    amount: Option<u64>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -158,6 +170,103 @@ async fn main() -> AppResult<()> {
             Err(e) => {
                 error!("Failed to generate test tasks: {}", e);
                 return Err(AppError::TaskGenerator(e));
+            }
+        }
+
+        return Ok(());
+    }
+
+    if args.test_transaction {
+        info!("Running in test-transaction mode");
+        // Initialize transaction manager for testing
+        info!("Connecting to Quantus node...");
+        let transaction_manager = Arc::new(
+            TransactionManager::new(
+                &config.blockchain.node_url,
+                &config.blockchain.wallet_name,
+                &config.blockchain.wallet_password,
+                db.clone(),
+                config.get_reversal_period_duration(),
+            )
+            .await?,
+        );
+
+        // Perform health check
+        if let Err(e) = transaction_manager.health_check().await {
+            error!("Node health check failed: {}", e);
+            return Err(AppError::Transaction(e));
+        }
+
+        let node_info = transaction_manager.get_node_info().await?;
+        info!("✅ Connected to: {}", node_info);
+        info!(
+            "Wallet address: {}",
+            transaction_manager.get_wallet_address()
+        );
+
+        // Check wallet balance
+        match transaction_manager.get_wallet_balance().await {
+            Ok(balance) => info!("Wallet balance: {} units", balance),
+            Err(e) => warn!("Could not check wallet balance: {}", e),
+        }
+
+        // Create or get test task
+        let (task_id, destination_address, amount) = if let (Some(dest), Some(amt)) =
+            (&args.destination, args.amount)
+        {
+            // Create a temporary task for testing with custom parameters
+            use crate::db_persistence::TaskRecord;
+
+            let test_task =
+                TaskRecord::new(dest.clone(), amt, format!("test-{}", rand::random::<u32>()));
+
+            info!(
+                "Creating temporary test task: {} -> {} (amount: {})",
+                test_task.task_id, dest, amt
+            );
+
+            // Add the task to database
+            db.add_task(test_task.clone()).await?;
+
+            (test_task.task_id, dest.clone(), amt)
+        } else {
+            // Use existing task from database
+            let tasks = db.get_all_tasks().await?;
+            if tasks.is_empty() {
+                error!("No tasks found in database. Run --test-selection first to create some tasks, or provide --destination and --amount arguments.");
+                return Err(AppError::Server(
+                    "No tasks available for testing".to_string(),
+                ));
+            }
+
+            let test_task = &tasks[0];
+            (
+                test_task.task_id.clone(),
+                test_task.quan_address.clone(),
+                test_task.quan_amount,
+            )
+        };
+
+        info!(
+            "Testing transaction with task: {} -> {} (amount: {})",
+            task_id, destination_address, amount
+        );
+
+        // Send a reversible transaction
+        match transaction_manager
+            .send_reversible_transaction(&task_id)
+            .await
+        {
+            Ok(tx_hash) => {
+                info!("✅ Reversible transaction sent successfully!");
+                info!("Transaction hash: {}", tx_hash);
+                info!("Task ID: {}", task_id);
+                info!("Recipient: {}", destination_address);
+                info!("Amount: {} QUAN", amount);
+            }
+            Err(e) => {
+                error!("❌ Failed to send reversible transaction: {}", e);
+                return Err(AppError::Transaction(e));
             }
         }
 

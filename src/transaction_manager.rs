@@ -78,7 +78,7 @@ impl TransactionManager {
     }
 
     /// Send a reversible transaction for a task
-    pub async fn send_reversible_transaction(&self, task_id: &str) -> TransactionResult<()> {
+    pub async fn send_reversible_transaction(&self, task_id: &str) -> TransactionResult<String> {
         let task = self
             .db
             .get_task(task_id)
@@ -113,13 +113,15 @@ impl TransactionManager {
             .update_task_transaction(task_id, format!("0x{:x}", tx_hash), send_time, end_time)
             .await?;
 
+        let tx_hash_string = format!("0x{:x}", tx_hash);
+
         tracing::info!(
-            "Transaction sent successfully. Hash: 0x{:x}, End time: {}",
-            tx_hash,
+            "Transaction sent successfully. Hash: {}, End time: {}",
+            tx_hash_string,
             end_time.format("%Y-%m-%d %H:%M:%S UTC")
         );
 
-        Ok(())
+        Ok(tx_hash_string)
     }
 
     /// Cancel/reverse a transaction
@@ -175,9 +177,13 @@ impl TransactionManager {
 
         for task in tasks {
             match self.send_reversible_transaction(&task.task_id).await {
-                Ok(()) => {
+                Ok(tx_hash) => {
                     processed_tasks.push(task.task_id.clone());
-                    tracing::info!("Successfully processed task: {}", task.task_id);
+                    tracing::info!(
+                        "Successfully processed task: {} with tx: {}",
+                        task.task_id,
+                        tx_hash
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Failed to process task {}: {}", task.task_id, e);
