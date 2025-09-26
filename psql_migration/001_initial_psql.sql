@@ -9,9 +9,9 @@ $$ LANGUAGE plpgsql;
 
 -- Addresses table
 CREATE TABLE addresses (
-    quan_address TEXT PRIMARY KEY,
-    eth_address TEXT,
-    referral_code TEXT UNIQUE,
+    quan_address VARCHAR(64) PRIMARY KEY,
+    eth_address VARCHAR(64),
+    referral_code VARCHAR(7) UNIQUE,
     referrals_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_selected_at TIMESTAMPTZ
@@ -23,9 +23,9 @@ CREATE INDEX idx_addresses_last_selected ON addresses (last_selected_at);
 CREATE TABLE referrals (
     id SERIAL PRIMARY KEY,
     -- The user who owns this referral code
-    referrer_address TEXT NOT NULL REFERENCES addresses(quan_address) ON DELETE CASCADE,
+    referrer_address VARCHAR(64) NOT NULL REFERENCES addresses(quan_address) ON DELETE CASCADE,
     -- The user who signed up using this referral code
-    referee_address TEXT UNIQUE REFERENCES addresses(quan_address) ON DELETE SET NULL,
+    referee_address VARCHAR(64) UNIQUE REFERENCES addresses(quan_address) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -35,11 +35,11 @@ CREATE INDEX idx_referrals_referrer ON referrals(referrer_address);
 CREATE TABLE tasks (
     id SERIAL PRIMARY KEY,
     task_id TEXT UNIQUE NOT NULL,
-    quan_address TEXT NOT NULL REFERENCES addresses (quan_address),
+    quan_address VARCHAR(64) NOT NULL REFERENCES addresses (quan_address),
     quan_amount BIGINT NOT NULL, -- Changed to BIGINT for larger integer values
     usdc_amount BIGINT NOT NULL, -- Changed to BIGINT for larger integer values
     task_url TEXT UNIQUE NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
+    status VARCHAR(64) NOT NULL DEFAULT 'pending',
     reversible_tx_id TEXT,
     send_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
