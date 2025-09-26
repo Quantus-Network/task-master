@@ -12,6 +12,9 @@ mod reverser;
 mod signature_verification;
 mod task_generator;
 mod transaction_manager;
+mod models;
+mod errors;
+mod utils;
 
 use config::Config;
 use db_persistence::DbPersistence;

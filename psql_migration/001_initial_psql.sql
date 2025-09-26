@@ -36,8 +36,8 @@ CREATE TABLE tasks (
     id SERIAL PRIMARY KEY,
     task_id TEXT UNIQUE NOT NULL,
     quan_address VARCHAR(64) NOT NULL REFERENCES addresses (quan_address),
-    quan_amount BIGINT NOT NULL, -- Changed to BIGINT for larger integer values
-    usdc_amount BIGINT NOT NULL, -- Changed to BIGINT for larger integer values
+    quan_amount BIGINT NOT NULL,
+    usdc_amount BIGINT NOT NULL,
     task_url TEXT UNIQUE NOT NULL,
     status VARCHAR(64) NOT NULL DEFAULT 'pending',
     reversible_tx_id TEXT,
