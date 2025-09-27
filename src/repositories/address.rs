@@ -14,7 +14,7 @@ impl AddressRepository {
     pub async fn create(&self, new_address: &Address) -> DbResult<String> {
         let created_id = sqlx::query_scalar::<_, String>(
             "
-        INSERT INTO address (quan_address, eth_address, referral_code, referrals_count) 
+        INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count) 
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (quan_address) DO NOTHING
         RETURNING quan_address
