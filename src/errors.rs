@@ -1,10 +1,24 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Serialize;
 
+#[derive(Debug, thiserror::Error)]
+pub enum DbError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
+    #[error("Task not found: {0}")]
+    TaskNotFound(String),
+    #[error("Address not found: {0}")]
+    AddressNotFound(String),
+    #[error("Invalid task status: {0}")]
+    InvalidStatus(String),
+}
+
 #[derive(Debug)]
 pub enum AppError {
     ValidationErrors(ValidationErrors),
-    DatabaseError(String),
+    DatabaseError(DbError),
     NotFound(String),
     InternalServerError,
 }

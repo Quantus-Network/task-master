@@ -13,6 +13,7 @@ mod signature_verification;
 mod task_generator;
 mod transaction_manager;
 mod models;
+mod repositories;
 mod errors;
 mod utils;
 
