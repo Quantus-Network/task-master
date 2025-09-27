@@ -6,7 +6,6 @@
 //! HTTP API requests.
 
 pub mod config;
-pub mod db_persistence;
 pub mod graphql_client;
 pub mod http_server;
 pub mod reverser;
