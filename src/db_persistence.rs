@@ -1,13 +1,9 @@
-// src/repositories/db_persistence.rs
-
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
-// Import your repositories
+use crate::repositories::DbResult;
 use crate::repositories::{
     address::AddressRepository, referral::ReferralRepository, task::TaskRepository,
-};
-use crate::repositories::DbResult; // Keep your DbResult type
-
+}; 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("Database error: {0}")]
@@ -36,6 +32,10 @@ impl DbPersistence {
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .connect(database_url)
+            .await?;
+
+        sqlx::migrate!("./psql_migration") // Assumes migrations are in a `migrations` folder
+            .run(&pool)
             .await?;
 
         let tasks = TaskRepository::new(&pool);

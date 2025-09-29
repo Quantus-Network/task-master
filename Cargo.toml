@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Quantus CLI for blockchain interactions
-quantus-cli = { path = "../quantus-cli" }
+quantus-cli = "0.2.1"
 # Human checkphrase
 human-readable-checksum = { path = "../human-checkphrase" }
 

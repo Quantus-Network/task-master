@@ -13,6 +13,7 @@ pub mod db_persistence;
 pub mod services;
 pub mod http_server;
 pub mod utils;
+// pub mod routes;
 
 // Re-export commonly used types
 pub use config::Config;
