@@ -1,3 +1,13 @@
+use crate::{
+    db_persistence::DbPersistence,
+    models::task::{Task, TaskInput},
+    services::{
+        graphql_client::{self, GraphqlClient},
+        reverser::{self, start_reverser_service},
+        task_generator::{self, TaskGenerator},
+        transaction_manager::{self, TransactionManager},
+    },
+};
 use clap::Parser;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -6,23 +16,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
 mod db_persistence;
-mod graphql_client;
+mod errors;
 mod http_server;
-mod reverser;
-mod signature_verification;
-mod task_generator;
-mod transaction_manager;
 mod models;
 mod repositories;
-mod errors;
+mod services;
 mod utils;
 
 use config::Config;
-use db_persistence::DbPersistence;
-use graphql_client::GraphqlClient;
-use reverser::start_reverser_service;
-use task_generator::TaskGenerator;
-use transaction_manager::TransactionManager;
 
 #[derive(Parser, Debug)]
 #[command(name = "task-master")]
@@ -73,6 +74,8 @@ struct Args {
 pub enum AppError {
     #[error("Configuration error: {0}")]
     Config(#[from] ::config::ConfigError),
+    #[error("Data model error: {0}")]
+    Model(#[from] models::ModelError),
     #[error("Database error: {0}")]
     Database(#[from] db_persistence::DbError),
     #[error("Transaction manager error: {0}")]
@@ -122,7 +125,7 @@ async fn main() -> AppResult<()> {
     info!("Database URL: {}", db_url);
     let db = Arc::new(DbPersistence::new(db_url).await?);
 
-    let initial_task_count = db.task_count().await?;
+    let initial_task_count = db.tasks.task_count().await?;
     info!("Loaded {} existing tasks from database", initial_task_count);
 
     if args.sync_transfers {
@@ -159,7 +162,7 @@ async fn main() -> AppResult<()> {
                 for task in &tasks {
                     info!(
                         "  Task {}: {} -> {} QUAN (URL: {})",
-                        task.task_id, task.quan_address, task.quan_amount, task.task_url
+                        task.task_id, task.quan_address.0, task.quan_amount.0, task.task_url
                     );
                 }
 
@@ -219,10 +222,13 @@ async fn main() -> AppResult<()> {
             (&args.destination, args.amount)
         {
             // Create a temporary task for testing with custom parameters
-            use crate::db_persistence::TaskRecord;
+            let task_input = TaskInput {
+                quan_address: dest.clone(),
+                quan_amount: amt,
+                task_url: format!("test-{}", rand::random::<u32>()),
+            };
 
-            let test_task =
-                TaskRecord::new(dest.clone(), amt, format!("test-{}", rand::random::<u32>()));
+            let test_task = Task::new(task_input)?;
 
             info!(
                 "Creating temporary test task: {} -> {} (amount: {})",
@@ -230,12 +236,12 @@ async fn main() -> AppResult<()> {
             );
 
             // Add the task to database
-            db.add_task(test_task.clone()).await?;
+            db.tasks.create(&test_task).await?;
 
             (test_task.task_id, dest.clone(), amt)
         } else {
             // Use existing task from database
-            let tasks = db.get_all_tasks().await?;
+            let tasks = db.tasks.get_all_tasks().await?;
             if tasks.is_empty() {
                 error!("No tasks found in database. Run --test-selection first to create some tasks, or provide --destination and --amount arguments.");
                 return Err(AppError::Server(
@@ -246,8 +252,8 @@ async fn main() -> AppResult<()> {
             let test_task = &tasks[0];
             (
                 test_task.task_id.clone(),
-                test_task.quan_address.clone(),
-                test_task.quan_amount,
+                test_task.quan_address.0.clone(),
+                test_task.quan_amount.0 as u64,
             )
         };
 

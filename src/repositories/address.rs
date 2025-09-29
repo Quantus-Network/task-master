@@ -1,8 +1,8 @@
 use sqlx::PgPool;
 
-use crate::{errors::DbError, models::address::Address, repositories::DbResult};
+use crate::{models::address::Address, repositories::DbResult};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AddressRepository {
     pool: PgPool,
 }
@@ -22,15 +22,15 @@ impl AddressRepository {
         )
         .bind(new_address.quan_address.0.clone())
         .bind(new_address.eth_address.0.clone())
-        .bind(new_address.referral_code.0.clone())
-        .bind(new_address.referrals_count.0)
+        .bind(new_address.referral_code.clone())
+        .bind(new_address.referrals_count)
         .fetch_optional(&self.pool)
         .await?;
 
         if let Some(id) = created_id {
             Ok(id)
         } else {
-            let existing_address = self.find_by_id(new_address.quan_address).await?;
+            let existing_address = self.find_by_id(&new_address.quan_address.0).await?.unwrap();
             Ok(existing_address.quan_address.0)
         }
     }
@@ -40,43 +40,38 @@ impl AddressRepository {
             return Ok(0);
         }
 
-        // Deconstruct the Vec<Address> into separate vectors for each column,
-        // accessing the inner value (`.0`) from your newtype structs.
-        let (quan_addresses, eth_addresses, referral_codes, referrals_counts): (
-            Vec<String>,
-            Vec<String>,
-            Vec<String>,
-            Vec<i32>,
-        ) = addresses
-            .into_iter()
-            .map(|a| {
-                (
-                    a.quan_address.0,
-                    a.eth_address.0,
-                    a.referral_code.0,
-                    a.referrals_count.0,
-                )
-            })
-            .unzip();
+        // Manually deconstruct the Vec<Address> into four separate vectors.
+        // This is the fix for the `unzip` limitation.
+        let mut quan_addresses = Vec::with_capacity(addresses.len());
+        let mut eth_addresses = Vec::with_capacity(addresses.len());
+        let mut referral_codes = Vec::with_capacity(addresses.len());
+        let mut referrals_counts = Vec::with_capacity(addresses.len());
+
+        for address in addresses {
+            quan_addresses.push(address.quan_address.0);
+            eth_addresses.push(address.eth_address.0);
+            referral_codes.push(address.referral_code);
+            referrals_counts.push(address.referrals_count);
+        }
 
         let result = sqlx::query(
             r#"
-            INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count)
-            SELECT * FROM UNNEST($1, $2, $3, $4)
-            ON CONFLICT (quan_address) DO NOTHING
-            "#,
+        INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count)
+        SELECT * FROM UNNEST($1, $2, $3, $4)
+        ON CONFLICT (quan_address) DO NOTHING
+        "#,
         )
         .bind(&quan_addresses)
         .bind(&eth_addresses)
         .bind(&referral_codes)
         .bind(&referrals_counts)
-        .execute(&self.pool) // self.pool is your sqlx::PgPool
+        .execute(&self.pool)
         .await?;
 
         Ok(result.rows_affected())
     }
 
-    pub async fn find_by_id(&self, id: String) -> DbResult<Address> {
+    pub async fn find_by_id(&self, id: &str) -> DbResult<Option<Address>> {
         let address =
             sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE quan_address = $1")
                 .bind(id)
@@ -106,7 +101,7 @@ impl AddressRepository {
     }
 
     pub async fn update_address_eth(&self, quan_address: &str, eth_address: &str) -> DbResult<()> {
-        let result = sqlx::query("UPDATE addresses SET eth_address = $1 WHERE quan_address = $2")
+        sqlx::query("UPDATE addresses SET eth_address = $1 WHERE quan_address = $2")
             .bind(eth_address)
             .bind(quan_address)
             .execute(&self.pool)

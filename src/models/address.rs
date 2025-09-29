@@ -1,12 +1,10 @@
 use chrono::{DateTime, Utc};
+use human_readable_checksum::{address_to_checksum, load_bip39_list};
 use quantus_cli::cli::common::resolve_address;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-use crate::{
-    errors::{AppError, ValidationErrors},
-    utils::eth_address_validator::is_valid_eth_address,
-};
+use crate::{models::{ModelError, ModelResult}, utils::eth_address_validator::is_valid_eth_address};
 
 #[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
 #[sqlx(transparent)]
@@ -41,96 +39,41 @@ impl ETHAddress {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct ReferralCode(pub String);
-impl ReferralCode {
-    pub fn from(input: &str) -> Result<Self, String> {
-        if input.is_empty() {
-            return Err(String::from("Referral code shouldn't be empty."));
-        }
-
-        if input.len() == 7 && input.chars().all(char::is_alphabetic) {
-            return Err(String::from("Invalid referral code format"));
-        }
-
-        Ok(ReferralCode(input.to_string()))
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct ReferralsCount(pub i32);
-impl ReferralsCount {
-    pub fn from(input: Option<i32>) -> Result<Self, String> {
-        if let Some(val) = input {
-            if val < 0 {
-                return Err(String::from("Referrals count shouldn't be less than 0"));
-            }
-
-            Ok(ReferralsCount(val))
-        } else {
-            Ok(ReferralsCount(0))
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Address {
     pub quan_address: QuanAddress,
     pub eth_address: ETHAddress,
-    pub referral_code: ReferralCode,
-    pub referrals_count: ReferralsCount,
+    pub referral_code: String,
+    pub referrals_count: i32,
     pub last_selected_at: Option<DateTime<Utc>>,
     pub created_at: Option<DateTime<Utc>>,
 }
 impl Address {
-    pub fn new(input: AddressInput) -> Result<Self, AppError> {
-        let mut errors = ValidationErrors::new();
+    pub fn new(input: AddressInput) -> ModelResult<Self> {
 
         let quan_address = match QuanAddress::from(&input.quan_address) {
             Ok(name) => name,
-            Err(e) => {
-                errors.add("quan_address", e.to_string());
-                QuanAddress("".to_string())
-            }
+            Err(e) => return Err(ModelError::InvalidInput)
         };
 
         let eth_address = match ETHAddress::from(input.eth_address.as_deref()) {
             Ok(eth_address) => eth_address,
-            Err(e) => {
-                errors.add("eth_address", e.to_string());
-                ETHAddress(None)
-            }
+            Err(e) => return Err(ModelError::InvalidInput)
         };
 
-        let referral_code = match ReferralCode::from(&input.referral_code) {
-            Ok(email) => email,
-            Err(e) => {
-                errors.add("referral_code", e.to_string());
-                ReferralCode("".to_string())
-            }
-        };
+        if let Ok(words_list) = load_bip39_list() {
+            let referral_code = address_to_checksum(&quan_address.0, &words_list).join("-");
 
-        let referrals_count = match ReferralsCount::from(input.referrals_count) {
-            Ok(referrals_count) => referrals_count,
-            Err(e) => {
-                errors.add("referrals_count", e.to_string());
-                ReferralsCount(0)
-            }
-        };
-
-        if errors.is_empty() {
             Ok(Address {
                 quan_address,
                 eth_address,
                 referral_code,
-                referrals_count,
+                referrals_count: 0,
                 created_at: None,
                 last_selected_at: None,
             })
         } else {
-            Err(AppError::ValidationErrors(errors))
+            Err(ModelError::FailedGenerateCheckphrase)
         }
     }
 }
@@ -159,6 +102,4 @@ impl<'r> FromRow<'r, PgRow> for Address {
 pub struct AddressInput {
     pub quan_address: String,
     pub eth_address: Option<String>,
-    pub referral_code: String,
-    pub referrals_count: Option<i32>,
 }

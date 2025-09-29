@@ -6,28 +6,30 @@
 //! HTTP API requests.
 
 pub mod config;
-pub mod graphql_client;
+pub mod repositories;
+pub mod errors;
+pub mod models;
+pub mod db_persistence;
+pub mod services;
 pub mod http_server;
-pub mod reverser;
-pub mod signature_verification;
-pub mod task_generator;
-pub mod transaction_manager;
+pub mod utils;
 
 // Re-export commonly used types
 pub use config::Config;
-pub use graphql_client::{GraphqlClient, SyncStats, Transfer};
+pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
 pub use http_server::{AppState, CompleteTaskRequest, CompleteTaskResponse};
-pub use reverser::{ReversalStats, ReverserService};
-pub use task_generator::TaskGenerator;
-pub use transaction_manager::TransactionManager;
+pub use services::reverser::{ReversalStats, ReverserService};
+pub use services::task_generator::TaskGenerator;
+pub use services::transaction_manager::TransactionManager;
 
 // Re-export errors
-pub use graphql_client::GraphqlError;
+pub use db_persistence::DbError;
+pub use services::graphql_client::GraphqlError;
 pub use http_server::HttpServerError;
-pub use reverser::ReverserError;
-pub use signature_verification::{EthAddressAssociation, SignatureError};
-pub use task_generator::TaskGeneratorError;
-pub use transaction_manager::TransactionError;
+pub use services::reverser::ReverserError;
+pub use services::signature_verification::{EthAddressAssociation, SignatureError};
+pub use services::task_generator::TaskGeneratorError;
+pub use services::transaction_manager::TransactionError;
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

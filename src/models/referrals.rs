@@ -2,10 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-use crate::{
-    errors::{AppError, ValidationErrors},
-    models::address::QuanAddress,
-};
+use crate::models::{address::QuanAddress, ModelError, ModelResult};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Referral {
@@ -14,34 +11,22 @@ pub struct Referral {
     pub created_at: Option<DateTime<Utc>>,
 }
 impl Referral {
-    pub fn new(input: ReferralInput) -> Result<Self, AppError> {
-        let mut errors = ValidationErrors::new();
-
+    pub fn new(input: ReferralInput) -> ModelResult<Self> {
         let referrer_address = match QuanAddress::from(&input.referrer_address) {
             Ok(name) => name,
-            Err(e) => {
-                errors.add("referrer_address", e.to_string());
-                QuanAddress("".to_string())
-            }
+            Err(e) => return Err(ModelError::InvalidInput),
         };
 
         let referee_address = match QuanAddress::from(&input.referee_address) {
             Ok(name) => name,
-            Err(e) => {
-                errors.add("referee_address", e.to_string());
-                QuanAddress("".to_string())
-            }
+            Err(e) => return Err(ModelError::InvalidInput),
         };
 
-        if errors.is_empty() {
-            Ok(Referral {
-                referrer_address,
-                referee_address,
-                created_at: None,
-            })
-        } else {
-            Err(AppError::ValidationErrors(errors))
-        }
+        Ok(Referral {
+            referrer_address,
+            referee_address,
+            created_at: None,
+        })
     }
 }
 impl<'r> FromRow<'r, PgRow> for Referral {

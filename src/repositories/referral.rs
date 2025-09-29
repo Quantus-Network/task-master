@@ -1,9 +1,8 @@
-use anyhow::Ok;
 use sqlx::PgPool;
 
-use crate::{errors::DbError, models::referrals::Referral, repositories::DbResult};
+use crate::{models::referrals::Referral, repositories::DbResult};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ReferralRepository {
     pool: PgPool,
 }
@@ -28,10 +27,12 @@ impl ReferralRepository {
         Ok(created_id)
     }
 
-    pub async fn find_all_by_referrer(&self,quan_address: String) -> DbResult<Vec<Referral>> {
-        let referrals = sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referrer_address = $1")
-            .fetch_all(&self.pool)
-            .await?;
+    pub async fn find_all_by_referrer(&self, quan_address: String) -> DbResult<Vec<Referral>> {
+        let referrals =
+            sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referrer_address = $1")
+                .bind(quan_address.clone())
+                .fetch_all(&self.pool)
+                .await?;
 
         Ok(referrals)
     }

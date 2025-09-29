@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, error, info, warn};
 
-use crate::db_persistence::DbPersistence;
+use crate::{
+    db_persistence::{DbError, DbPersistence},
+    models::address::{Address, AddressInput},
+};
 
 const GRAPHQL_ENDPOINT: &str = "https://gql.res.fm/graphql";
 
@@ -16,7 +19,7 @@ pub enum GraphqlError {
     #[error("JSON parsing error: {0}")]
     JsonError(#[from] serde_json::Error),
     #[error("Database error: {0}")]
-    DatabaseError(#[from] crate::db_persistence::DbError),
+    DatabaseError(#[from] DbError),
     #[error("Invalid data format: {0}")]
     InvalidData(String),
 }
@@ -162,7 +165,7 @@ impl GraphqlClient {
     pub async fn store_addresses_from_transfers(
         &self,
         transfers: &[Transfer],
-    ) -> GraphqlResult<usize> {
+    ) -> GraphqlResult<u64> {
         let mut unique_addresses = std::collections::HashSet::new();
 
         // Collect unique addresses from both 'from' and 'to' fields
@@ -178,9 +181,18 @@ impl GraphqlClient {
 
         // Convert to the format expected by add_addresses: Vec<(String, Option<String>)>
         // quan_address, eth_address (None since these are quan addresses from transfers)
-        let addresses_to_store: Vec<(String, Option<String>)> = unique_addresses
+        let addresses_to_store: Vec<Address> = unique_addresses
             .into_iter()
-            .map(|addr| (addr.to_string(), None))
+            .filter_map(|addr| {
+                let input = AddressInput {
+                    quan_address: addr.to_string(),
+                    eth_address: None,
+                };
+
+                // .ok() converts a successful Result into Some(address)
+                // and an error Result into None, which filter_map then discards.
+                Address::new(input).ok()
+            })
             .collect();
 
         if addresses_to_store.is_empty() {
@@ -191,12 +203,22 @@ impl GraphqlClient {
         debug!("Storing addresses in database: {:?}", addresses_to_store);
 
         // Store addresses in the database
-        self.db.add_addresses(addresses_to_store.clone()).await?;
+        match self
+            .db
+            .addresses
+            .create_many(addresses_to_store.clone())
+            .await
+        {
+            Ok(created_count) => {
+                info!(
+                    "Successfully stored {} addresses in database",
+                    created_count
+                );
 
-        let stored_count = addresses_to_store.len();
-        info!("Successfully stored {} addresses in database", stored_count);
-
-        Ok(stored_count)
+                Ok(created_count)
+            }
+            Err(err) => Err(GraphqlError::DatabaseError(err)),
+        }
     }
 
     /// Fetch transfers and store their addresses in one operation
@@ -213,7 +235,7 @@ impl GraphqlClient {
             transfer_count, address_count
         );
 
-        Ok((transfer_count, address_count))
+        Ok((transfer_count, address_count as usize))
     }
 
     /// Get statistics about stored transfers and addresses

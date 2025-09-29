@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 # Quantus CLI for blockchain interactions
 quantus-cli = { path = "../quantus-cli" }
+# Human checkphrase
+human-readable-checksum = { path = "../human-checkphrase" }
 
 # Async runtime
 tokio = { version = "1.46", features = ["full"] }

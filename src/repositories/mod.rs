@@ -1,4 +1,4 @@
-use crate::errors::DbError;
+use crate::db_persistence::DbError;
 
 pub type DbResult<T> = Result<T, DbError>;
 
