@@ -1,7 +1,7 @@
 use crate::{
     db_persistence::{DbError, DbPersistence},
     models::{
-        address::{Address, AddressInput},
+        address::{Address, AddressInput, QuanAddress},
         task::{Task, TaskInput},
     },
 };
@@ -47,8 +47,11 @@ impl TaskGenerator {
 
         // Simple GraphQL query - adjust this based on your actual schema
         let query = serde_json::json!({
-            "query": "{ candidates }"
-        });
+            "query": "{   
+                accounts {
+                    id
+                } 
+            }"});
 
         let response = self
             .http_client
@@ -69,8 +72,8 @@ impl TaskGenerator {
         // Extract candidates array from GraphQL response
         let candidates = response_json
             .get("data")
-            .and_then(|data| data.get("candidates"))
-            .and_then(|candidates| candidates.as_array())
+            .and_then(|data| data.get("accounts"))
+            .and_then(|accounts| accounts.as_array())
             .ok_or_else(|| {
                 TaskGeneratorError::Json(serde_json::Error::io(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
@@ -80,10 +83,10 @@ impl TaskGenerator {
 
         let mut new_candidates = Vec::new();
         for candidate in candidates {
-            if let Some(address) = candidate.as_str() {
+            if let Some(address) = candidate.get("id").and_then(|id| id.as_str()) {
                 // Validate that it's a proper quantus address (starts with qz)
-                if address.starts_with("qz") && address.len() > 10 {
-                    new_candidates.push(address.to_string());
+                if let Ok(valid_address) = QuanAddress::from(address) {
+                    new_candidates.push(valid_address.0.to_string());
                 } else {
                     tracing::warn!("Invalid candidate address format: {}", address);
                 }
