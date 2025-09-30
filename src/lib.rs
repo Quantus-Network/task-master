@@ -13,9 +13,11 @@ pub mod db_persistence;
 pub mod services;
 pub mod http_server;
 pub mod utils;
-// pub mod routes;
+pub mod routes;
+pub mod handlers;
 
 // Re-export commonly used types
+pub use errors::{AppError, AppResult};
 pub use config::Config;
 pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
 pub use http_server::{AppState, CompleteTaskRequest, CompleteTaskResponse};

@@ -1,12 +1,10 @@
 use crate::{
-    db_persistence::DbPersistence,
-    models::task::{Task, TaskInput},
-    services::{
+    db_persistence::DbPersistence, errors::{AppError, AppResult}, models::task::{Task, TaskInput}, services::{
         graphql_client::{self, GraphqlClient},
         reverser::{self, start_reverser_service},
         task_generator::{self, TaskGenerator},
         transaction_manager::{self, TransactionManager},
-    },
+    }
 };
 use clap::Parser;
 use std::sync::Arc;
@@ -22,7 +20,8 @@ mod models;
 mod repositories;
 mod services;
 mod utils;
-// mod routes;
+mod routes;
+mod handlers;
 
 use config::Config;
 
@@ -70,30 +69,6 @@ struct Args {
     #[arg(long, requires = "test_transaction")]
     amount: Option<u64>,
 }
-
-#[derive(Debug, thiserror::Error)]
-pub enum AppError {
-    #[error("Configuration error: {0}")]
-    Config(#[from] ::config::ConfigError),
-    #[error("Data model error: {0}")]
-    Model(#[from] models::ModelError),
-    #[error("Database error: {0}")]
-    Database(#[from] db_persistence::DbError),
-    #[error("Transaction manager error: {0}")]
-    Transaction(#[from] transaction_manager::TransactionError),
-    #[error("Task generator error: {0}")]
-    TaskGenerator(#[from] task_generator::TaskGeneratorError),
-    #[error("Reverser error: {0}")]
-    Reverser(#[from] reverser::ReverserError),
-    #[error("Server error: {0}")]
-    Server(String),
-    #[error("Join error: {0}")]
-    Join(#[from] tokio::task::JoinError),
-    #[error("GraphQL error: {0}")]
-    Graphql(#[from] graphql_client::GraphqlError),
-}
-
-type AppResult<T> = Result<T, AppError>;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {

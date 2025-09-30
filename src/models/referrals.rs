@@ -6,6 +6,7 @@ use crate::models::{address::QuanAddress, ModelError, ModelResult};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Referral {
+    pub id: Option<i32>,
     pub referrer_address: QuanAddress,
     pub referee_address: QuanAddress,
     pub created_at: Option<DateTime<Utc>>,
@@ -23,6 +24,7 @@ impl Referral {
         };
 
         Ok(Referral {
+            id: None,
             referrer_address,
             referee_address,
             created_at: None,
@@ -31,11 +33,13 @@ impl Referral {
 }
 impl<'r> FromRow<'r, PgRow> for Referral {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let id = row.try_get("id")?;
         let referrer_address = row.try_get("referrer_address")?;
         let referee_address = row.try_get("referee_address")?;
         let created_at = row.try_get("created_at")?;
 
         Ok(Referral {
+            id,
             referrer_address,
             referee_address,
             created_at,

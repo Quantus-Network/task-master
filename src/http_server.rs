@@ -11,15 +11,13 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    db_persistence::DbPersistence,
-    models::{
+    db_persistence::DbPersistence, models::{
         address::{Address, AddressInput},
         task::{Task, TaskStatus},
-    },
-    services::{
+    }, routes::api_routes, services::{
         graphql_client::GraphqlClient,
         signature_verification::{verify_dilithium_signature, SignatureError},
-    },
+    }
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -95,6 +93,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/sync-transfers", post(sync_transfers))
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
+        .nest("/api", api_routes()) 
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
