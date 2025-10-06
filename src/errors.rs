@@ -5,14 +5,15 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use tracing::{error, info, warn};
 
 // Bring necessary error types into scope from their respective modules
 use crate::{
     db_persistence::DbError,
     models::ModelError,
     services::{
-        graphql_client::GraphqlError, reverser::ReverserError,
-        task_generator::TaskGeneratorError, transaction_manager::TransactionError,
+        graphql_client::GraphqlError, reverser::ReverserError, task_generator::TaskGeneratorError,
+        transaction_manager::TransactionError,
     },
 };
 
@@ -51,9 +52,17 @@ impl IntoResponse for AppError {
             // User-facing errors (e.g., bad input)
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
+            AppError::Database(err) => {
+                error!("{}", err);
+
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal server error occurred".to_string(), // Hide sensitive details
+                )
+            }
+
             // Internal server errors that shouldn't expose details
-            AppError::Database(_)
-            | AppError::Transaction(_)
+            AppError::Transaction(_)
             | AppError::TaskGenerator(_)
             | AppError::Reverser(_)
             | AppError::Join(_)

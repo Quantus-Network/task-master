@@ -12,7 +12,7 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS addresses (
     quan_address VARCHAR(64) PRIMARY KEY,
     eth_address VARCHAR(64),
-    referral_code VARCHAR(7) UNIQUE,
+    referral_code VARCHAR(255) UNIQUE,
     referrals_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_selected_at TIMESTAMPTZ
