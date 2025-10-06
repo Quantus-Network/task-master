@@ -1,4 +1,4 @@
-use human_readable_checksum::{address_to_checksum, load_bip39_list};
+use qp_human_checkphrase::{address_to_checksum, load_bip39_list};
 use std::sync::OnceLock;
 use tokio::task;
 
