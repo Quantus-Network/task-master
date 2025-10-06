@@ -6,6 +6,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     db_persistence::{DbError, DbPersistence},
     models::address::{Address, AddressInput},
+    utils::generate_referral_code::generate_referral_code,
 };
 
 const GRAPHQL_ENDPOINT: &str = "https://gql.res.fm/graphql";
@@ -161,6 +162,8 @@ impl GraphqlClient {
         Ok(transfer_data.transfers)
     }
 
+    // No need to import `futures` crate
+
     /// Store addresses from transfers in the database
     pub async fn store_addresses_from_transfers(
         &self,
@@ -168,10 +171,10 @@ impl GraphqlClient {
     ) -> GraphqlResult<u64> {
         let mut unique_addresses = std::collections::HashSet::new();
 
-        // Collect unique addresses from both 'from' and 'to' fields
+        // Collect unique addresses
         for transfer in transfers {
-            unique_addresses.insert(&transfer.from.id);
-            unique_addresses.insert(&transfer.to.id);
+            unique_addresses.insert(transfer.from.id.clone());
+            unique_addresses.insert(transfer.to.id.clone());
         }
 
         info!(
@@ -179,42 +182,54 @@ impl GraphqlClient {
             unique_addresses.len()
         );
 
-        // Convert to the format expected by add_addresses: Vec<(String, Option<String>)>
-        // quan_address, eth_address (None since these are quan addresses from transfers)
-        let addresses_to_store: Vec<Address> = unique_addresses
-            .into_iter()
-            .filter_map(|addr| {
-                let input = AddressInput {
-                    quan_address: addr.to_string(),
-                    eth_address: None,
-                };
+        // 1. Create a vector to hold the handles for each spawned task
+        let mut tasks = Vec::new();
 
-                // .ok() converts a successful Result into Some(address)
-                // and an error Result into None, which filter_map then discards.
-                Address::new(input).ok()
-            })
-            .collect();
+        for addr in unique_addresses {
+            // 2. Spawn a new asynchronous task for each address
+            // `tokio::spawn` immediately returns a `JoinHandle`
+            let task = tokio::spawn(async move {
+                if let Ok(referral_code) = generate_referral_code(addr.clone()).await {
+                    let input = AddressInput {
+                        quan_address: addr,
+                        eth_address: None,
+                        referral_code,
+                    };
+                    Address::new(input).ok()
+                } else {
+                    None
+                }
+            });
+            tasks.push(task);
+        }
+
+        let mut addresses_to_store = Vec::new();
+        // 3. Await each task to get its result
+        for task in tasks {
+            match task.await {
+                // Task completed successfully
+                Ok(Some(address)) => addresses_to_store.push(address),
+                // Task completed but returned None (e.g., referral code failed)
+                Ok(None) => (),
+                // Task failed to complete (e.g., panicked)
+                Err(e) => eprintln!("A task failed to execute: {}", e),
+            }
+        }
 
         if addresses_to_store.is_empty() {
-            warn!("No addresses to store");
+            warn!("No valid addresses could be processed and stored");
             return Ok(0);
         }
 
         debug!("Storing addresses in database: {:?}", addresses_to_store);
 
-        // Store addresses in the database
-        match self
-            .db
-            .addresses
-            .create_many(addresses_to_store.clone())
-            .await
-        {
+        // ... (rest of the function is the same)
+        match self.db.addresses.create_many(addresses_to_store).await {
             Ok(created_count) => {
                 info!(
                     "Successfully stored {} addresses in database",
                     created_count
                 );
-
                 Ok(created_count)
             }
             Err(err) => Err(GraphqlError::DatabaseError(err)),

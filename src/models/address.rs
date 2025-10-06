@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
-use human_readable_checksum::{address_to_checksum, load_bip39_list};
-use quantus_cli::cli::common::resolve_address;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-use crate::{models::{ModelError, ModelResult}, utils::eth_address_validator::is_valid_eth_address};
+use crate::{
+    models::{ModelError, ModelResult},
+    utils::eth_address_validator::is_valid_eth_address,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
 #[sqlx(transparent)]
@@ -15,10 +16,11 @@ impl QuanAddress {
             return Err(String::from("Quan address shouldn't be empty."));
         }
 
-        match resolve_address(input) {
-            Ok(val) => return Ok(QuanAddress(val.to_string())),
-            Err(err) => return Err(err.to_string()),
-        };
+        if !input.starts_with("qz") || input.len() <= 10 {
+            return Err(String::from("Invalid address format."));
+        }
+
+        Ok(QuanAddress(input.to_string()))
     }
 }
 
@@ -50,31 +52,24 @@ pub struct Address {
 }
 impl Address {
     pub fn new(input: AddressInput) -> ModelResult<Self> {
-
         let quan_address = match QuanAddress::from(&input.quan_address) {
             Ok(name) => name,
-            Err(e) => return Err(ModelError::InvalidInput)
+            Err(e) => return Err(ModelError::InvalidInput),
         };
 
         let eth_address = match ETHAddress::from(input.eth_address.as_deref()) {
             Ok(eth_address) => eth_address,
-            Err(e) => return Err(ModelError::InvalidInput)
+            Err(e) => return Err(ModelError::InvalidInput),
         };
 
-        if let Ok(words_list) = load_bip39_list() {
-            let referral_code = address_to_checksum(&quan_address.0, &words_list).join("-");
-
-            Ok(Address {
-                quan_address,
-                eth_address,
-                referral_code,
-                referrals_count: 0,
-                created_at: None,
-                last_selected_at: None,
-            })
-        } else {
-            Err(ModelError::FailedGenerateCheckphrase)
-        }
+        Ok(Address {
+            quan_address,
+            eth_address,
+            referral_code: input.referral_code,
+            referrals_count: 0,
+            created_at: None,
+            last_selected_at: None,
+        })
     }
 }
 impl<'r> FromRow<'r, PgRow> for Address {
@@ -102,4 +97,5 @@ impl<'r> FromRow<'r, PgRow> for Address {
 pub struct AddressInput {
     pub quan_address: String,
     pub eth_address: Option<String>,
+    pub referral_code: String,
 }

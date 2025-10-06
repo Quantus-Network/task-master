@@ -4,6 +4,7 @@ use crate::{
         address::{Address, AddressInput, QuanAddress},
         task::{Task, TaskInput},
     },
+    utils::generate_referral_code::generate_referral_code,
 };
 use rand::prelude::*;
 
@@ -177,15 +178,18 @@ impl TaskGenerator {
                 task.task_url
             );
 
-            if let Ok(address) = Address::new(AddressInput {
-                quan_address: task.quan_address.0.clone(),
-                eth_address: None,
-            }) {
-                // Ensure address exists in database
-                self.db.addresses.create(&address).await?;
-                self.db.tasks.create(&task).await?;
-            } else {
-                return Err(TaskGeneratorError::ValidationError);
+            if let Ok(referral_code) = generate_referral_code(task.quan_address.0.clone()).await {
+                if let Ok(address) = Address::new(AddressInput {
+                    quan_address: task.quan_address.0.clone(),
+                    eth_address: None,
+                    referral_code
+                }) {
+                    // Ensure address exists in database
+                    self.db.addresses.create(&address).await?;
+                    self.db.tasks.create(&task).await?;
+                } else {
+                    return Err(TaskGeneratorError::ValidationError);
+                }
             }
         }
         Ok(())

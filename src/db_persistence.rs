@@ -3,7 +3,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use crate::repositories::DbResult;
 use crate::repositories::{
     address::AddressRepository, referral::ReferralRepository, task::TaskRepository,
-}; 
+};
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("Database error: {0}")]
@@ -34,7 +34,7 @@ impl DbPersistence {
             .connect(database_url)
             .await?;
 
-        sqlx::migrate!("./psql_migration") // Assumes migrations are in a `migrations` folder
+        sqlx::migrate!("./migrations") // Assumes migrations are in a `migrations` folder
             .run(&pool)
             .await?;
 

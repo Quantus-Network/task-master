@@ -11,13 +11,16 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    db_persistence::DbPersistence, models::{
+    db_persistence::DbPersistence,
+    models::{
         address::{Address, AddressInput},
         task::{Task, TaskStatus},
-    }, routes::api_routes, services::{
+    },
+    routes::api_routes,
+    services::{
         graphql_client::GraphqlClient,
         signature_verification::{verify_dilithium_signature, SignatureError},
-    }
+    }, utils::generate_referral_code::generate_referral_code,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -93,7 +96,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/sync-transfers", post(sync_transfers))
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
-        .nest("/api", api_routes()) 
+        .nest("/api", api_routes())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -312,32 +315,44 @@ async fn associate_eth_address(
         .any(|addr| addr.quan_address.0 == payload.quan_address);
 
     if !quan_address_exists {
-        let new_address_input = AddressInput {
-            quan_address: payload.quan_address.clone(),
-            eth_address: Some(payload.eth_address.clone()),
-        };
-        if let Ok(new_address) = Address::new(new_address_input) {
-            // Add the quan_address to the database if it doesn't exist
-            if let Err(_) = state.db.addresses.create(&new_address).await {
+        if let Ok(referral_code) = generate_referral_code(payload.quan_address.clone()).await {
+
+            let new_address_input = AddressInput {
+                quan_address: payload.quan_address.clone(),
+                eth_address: Some(payload.eth_address.clone()),
+                referral_code,
+            };
+
+            if let Ok(new_address) = Address::new(new_address_input) {
+                // Add the quan_address to the database if it doesn't exist
+                if let Err(_) = state.db.addresses.create(&new_address).await {
+                    let response = AssociateEthAddressResponse {
+                        success: false,
+                        message: "Failed to add address to database".to_string(),
+                    };
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+                }
+                tracing::info!(
+                    "Added new quan_address {} with eth_address {}",
+                    payload.quan_address,
+                    payload.eth_address
+                );
+            } else {
                 let response = AssociateEthAddressResponse {
                     success: false,
-                    message: "Failed to add address to database".to_string(),
+                    message: "Failed to update address in database".to_string(),
                 };
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
-            }
-            tracing::info!(
-                "Added new quan_address {} with eth_address {}",
-                payload.quan_address,
-                payload.eth_address
-            );
+
+                return Err((StatusCode::BAD_REQUEST, Json(response)));
+            };
         } else {
             let response = AssociateEthAddressResponse {
                 success: false,
-                message: "Failed to update address in database".to_string(),
+                message: "Failed to generate referral code for new address".to_string(),
             };
 
-            return Err((StatusCode::BAD_REQUEST, Json(response)));
-        };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)));
+        }
     } else {
         // Update existing address with eth_address
         match state
