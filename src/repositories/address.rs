@@ -127,3 +127,167 @@ impl AddressRepository {
         Ok(new_count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::models::address::{Address, AddressInput};
+    use sqlx::PgPool;
+
+    // Helper function to set up a test repository using the app's config loader.
+    // Note: This requires a `config/default.toml` file or equivalent environment
+    // variables (e.g., `TASKMASTER_DATA_DATABASE_URL`) for the tests to run.
+    async fn setup_test_repository() -> AddressRepository {
+        let config = Config::load().expect("Failed to load configuration for tests");
+        let pool = PgPool::connect(config.get_database_url())
+            .await
+            .expect("Failed to create pool.");
+
+        // Clean the table before each test run for isolation
+        sqlx::query("TRUNCATE addresses RESTART IDENTITY CASCADE")
+            .execute(&pool)
+            .await
+            .expect("Failed to truncate addresses table.");
+
+        AddressRepository::new(&pool)
+    }
+
+    fn create_mock_address(id: &str, code: &str) -> Address {
+        let input = AddressInput {
+            quan_address: format!("qz_test_address_{}", id),
+            eth_address: None,
+            referral_code: code.to_string(),
+        };
+        Address::new(input).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_create_and_find_by_id() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("001", "REF001");
+
+        let created_id = repo.create(&address).await.unwrap();
+        assert_eq!(created_id, address.quan_address.0);
+
+        let found = repo.find_by_id(&created_id).await.unwrap().unwrap();
+        assert_eq!(found.quan_address.0, address.quan_address.0);
+        assert_eq!(found.referral_code, "REF001");
+    }
+
+    #[tokio::test]
+    async fn test_create_conflict() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("002", "REF002");
+
+        // Create the first time
+        let created_id1 = repo.create(&address).await.unwrap();
+        assert_eq!(created_id1, address.quan_address.0);
+
+        // Attempt to create again
+        let created_id2 = repo.create(&address).await.unwrap();
+        assert_eq!(created_id2, address.quan_address.0);
+
+        let all_addresses = repo.find_all().await.unwrap();
+        assert_eq!(all_addresses.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_find_by_id_not_found() {
+        let repo = setup_test_repository().await;
+        let found = repo.find_by_id("non_existent_id").await.unwrap();
+        assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_find_all() {
+        let repo = setup_test_repository().await;
+        
+        // Initially empty
+        let addresses = repo.find_all().await.unwrap();
+        assert!(addresses.is_empty());
+        
+        // After creation
+        repo.create(&create_mock_address("101", "REF101")).await.unwrap();
+        repo.create(&create_mock_address("102", "REF102")).await.unwrap();
+        let addresses = repo.find_all().await.unwrap();
+        assert_eq!(addresses.len(), 2);
+    }
+    
+    #[tokio::test]
+    async fn test_create_many() {
+        let repo = setup_test_repository().await;
+        let addresses = vec![
+            create_mock_address("201", "REF201"),
+            create_mock_address("202", "REF202"),
+        ];
+
+        let rows_affected = repo.create_many(addresses).await.unwrap();
+        assert_eq!(rows_affected, 2);
+
+        let all = repo.find_all().await.unwrap();
+        assert_eq!(all.len(), 2);
+    }
+    
+    #[tokio::test]
+    async fn test_create_many_with_conflicts() {
+        let repo = setup_test_repository().await;
+        repo.create(&create_mock_address("301", "REF301")).await.unwrap();
+
+        let addresses = vec![
+            create_mock_address("301", "REF301"), // Conflict
+            create_mock_address("302", "REF302"), // New
+        ];
+
+        // ON CONFLICT DO NOTHING means only 1 new row should be affected
+        let rows_affected = repo.create_many(addresses).await.unwrap();
+        assert_eq!(rows_affected, 1);
+
+        let all = repo.find_all().await.unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_address_eth() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("401", "REF401");
+        repo.create(&address).await.unwrap();
+        
+        let new_eth = "0x1234567890123456789012345678901234567890";
+        repo.update_address_eth(&address.quan_address.0, new_eth).await.unwrap();
+        
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_increment_referrals_count() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("501", "REF501");
+        repo.create(&address).await.unwrap();
+
+        let new_count = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
+        assert_eq!(new_count, 1);
+
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        assert_eq!(updated.referrals_count, 1);
+        
+        let new_count_2 = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
+        assert_eq!(new_count_2, 2);
+    }
+    
+    #[tokio::test]
+    async fn test_update_address_last_selected() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("601", "REF601");
+        repo.create(&address).await.unwrap();
+        
+        let initial = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        assert!(initial.last_selected_at.is_none());
+        
+        repo.update_address_last_selected(&address.quan_address.0).await.unwrap();
+        
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        assert!(updated.last_selected_at.is_some());
+    }
+}
