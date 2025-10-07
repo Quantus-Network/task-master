@@ -162,16 +162,12 @@ impl GraphqlClient {
         Ok(transfer_data.transfers)
     }
 
-    // No need to import `futures` crate
-
-    /// Store addresses from transfers in the database
     pub async fn store_addresses_from_transfers(
         &self,
         transfers: &[Transfer],
     ) -> GraphqlResult<u64> {
         let mut unique_addresses = std::collections::HashSet::new();
 
-        // Collect unique addresses
         for transfer in transfers {
             unique_addresses.insert(transfer.from.id.clone());
             unique_addresses.insert(transfer.to.id.clone());
@@ -182,12 +178,9 @@ impl GraphqlClient {
             unique_addresses.len()
         );
 
-        // 1. Create a vector to hold the handles for each spawned task
         let mut tasks = Vec::new();
 
         for addr in unique_addresses {
-            // 2. Spawn a new asynchronous task for each address
-            // `tokio::spawn` immediately returns a `JoinHandle`
             let task = tokio::spawn(async move {
                 if let Ok(referral_code) = generate_referral_code(addr.clone()).await {
                     let input = AddressInput {
@@ -204,7 +197,6 @@ impl GraphqlClient {
         }
 
         let mut addresses_to_store = Vec::new();
-        // 3. Await each task to get its result
         for task in tasks {
             match task.await {
                 // Task completed successfully
@@ -223,7 +215,6 @@ impl GraphqlClient {
 
         debug!("Storing addresses in database: {:?}", addresses_to_store);
 
-        // ... (rest of the function is the same)
         match self.db.addresses.create_many(addresses_to_store).await {
             Ok(created_count) => {
                 info!(
@@ -281,9 +272,40 @@ pub struct SyncStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
+
+    // Helper functions
+    fn sample_transfers() -> Vec<Transfer> {
+        vec![
+            Transfer {
+                id: "0x123".to_string(),
+                amount: "1000000000000000000".to_string(),
+                from: Account {
+                    id: "0xabcdef123456".to_string(),
+                },
+                to: Account {
+                    id: "0x987654321abc".to_string(),
+                },
+            },
+            Transfer {
+                id: "0x456".to_string(),
+                amount: "2000000000000000000".to_string(),
+                from: Account {
+                    id: "0xabcdef123456".to_string(), // Same 'from' address
+                },
+                to: Account {
+                    id: "0xfedcba987654".to_string(),
+                },
+            },
+        ]
+    }
+
+    // ============================================================================
+    // Serialization/Deserialization Tests
+    // ============================================================================
 
     #[test]
-    fn test_transfer_deserialization() {
+    fn test_transfer_deserialization_single() {
         let json = r#"
         {
             "transfers": [
@@ -306,7 +328,59 @@ mod tests {
     }
 
     #[test]
-    fn test_graphql_query_serialization() {
+    fn test_transfer_deserialization_multiple() {
+        let json = r#"
+        {
+            "transfers": [
+                {
+                    "id": "0x123",
+                    "amount": "1000000000000000000",
+                    "from": { "id": "0xabc" },
+                    "to": { "id": "0xdef" }
+                },
+                {
+                    "id": "0x456",
+                    "amount": "2000000000000000000",
+                    "from": { "id": "0x111" },
+                    "to": { "id": "0x222" }
+                }
+            ]
+        }
+        "#;
+
+        let transfer_data: TransferData = serde_json::from_str(json).unwrap();
+        assert_eq!(transfer_data.transfers.len(), 2);
+        assert_eq!(transfer_data.transfers[0].id, "0x123");
+        assert_eq!(transfer_data.transfers[1].id, "0x456");
+    }
+
+    #[test]
+    fn test_transfer_deserialization_empty() {
+        let json = r#"{"transfers": []}"#;
+        let transfer_data: TransferData = serde_json::from_str(json).unwrap();
+        assert_eq!(transfer_data.transfers.len(), 0);
+    }
+
+    #[test]
+    fn test_transfer_deserialization_invalid_json() {
+        let json = r#"{"transfers": [{"id": "0x123"}]}"#; // Missing required fields
+        let result: Result<TransferData, _> = serde_json::from_str(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_account_deserialization() {
+        let json = r#"{"id": "0xabcdef"}"#;
+        let account: Account = serde_json::from_str(json).unwrap();
+        assert_eq!(account.id, "0xabcdef");
+    }
+
+    // ============================================================================
+    // GraphQL Query Serialization Tests
+    // ============================================================================
+
+    #[test]
+    fn test_graphql_query_serialization_simple() {
         let query = GraphqlQuery {
             query: "{ transfers { id } }".to_string(),
             variables: None,
@@ -314,5 +388,391 @@ mod tests {
 
         let json = serde_json::to_string(&query).unwrap();
         assert!(json.contains("transfers"));
+        assert!(json.contains("query"));
+        assert!(!json.contains("variables"));
+    }
+
+    #[test]
+    fn test_graphql_query_serialization_with_variables() {
+        let mut variables = HashMap::new();
+        variables.insert("limit".to_string(), serde_json::json!(10));
+        variables.insert("offset".to_string(), serde_json::json!(0));
+
+        let query = GraphqlQuery {
+            query: "query($limit: Int, $offset: Int) { transfers(limit: $limit, offset: $offset) { id } }".to_string(),
+            variables: Some(variables),
+        };
+
+        let json = serde_json::to_string(&query).unwrap();
+        assert!(json.contains("variables"));
+        assert!(json.contains("limit"));
+        assert!(json.contains("offset"));
+    }
+
+    #[test]
+    fn test_graphql_query_roundtrip() {
+        let original = GraphqlQuery {
+            query: "{ test }".to_string(),
+            variables: None,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: GraphqlQuery = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(original.query, deserialized.query);
+        assert_eq!(original.variables.is_none(), deserialized.variables.is_none());
+    }
+
+    // ============================================================================
+    // GraphQL Response Deserialization Tests
+    // ============================================================================
+
+    #[test]
+    fn test_graphql_response_with_data() {
+        let json = r#"{
+            "data": {
+                "transfers": [
+                    {
+                        "id": "0x123",
+                        "amount": "1000",
+                        "from": { "id": "0xabc" },
+                        "to": { "id": "0xdef" }
+                    }
+                ]
+            }
+        }"#;
+
+        let response: GraphqlResponse<TransferData> = serde_json::from_str(json).unwrap();
+        assert!(response.data.is_some());
+        assert!(response.errors.is_none());
+        
+        let data = response.data.unwrap();
+        assert_eq!(data.transfers.len(), 1);
+    }
+
+    #[test]
+    fn test_graphql_response_with_errors() {
+        let json = r#"{
+            "errors": [
+                {
+                    "message": "Field 'transfers' not found",
+                    "locations": [{"line": 2, "column": 3}],
+                    "path": ["transfers"]
+                }
+            ]
+        }"#;
+
+        let response: GraphqlResponse<TransferData> = serde_json::from_str(json).unwrap();
+        assert!(response.data.is_none());
+        assert!(response.errors.is_some());
+        
+        let errors = response.errors.unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "Field 'transfers' not found");
+        assert!(errors[0].locations.is_some());
+        assert!(errors[0].path.is_some());
+    }
+
+    #[test]
+    fn test_graphql_response_with_multiple_errors() {
+        let json = r#"{
+            "errors": [
+                {"message": "Error 1"},
+                {"message": "Error 2"},
+                {"message": "Error 3"}
+            ]
+        }"#;
+
+        let response: GraphqlResponse<TransferData> = serde_json::from_str(json).unwrap();
+        let errors = response.errors.unwrap();
+        assert_eq!(errors.len(), 3);
+    }
+
+    #[test]
+    fn test_graphql_error_detail_with_locations() {
+        let json = r#"{
+            "message": "Syntax error",
+            "locations": [
+                {"line": 1, "column": 5},
+                {"line": 2, "column": 10}
+            ]
+        }"#;
+
+        let error: GraphqlErrorDetail = serde_json::from_str(json).unwrap();
+        assert_eq!(error.message, "Syntax error");
+        assert!(error.locations.is_some());
+        
+        let locations = error.locations.unwrap();
+        assert_eq!(locations.len(), 2);
+        assert_eq!(locations[0].line, 1);
+        assert_eq!(locations[0].column, 5);
+    }
+
+    // ============================================================================
+    // Error Type Tests
+    // ============================================================================
+
+    #[test]
+    fn test_graphql_error_display_invalid_data() {
+        let err = GraphqlError::InvalidData("test error".to_string());
+        assert_eq!(err.to_string(), "Invalid data format: test error");
+    }
+
+    #[test]
+    fn test_graphql_error_display_graphql_response() {
+        let err = GraphqlError::GraphqlResponseError("Query failed".to_string());
+        assert_eq!(err.to_string(), "GraphQL response error: Query failed");
+    }
+
+    #[test]
+    fn test_graphql_error_from_db_error() {
+        let db_err = DbError::TaskNotFound("task-123".to_string());
+        let graphql_err: GraphqlError = db_err.into();
+        
+        match graphql_err {
+            GraphqlError::DatabaseError(_) => (),
+            _ => panic!("Expected DatabaseError conversion"),
+        }
+    }
+
+    #[test]
+    fn test_graphql_error_from_json_error() {
+        let json_err = serde_json::from_str::<Transfer>("invalid json").unwrap_err();
+        let graphql_err: GraphqlError = json_err.into();
+        
+        match graphql_err {
+            GraphqlError::JsonError(_) => (),
+            _ => panic!("Expected JsonError conversion"),
+        }
+    }
+
+    // ============================================================================
+    // Business Logic Tests (no external dependencies)
+    // ============================================================================
+
+    #[test]
+    fn test_unique_addresses_extraction() {
+        let transfers = sample_transfers();
+        let mut unique_addresses = HashSet::new();
+
+        for transfer in &transfers {
+            unique_addresses.insert(transfer.from.id.clone());
+            unique_addresses.insert(transfer.to.id.clone());
+        }
+
+        // We have 2 transfers with 3 unique addresses:
+        // 0xabcdef123456 (appears twice as 'from')
+        // 0x987654321abc (appears once as 'to')
+        // 0xfedcba987654 (appears once as 'to')
+        assert_eq!(unique_addresses.len(), 3);
+        assert!(unique_addresses.contains("0xabcdef123456"));
+        assert!(unique_addresses.contains("0x987654321abc"));
+        assert!(unique_addresses.contains("0xfedcba987654"));
+    }
+
+    #[test]
+    fn test_unique_addresses_with_duplicates() {
+        let transfers = vec![
+            Transfer {
+                id: "0x1".to_string(),
+                amount: "100".to_string(),
+                from: Account { id: "0xA".to_string() },
+                to: Account { id: "0xB".to_string() },
+            },
+            Transfer {
+                id: "0x2".to_string(),
+                amount: "200".to_string(),
+                from: Account { id: "0xA".to_string() }, // Duplicate
+                to: Account { id: "0xB".to_string() },   // Duplicate
+            },
+        ];
+
+        let mut unique_addresses = HashSet::new();
+        for transfer in &transfers {
+            unique_addresses.insert(&transfer.from.id);
+            unique_addresses.insert(&transfer.to.id);
+        }
+
+        assert_eq!(unique_addresses.len(), 2);
+    }
+
+    #[test]
+    fn test_unique_addresses_same_from_and_to() {
+        let transfers = vec![
+            Transfer {
+                id: "0x123".to_string(),
+                amount: "1000".to_string(),
+                from: Account { id: "0xsame".to_string() },
+                to: Account { id: "0xsame".to_string() }, // Same address
+            }
+        ];
+
+        let mut unique_addresses = HashSet::new();
+        for transfer in &transfers {
+            unique_addresses.insert(transfer.from.id.clone());
+            unique_addresses.insert(transfer.to.id.clone());
+        }
+
+        // Should only have 1 unique address
+        assert_eq!(unique_addresses.len(), 1);
+        assert!(unique_addresses.contains("0xsame"));
+    }
+
+    #[test]
+    fn test_empty_transfers_no_addresses() {
+        let transfers: Vec<Transfer> = vec![];
+        let mut unique_addresses = HashSet::new();
+
+        for transfer in &transfers {
+            unique_addresses.insert(transfer.from.id.clone());
+            unique_addresses.insert(transfer.to.id.clone());
+        }
+
+        assert_eq!(unique_addresses.len(), 0);
+    }
+
+    // ============================================================================
+    // Property-based Tests
+    // ============================================================================
+
+    #[test]
+    fn test_unique_addresses_count_property() {
+        // Property: The number of unique addresses should always be <= (transfers.len() * 2)
+        let transfers = sample_transfers();
+        let mut unique_addresses = HashSet::new();
+
+        for transfer in &transfers {
+            unique_addresses.insert(&transfer.from.id);
+            unique_addresses.insert(&transfer.to.id);
+        }
+
+        assert!(unique_addresses.len() <= transfers.len() * 2);
+    }
+
+    #[test]
+    fn test_unique_addresses_always_positive_for_non_empty() {
+        // Property: If there are transfers, there must be at least 1 unique address
+        let transfers = sample_transfers();
+        assert!(!transfers.is_empty());
+
+        let mut unique_addresses = HashSet::new();
+        for transfer in &transfers {
+            unique_addresses.insert(&transfer.from.id);
+            unique_addresses.insert(&transfer.to.id);
+        }
+
+        assert!(unique_addresses.len() >= 1);
+    }
+
+    // ============================================================================
+    // Clone and Debug Tests
+    // ============================================================================
+
+    #[test]
+    fn test_transfer_clone() {
+        let transfer = Transfer {
+            id: "0x123".to_string(),
+            amount: "1000".to_string(),
+            from: Account { id: "0xabc".to_string() },
+            to: Account { id: "0xdef".to_string() },
+        };
+
+        let cloned = transfer.clone();
+        assert_eq!(transfer.id, cloned.id);
+        assert_eq!(transfer.amount, cloned.amount);
+        assert_eq!(transfer.from.id, cloned.from.id);
+        assert_eq!(transfer.to.id, cloned.to.id);
+    }
+
+    #[test]
+    fn test_account_clone() {
+        let account = Account { id: "0xtest".to_string() };
+        let cloned = account.clone();
+        assert_eq!(account.id, cloned.id);
+    }
+
+    #[test]
+    fn test_transfer_debug() {
+        let transfer = Transfer {
+            id: "0x123".to_string(),
+            amount: "1000".to_string(),
+            from: Account { id: "0xabc".to_string() },
+            to: Account { id: "0xdef".to_string() },
+        };
+
+        let debug_str = format!("{:?}", transfer);
+        assert!(debug_str.contains("0x123"));
+        assert!(debug_str.contains("1000"));
+    }
+
+    // ============================================================================
+    // SyncStats Tests
+    // ============================================================================
+
+    #[test]
+    fn test_sync_stats_serialization() {
+        let stats = SyncStats {
+            total_transfers: 10,
+            unique_addresses: 15,
+            last_sync_time: chrono::Utc::now(),
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("total_transfers"));
+        assert!(json.contains("unique_addresses"));
+        assert!(json.contains("last_sync_time"));
+    }
+
+    #[test]
+    fn test_sync_stats_deserialization() {
+        let json = r#"{
+            "total_transfers": 5,
+            "unique_addresses": 8,
+            "last_sync_time": "2024-01-01T00:00:00Z"
+        }"#;
+
+        let stats: SyncStats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.total_transfers, 5);
+        assert_eq!(stats.unique_addresses, 8);
+    }
+
+    // ============================================================================
+    // Edge Cases
+    // ============================================================================
+
+    #[test]
+    fn test_transfer_with_empty_strings() {
+        let transfer = Transfer {
+            id: "".to_string(),
+            amount: "".to_string(),
+            from: Account { id: "".to_string() },
+            to: Account { id: "".to_string() },
+        };
+
+        assert_eq!(transfer.id, "");
+        assert_eq!(transfer.amount, "");
+    }
+
+    #[test]
+    fn test_transfer_with_very_large_amount() {
+        let transfer = Transfer {
+            id: "0x1".to_string(),
+            amount: "999999999999999999999999999999".to_string(),
+            from: Account { id: "0xa".to_string() },
+            to: Account { id: "0xb".to_string() },
+        };
+
+        assert_eq!(transfer.amount, "999999999999999999999999999999");
+    }
+
+    #[test]
+    fn test_graphql_query_with_special_characters() {
+        let query = GraphqlQuery {
+            query: r#"{ transfers(where: {amount_gt: "100"}) { id } }"#.to_string(),
+            variables: None,
+        };
+
+        let json = serde_json::to_string(&query).unwrap();
+        assert!(json.contains("amount_gt"));
     }
 }

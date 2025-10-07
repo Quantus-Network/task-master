@@ -47,7 +47,7 @@ impl<'r> FromRow<'r, PgRow> for Referral {
     }
 }
 
-// And an unvalidated version that we can deserialize directly from JSON
+// An unvalidated version that we can deserialize directly from JSON
 #[derive(Debug, Deserialize)]
 pub struct ReferralInput {
     pub referrer_address: String,

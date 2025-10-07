@@ -18,7 +18,7 @@ quantus-cli = "0.2.1"
 qp-human-checkphrase = "0.1.2"
 
 # Async runtime
-tokio = { version = "1.46", features = ["full"] }
+tokio = { version = "1.46", features = ["full", "test-util"] }
 
 # HTTP server
 axum = { version = "0.7", features = ["tokio"] }
@@ -30,7 +30,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "postgres", "uuid"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "chrono", "postgres", "uuid", "migrate"] }
 
 # Signature verification
 # Using quantus-cli's dilithium crypto for signature verification
@@ -65,3 +65,4 @@ anyhow = "1.0"
 dirs = "6.0"
 subxt = "0.43.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+mockito = "1.7.0"

@@ -1,4 +1,3 @@
-// Add Axum-related imports for handling HTTP responses
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -7,7 +6,7 @@ use axum::{
 use serde_json::json;
 use tracing::{error, info, warn};
 
-// Bring necessary error types into scope from their respective modules
+
 use crate::{
     db_persistence::DbError,
     models::ModelError,
@@ -17,7 +16,6 @@ use crate::{
     },
 };
 
-// Make the enum public so it can be used throughout your crate
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("Configuration error: {0}")]
@@ -42,14 +40,11 @@ pub enum AppError {
     Http(#[from] axum::http::Error),
 }
 
-// Define the result type using the public AppError
 pub type AppResult<T> = Result<T, AppError>;
 
-// NEW: Implement IntoResponse for AppError
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            // User-facing errors (e.g., bad input)
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
             AppError::Database(err) => {
@@ -57,11 +52,10 @@ impl IntoResponse for AppError {
 
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "An internal server error occurred".to_string(), // Hide sensitive details
+                    "An internal server error occurred".to_string(), 
                 )
             }
 
-            // Internal server errors that shouldn't expose details
             AppError::Transaction(_)
             | AppError::TaskGenerator(_)
             | AppError::Reverser(_)
@@ -71,7 +65,7 @@ impl IntoResponse for AppError {
             | AppError::Http(_)
             | AppError::Server(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "An internal server error occurred".to_string(), // Hide sensitive details
+                "An internal server error occurred".to_string(), 
             ),
         };
 

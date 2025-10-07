@@ -170,7 +170,7 @@ impl<'r> FromRow<'r, PgRow> for Task {
     }
 }
 
-// And an unvalidated version that we can deserialize directly from JSON
+// An unvalidated version that we can deserialize directly from JSON
 #[derive(Debug, Deserialize)]
 pub struct TaskInput {
     pub quan_address: String,

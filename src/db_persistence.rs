@@ -34,7 +34,7 @@ impl DbPersistence {
             .connect(database_url)
             .await?;
 
-        sqlx::migrate!("./migrations") // Assumes migrations are in a `migrations` folder
+        sqlx::migrate!("./migrations") 
             .run(&pool)
             .await?;
 
