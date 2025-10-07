@@ -216,112 +216,185 @@ pub async fn start_reverser_service(
     tokio::spawn(async move { reverser.start().await })
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::{db_persistence::DbPersistence, models::task::Task};
-//     use chrono::{Duration as ChronoDuration, Utc};
-//     use std::sync::Arc;
-//     use tokio::time::Duration;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::Config,
+        db_persistence::DbPersistence,
+        models::address::{Address, AddressInput},
+        models::task::{Task, TaskInput, TaskStatus},
+        services::transaction_manager::TransactionManager,
+        utils::generate_referral_code::generate_referral_code,
+    };
+    use quantus_cli::wallet::WalletManager;
+    use chrono::{Duration as ChronoDuration, Utc};
+    use uuid::Uuid;
 
-//     #[tokio::test]
-//     async fn create_test_db() -> Arc<DbPersistence> {
-//         let temp_file = NamedTempFile::new().unwrap();
-//         let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
-//         Arc::new(DbPersistence::new(&db_url).await.unwrap())
-//     }
+    // Helper to set up a full test environment with a DB, TransactionManager, and ReverserService.
+    // NOTE: Requires a local Quantus node running.
+    async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>)
+    {
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
-//     #[tokio::test]
-//     async fn test_reversal_stats() {
-//         let db = create_test_db().await;
+        // Clean tables for test isolation
+        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
+            .execute(&db.pool)
+            .await
+            .unwrap();
 
-//         // Add test addresses and tasks with different timings
-//         let now = Utc::now();
+        let wallet_name = format!("test_wallet_reverser_{}", Uuid::new_v4());
+        let transaction_manager = Arc::new(
+            TransactionManager::new(
+                &config.blockchain.node_url,
+                &wallet_name,
+                "password",
+                db.clone(),
+                ChronoDuration::seconds(60),
+            )
+            .await
+            .unwrap(),
+        );
 
-//         db.add_address("qztest1".to_string(), None).await.unwrap();
-//         db.add_address("qztest2".to_string(), None).await.unwrap();
-//         db.add_address("qztest3".to_string(), None).await.unwrap();
+        let reverser = ReverserService::new(
+            db.clone(),
+            transaction_manager.clone(),
+            Duration::from_secs(10),
+            5, // 5 minute early reversal window for tests
+        );
 
-//         // Task that should be reversed (end time passed)
-//         let mut task1 = Task::new("qztest1".to_string(), 1000, "111111111111".to_string());
-//         task1.set_transaction_sent(
-//             "0x123".to_string(),
-//             now - ChronoDuration::hours(1),
-//             now - ChronoDuration::minutes(5), // Already expired
-//         );
-//         db.add_task(task1).await.unwrap();
+        (reverser, transaction_manager, db)
+    }
 
-//         // Task that will expire soon
-//         let mut task2 = Task::new("qztest2".to_string(), 2000, "222222222222".to_string());
-//         task2.set_transaction_sent(
-//             "0x456".to_string(),
-//             now,
-//             now + ChronoDuration::minutes(1), // Expires in 1 minute
-//         );
-//         db.add_task(task2).await.unwrap();
+    // Helper to create a task that is ready for reversal
+    async fn create_reversable_task(
+        db: &DbPersistence,
+        tm: &TransactionManager,
+        id: &str, // Used to keep task_url unique
+    ) -> Task {
+        let wallet_manager = WalletManager::new().unwrap();
+        let recipient_wallet_name = format!("test_recipient_{}", Uuid::new_v4());
+        let recipient_info = wallet_manager
+            .create_wallet(&recipient_wallet_name, Some("password"))
+            .await
+            .unwrap();
+        // This is a real, valid SS58 address that the node will accept.
+        let quan_address = recipient_info.address;
 
-//         // Task with plenty of time left
-//         let mut task3 = Task::new("qztest3".to_string(), 3000, "333333333333".to_string());
-//         task3.set_transaction_sent(
-//             "0x789".to_string(),
-//             now,
-//             now + ChronoDuration::hours(1), // Expires in 1 hour
-//         );
-//         db.add_task(task3).await.unwrap();
+        // Create and save the Address and Task objects using the valid address.
+        let referral_code = generate_referral_code(quan_address.clone()).await.unwrap();
+        let address = Address::new(AddressInput {
+            quan_address,
+            eth_address: None,
+            referral_code,
+        })
+        .unwrap();
+        db.addresses.create(&address).await.unwrap();
 
-//         // Test that we can create the service
-//         let temp_file_tm = NamedTempFile::new().unwrap();
-//         let db_url_tm = format!("sqlite:{}", temp_file_tm.path().to_string_lossy());
-//         let db_tm = Arc::new(DbPersistence::new(&db_url_tm).await.unwrap());
+        let task = Task::new(TaskInput {
+            quan_address: address.quan_address.0,
+            quan_amount: 1000,
+            task_url: format!("http://example.com/{}", id),
+        })
+        .unwrap();
+        db.tasks.create(&task).await.unwrap();
 
-//         // This will fail to create transaction manager without a node, but we can test creation
-//         let reverser = ReverserService::new(
-//             db.clone(),
-//             Arc::new(unsafe { std::mem::zeroed() }), // Mock transaction manager for this test
-//             Duration::from_secs(30),
-//             2, // 2 minute early reversal
-//         );
+        tm.send_reversible_transaction(&task.task_id).await.unwrap();
 
-//         // Test that the service parameters are set correctly
-//         assert_eq!(reverser.early_reversal_minutes, 2);
-//         assert_eq!(reverser.check_interval, Duration::from_secs(30));
-//     }
+        // Manually update the task's end_time to be within the reversal window.
+        let new_end_time = Utc::now() + ChronoDuration::minutes(2);
+        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
+            .bind(new_end_time)
+            .bind(&task.task_id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
 
-//     #[test]
-//     fn test_reverser_service_creation() {
-//         // Test that the service parameters are correct
-//         let check_interval = Duration::from_secs(30);
-//         let early_reversal_minutes = 2;
+        // Return the fully prepared task.
+        db.tasks.get_task(&task.task_id).await.unwrap().unwrap()
+    }
 
-//         // Test that the service parameters are set correctly
-//         // (We can't fully test without a running Quantus node)
-//         assert!(check_interval.as_secs() > 0);
-//         assert!(early_reversal_minutes > 0);
-//     }
+    #[tokio::test]
+    async fn test_check_and_reverse_tasks_success() {
+        let (reverser, tm, db) = setup_test_reverser().await;
 
-//     #[tokio::test]
-//     async fn test_tasks_ready_for_reversal() {
-//         let db = create_test_db().await;
-//         let now = Utc::now();
+        // Arrange: Create a task that is ready to be reversed.
+        let task = create_reversable_task(&db, &tm, "001").await;
+        assert_eq!(task.status, TaskStatus::Pending);
 
-//         // Add address first
-//         db.add_address("qztest".to_string(), None).await.unwrap();
+        // Act: Run the reversal check.
+        reverser.check_and_reverse_tasks().await.unwrap();
 
-//         // Task that should be ready for reversal
-//         let mut task = Task::new("qztest".to_string(), 1000, "123456789012".to_string());
-//         task.set_transaction_sent(
-//             "0x123".to_string(),
-//             now - ChronoDuration::hours(1),
-//             now + ChronoDuration::minutes(1), // Ends in 1 minute
-//         );
-//         db.add_task(task).await.unwrap();
+        // Assert: The task status in the DB should now be 'Reversed'.
+        let reversed_task = db.tasks.get_task(&task.task_id).await.unwrap().unwrap();
+        assert_eq!(reversed_task.status, TaskStatus::Reversed);
+    }
 
-//         // Check with 2 minute early reversal - should be ready
-//         let ready_tasks = db.get_tasks_ready_for_reversal(2).await.unwrap();
-//         assert_eq!(ready_tasks.len(), 1);
+    #[tokio::test]
+    async fn test_check_and_reverse_does_nothing_if_no_tasks_ready() {
+        let (reverser, tm, db) = setup_test_reverser().await;
 
-//         // Check with 0 minute early reversal - should not be ready yet
-//         let ready_tasks = db.get_tasks_ready_for_reversal(0).await.unwrap();
-//         assert_eq!(ready_tasks.len(), 0);
-//     }
-// }
+        // Arrange: Create a task, send its transaction, but its end_time is far in the future.
+        let task = create_reversable_task(&db, &tm, "002").await;
+        let future_end_time = Utc::now() + ChronoDuration::hours(1);
+        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
+            .bind(future_end_time)
+            .bind(&task.task_id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+
+        // Act: Run the reversal check.
+        reverser.check_and_reverse_tasks().await.unwrap();
+
+        // Assert: The task should not have been reversed.
+        let not_reversed_task = db.tasks.get_task(&task.task_id).await.unwrap().unwrap();
+        assert_eq!(not_reversed_task.status, TaskStatus::Pending);
+    }
+
+    #[tokio::test]
+    async fn test_get_reversal_stats() {
+        let (reverser, _tm, db) = setup_test_reverser().await;
+
+        // We will manually create tasks with specific timings for this test.
+        let now = Utc::now();
+        let early_reversal_window = ChronoDuration::minutes(reverser.early_reversal_minutes);
+
+        // Task 1: Already expired (should be ready for reversal)
+        let task1 = create_reversable_task(&db, &reverser.transaction_manager, "stats_01").await;
+        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
+            .bind(now - ChronoDuration::minutes(10))
+            .bind(&task1.task_id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+
+        // Task 2: Expiring soon (inside the window, also ready for reversal)
+        let task2 = create_reversable_task(&db, &reverser.transaction_manager, "stats_02").await;
+        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
+            .bind(now + early_reversal_window - ChronoDuration::minutes(1))
+            .bind(&task2.task_id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+
+        // Task 3: Pending, but not expiring soon (outside the window)
+        let task3 = create_reversable_task(&db, &reverser.transaction_manager, "stats_03").await;
+        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
+            .bind(now + early_reversal_window + ChronoDuration::minutes(10))
+            .bind(&task3.task_id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+
+        // Act: Get the stats
+        let stats = reverser.get_reversal_stats().await.unwrap();
+
+        // Assert
+        assert_eq!(stats.total_pending, 3);
+        assert_eq!(stats.ready_for_reversal, 2); // Expired + Expiring Soon
+        assert_eq!(stats.expiring_soon, 1); // Only task2
+        assert_eq!(stats.already_expired, 1); // Only task1
+    }
+}
