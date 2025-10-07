@@ -25,15 +25,18 @@ use tiny_keccak::{Hasher, Keccak};
 /// assert!(!is_valid_eth_address("0xfb6916095ca1df60bb79ce92ce3ea74c37c5d35")); // invalid length
 /// ```
 pub fn is_valid_eth_address(address: &str) -> bool {
-    // 1. Check for "0x" prefix and correct length
-    if !address.starts_with("0x") || address.len() != 42 {
+    if address.len() != 42 {
+        return false;
+    }
+
+    let prefix = &address[..2];
+    if (prefix != "0x" && prefix != "0X") {
         return false;
     }
 
     // Get the address part without the "0x" prefix
     let addr_part = &address[2..];
 
-    // 2. Ensure all characters are valid hex digits
     if !addr_part.chars().all(|c| c.is_ascii_hexdigit()) {
         return false;
     }
@@ -50,7 +53,7 @@ pub fn is_valid_eth_address(address: &str) -> bool {
         return true;
     }
 
-    // 3. If it's mixed-case, validate the EIP-55 checksum
+    // If it's mixed-case, validate the EIP-55 checksum
     validate_checksum(addr_part)
 }
 
@@ -127,7 +130,11 @@ mod tests {
 
         for (address, expected) in addresses_to_test {
             let is_valid = is_valid_eth_address(address);
-            assert!(is_valid == expected);
+            assert_eq!(
+                is_valid, expected,
+                "Validation failed for address: {}",
+                address
+            );
         }
     }
 }
