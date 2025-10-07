@@ -20,16 +20,15 @@ CREATE TABLE IF NOT EXISTS addresses (
 
 CREATE INDEX IF NOT EXISTS idx_addresses_last_selected ON addresses (last_selected_at);
 
----
-
 -- Referrals table
 CREATE TABLE IF NOT EXISTS referrals (
     id SERIAL PRIMARY KEY,
-    -- The user who owns this referral code
     referrer_address VARCHAR(64) NOT NULL REFERENCES addresses(quan_address),
-    -- The user who signed up using this referral code
-    referee_address VARCHAR(64) UNIQUE REFERENCES addresses(quan_address),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    referee_address VARCHAR(64) NOT NULL REFERENCES addresses(quan_address),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- Ensures that the combination of a referrer and a referee is unique.
+    CONSTRAINT unique_referral_pair UNIQUE (referrer_address, referee_address)
 );
 
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address);
