@@ -9,7 +9,7 @@ use crate::{
     utils::generate_referral_code::generate_referral_code,
 };
 
-const GRAPHQL_ENDPOINT: &str = "https://gql.res.fm/graphql";
+const GRAPHQL_ENDPOINT: &str = "https://quantu.se/graphql";
 
 #[derive(Debug, thiserror::Error)]
 pub enum GraphqlError {
