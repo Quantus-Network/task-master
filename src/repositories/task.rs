@@ -4,8 +4,9 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 
 use crate::{
+    db_persistence::DbError,
     models::task::{Task, TaskStatus},
-    repositories::DbResult, db_persistence::DbError,
+    repositories::DbResult,
 };
 
 #[derive(Clone, Debug)]
@@ -163,9 +164,9 @@ impl TaskRepository {
             r#"
         SELECT
             a.quan_address,
-            COUNT(t.id)::BIGINT as task_count
+            COUNT(t.id) as task_count
         FROM
-            address a
+            addresses a
         LEFT JOIN
             tasks t ON a.quan_address = t.quan_address
         GROUP BY
@@ -178,5 +179,185 @@ impl TaskRepository {
         .await?;
 
         Ok(stats)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::Config,
+        models::{
+            address::{Address, AddressInput},
+            task::TaskInput,
+        },
+        repositories::address::AddressRepository,
+    };
+    use uuid::Uuid;
+
+    // Helper to set up repositories and clean all tables.
+    async fn setup_test_repositories() -> (AddressRepository, TaskRepository) {
+        let config = Config::load().expect("Failed to load configuration for tests");
+        let pool = PgPool::connect(config.get_database_url())
+            .await
+            .expect("Failed to create pool.");
+
+        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
+            .execute(&pool)
+            .await
+            .expect("Failed to truncate tables.");
+
+        (AddressRepository::new(&pool), TaskRepository::new(&pool))
+    }
+
+    // Helper to create a persisted address.
+    async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
+        let input = AddressInput {
+            quan_address: format!("qz_test_address_{}", id),
+            eth_address: None,
+            referral_code: format!("REF{}", id),
+        };
+        let address = Address::new(input).unwrap();
+        repo.create(&address).await.unwrap();
+        address
+    }
+
+    // Helper to create a mock Task object.
+    fn create_mock_task_object(quan_address: &str) -> Task {
+        let input = TaskInput {
+            quan_address: quan_address.to_string(),
+            quan_amount: 1000,
+            task_url: format!("http://example.com/task/{}", Uuid::new_v4()),
+        };
+        Task::new(input).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_create_and_get_task() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "001").await;
+        let new_task = create_mock_task_object(&address.quan_address.0);
+
+        let created_id = task_repo.create(&new_task).await.unwrap();
+        assert_eq!(created_id, new_task.task_id);
+
+        let fetched_task = task_repo.get_task(&created_id).await.unwrap().unwrap();
+        assert_eq!(fetched_task.task_id, new_task.task_id);
+        assert_eq!(fetched_task.status, TaskStatus::Pending);
+    }
+
+    #[tokio::test]
+    async fn test_update_task_status() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "002").await;
+        let new_task = create_mock_task_object(&address.quan_address.0);
+        task_repo.create(&new_task).await.unwrap();
+
+        task_repo
+            .update_task_status(&new_task.task_id, TaskStatus::Completed)
+            .await
+            .unwrap();
+
+        let fetched_task = task_repo
+            .get_task(&new_task.task_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched_task.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_update_task_transaction() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "003").await;
+        let new_task = create_mock_task_object(&address.quan_address.0);
+        task_repo.create(&new_task).await.unwrap();
+
+        let tx_id = "0x123abc";
+        let send_time = Utc::now();
+        let end_time = send_time + chrono::Duration::hours(1);
+
+        task_repo
+            .update_task_transaction(&new_task.task_id, tx_id, send_time, end_time)
+            .await
+            .unwrap();
+
+        let updated_task = task_repo
+            .get_task(&new_task.task_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated_task.reversible_tx_id, Some(tx_id.to_string()));
+        assert!(updated_task.send_time.is_some());
+        assert!(updated_task.end_time.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_by_status() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "004").await;
+        
+        let mut task1 = create_mock_task_object(&address.quan_address.0);
+        task1.status = TaskStatus::Pending;
+        task_repo.create(&task1).await.unwrap();
+
+        let mut task2 = create_mock_task_object(&address.quan_address.0);
+        task2.status = TaskStatus::Completed;
+        task_repo.create(&task2).await.unwrap();
+        
+        let pending_tasks = task_repo.get_tasks_by_status(TaskStatus::Pending).await.unwrap();
+        assert_eq!(pending_tasks.len(), 1);
+        assert_eq!(pending_tasks[0].task_id, task1.task_id);
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_ready_for_reversal() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "005").await;
+
+        // This task's end time is soon, so it should be picked up
+        let mut task1 = create_mock_task_object(&address.quan_address.0);
+        task_repo.create(&task1).await.unwrap();
+        let end_time1 = Utc::now() + chrono::Duration::minutes(5);
+        task_repo.update_task_transaction(&task1.task_id, "tx1", Utc::now(), end_time1).await.unwrap();
+        
+        // This task's end time is far in the future
+        let mut task2 = create_mock_task_object(&address.quan_address.0);
+        task_repo.create(&task2).await.unwrap();
+        let end_time2 = Utc::now() + chrono::Duration::minutes(30);
+        task_repo.update_task_transaction(&task2.task_id, "tx2", Utc::now(), end_time2).await.unwrap();
+
+        // Looking for tasks ending within the next 10 minutes
+        let reversible_tasks = task_repo.get_tasks_ready_for_reversal(10).await.unwrap();
+        assert_eq!(reversible_tasks.len(), 1);
+        assert_eq!(reversible_tasks[0].task_id, task1.task_id);
+    }
+
+    #[tokio::test]
+    async fn test_counts() {
+        let (address_repo, task_repo) = setup_test_repositories().await;
+        let address = create_persisted_address(&address_repo, "006").await;
+        
+        let mut task1 = create_mock_task_object(&address.quan_address.0);
+        task1.status = TaskStatus::Pending;
+        task_repo.create(&task1).await.unwrap();
+
+        let mut task2 = create_mock_task_object(&address.quan_address.0);
+        task2.status = TaskStatus::Pending;
+        task_repo.create(&task2).await.unwrap();
+
+        let mut task3 = create_mock_task_object(&address.quan_address.0);
+        task3.status = TaskStatus::Completed;
+        task_repo.create(&task3).await.unwrap();
+
+        // Test total count
+        let total = task_repo.task_count().await.unwrap();
+        assert_eq!(total, 3);
+        
+        // Test status counts
+        let counts = task_repo.status_counts().await.unwrap();
+        assert_eq!(counts.get(&TaskStatus::Pending), Some(&2));
+        assert_eq!(counts.get(&TaskStatus::Completed), Some(&1));
+        assert_eq!(counts.get(&TaskStatus::Failed), None);
     }
 }

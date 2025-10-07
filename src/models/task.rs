@@ -58,11 +58,11 @@ impl TokenAmount {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
-    pub id: Option<i64>,
+    pub id: Option<i32>,
     pub task_id: String,
     pub quan_address: QuanAddress,
     pub quan_amount: TokenAmount,
-    pub usdc_amount: i32,
+    pub usdc_amount: i64,
     pub task_url: String,
     pub status: TaskStatus,
     pub reversible_tx_id: Option<String>,
