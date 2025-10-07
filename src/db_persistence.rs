@@ -24,7 +24,7 @@ pub struct DbPersistence {
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
 
-    pool: PgPool,
+    pub pool: PgPool,
 }
 
 impl DbPersistence {

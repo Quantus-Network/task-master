@@ -182,7 +182,7 @@ impl TaskGenerator {
                 if let Ok(address) = Address::new(AddressInput {
                     quan_address: task.quan_address.0.clone(),
                     eth_address: None,
-                    referral_code
+                    referral_code,
                 }) {
                     // Ensure address exists in database
                     self.db.addresses.create(&address).await?;
@@ -242,81 +242,141 @@ impl TaskGenerator {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use std::sync::Arc;
-//     use tempfile::NamedTempFile;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use std::sync::Arc;
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
-//     async fn create_test_db() -> Arc<DbPersistence> {
-//         let temp_file = NamedTempFile::new().unwrap();
-//         let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
-//         Arc::new(DbPersistence::new(&db_url).await.unwrap())
-//     }
+    // Helper to set up a test generator with a real PostgreSQL test database.
+    async fn setup_test_generator() -> TaskGenerator {
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
-//     #[test]
-//     fn test_generate_random_quan_amount() {
-//         let generator = TaskGenerator {
-//             candidates: Vec::new(),
-//             db: Arc::new(unsafe { std::mem::zeroed() }), // Mock for this simple test
-//             http_client: reqwest::Client::new(),
-//         };
+        // Clean tables for test isolation
+        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
+            .execute(&db.pool)
+            .await
+            .unwrap();
 
-//         for _ in 0..100 {
-//             let quan_amount = generator.generate_random_quan_amount();
-//             assert!(quan_amount >= 1000 && quan_amount <= 9999);
-//         }
-//     }
+        TaskGenerator::new(db)
+    }
 
-//     #[test]
-//     fn test_generate_task_url() {
-//         let generator = TaskGenerator {
-//             candidates: Vec::new(),
-//             db: Arc::new(unsafe { std::mem::zeroed() }), // Mock for this simple test
-//             http_client: reqwest::Client::new(),
-//         };
+    #[tokio::test]
+    async fn test_generate_random_quan_amount() {
+        let generator = setup_test_generator().await;
+        for _ in 0..100 {
+            let amount = generator.generate_random_quan_amount();
+            assert!((1000..=9999).contains(&amount));
+        }
+    }
 
-//         for _ in 0..100 {
-//             let task_url = generator.generate_task_url();
-//             assert_eq!(task_url.len(), 12);
-//             assert!(task_url.chars().all(|c| c.is_ascii_digit()));
-//         }
-//     }
+    #[tokio::test]
+    async fn test_generate_task_url() {
+        let generator = setup_test_generator().await;
+        for _ in 0..100 {
+            let url = generator.generate_task_url();
+            assert_eq!(url.len(), 12);
+            assert!(url.chars().all(|c| c.is_ascii_digit()));
+        }
+    }
 
-//     #[tokio::test]
-//     async fn test_generate_tasks() {
-//         let db = create_test_db().await;
-//         let mut generator = TaskGenerator::new(db);
+    #[tokio::test]
+    async fn test_refresh_candidates_from_db() {
+        let mut generator = setup_test_generator().await;
 
-//         // Add some test candidates
-//         generator.candidates = vec![
-//             "qztest1".to_string(),
-//             "qztest2".to_string(),
-//             "qztest3".to_string(),
-//         ];
+        // Create and save some addresses to the DB.
+        // The dummy addresses must be > 10 characters to pass validation.
+        let addr1 = Address::new(AddressInput {
+            quan_address: "qz_a_valid_test_address_1".to_string(),
+            eth_address: None,
+            referral_code: "REF1".to_string(),
+        })
+        .unwrap();
+        let addr2 = Address::new(AddressInput {
+            quan_address: "qz_a_valid_test_address_2".to_string(),
+            eth_address: None,
+            referral_code: "REF2".to_string(),
+        })
+        .unwrap();
+        generator.db.addresses.create(&addr1).await.unwrap();
+        generator.db.addresses.create(&addr2).await.unwrap();
 
-//         let tasks = generator.generate_tasks(2).await.unwrap();
-//         assert_eq!(tasks.len(), 2);
+        // Refresh candidates from the database.
+        generator.refresh_candidates_from_db().await.unwrap();
 
-//         for task in &tasks {
-//             assert!(task.quan_address.starts_with("qztest"));
-//             assert!(task.quan_amount >= 1000 && task.quan_amount <= 9999);
-//             assert!(task.usdc_amount >= 1 && task.usdc_amount <= 25);
-//             assert_eq!(task.task_url.len(), 12);
-//             assert!(task.task_url.chars().all(|c| c.is_ascii_digit()));
-//         }
+        assert_eq!(generator.candidates_count(), 2);
+        assert!(generator.get_candidates().contains(&addr1.quan_address.0));
+        assert!(generator.get_candidates().contains(&addr2.quan_address.0));
+    }
 
-//         // Test requesting more tasks than candidates
-//         let tasks = generator.generate_tasks(5).await.unwrap();
-//         assert_eq!(tasks.len(), 3); // Should cap at number of candidates
-//     }
+    #[tokio::test]
+    async fn test_refresh_candidates_with_mock_server() {
+        // Start a mock server.
+        let server = MockServer::start().await;
+        let mut generator = setup_test_generator().await;
 
-//     #[tokio::test]
-//     async fn test_no_candidates() {
-//         let db = create_test_db().await;
-//         let generator = TaskGenerator::new(db);
+        // Create a mock GraphQL response.
+        let mock_response = serde_json::json!({
+            "data": {
+                "accounts": [
+                    { "id": "qz_a_valid_test_address_1" },
+                    { "id": "invalid_addr" }, // Should be filtered out
+                    { "id": "qz_a_valid_test_address_2" }
+                ]
+            }
+        });
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .mount(&server)
+            .await;
 
-//         let result = generator.generate_tasks(1).await;
-//         assert!(matches!(result, Err(TaskGeneratorError::NoCandidates)));
-//     }
-// }
+        // Call the function with the mock server's URI.
+        generator.refresh_candidates(&server.uri()).await.unwrap();
+
+        // Assert that only valid candidates were added.
+        assert_eq!(generator.candidates_count(), 2);
+        assert!(generator
+            .get_candidates()
+            .contains(&"qz_a_valid_test_address_1".to_string()));
+        assert!(generator
+            .get_candidates()
+            .contains(&"qz_a_valid_test_address_2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_generate_tasks_and_save() {
+        let mut generator = setup_test_generator().await;
+
+        // Populate candidates manually for the test.
+        generator.candidates = vec![
+            "qz_a_valid_test_address_1".to_string(),
+            "qz_a_valid_test_address_2".to_string(),
+            "qz_a_valid_test_address_3".to_string(),
+        ];
+
+        // Generate and save 2 tasks.
+        let tasks = generator.generate_and_save_tasks(2).await.unwrap();
+        assert_eq!(tasks.len(), 2);
+
+        // Verify the state after the first call.
+        let db_tasks = generator.db.tasks.get_all_tasks().await.unwrap();
+        assert_eq!(db_tasks.len(), 2);
+
+        // Generate and save 3 more tasks (capped by the 3 candidates).
+        generator.generate_and_save_tasks(5).await.unwrap();
+        let db_tasks_total = generator.db.tasks.get_all_tasks().await.unwrap();
+
+        // The database now contains the original 2 tasks PLUS the 3 new ones.
+        // The total should be 5.
+        assert_eq!(db_tasks_total.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_no_candidates_error() {
+        let generator = setup_test_generator().await; // Candidates list is empty.
+        let result = generator.generate_tasks(1).await;
+        assert!(matches!(result, Err(TaskGeneratorError::NoCandidates)));
+    }
+}
