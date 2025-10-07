@@ -275,40 +275,43 @@ impl TransactionManager {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::db_persistence::DbPersistence;
-//     use tempfile::NamedTempFile;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use uuid::Uuid;
 
-//     // Note: These tests would require a running Quantus node
-//     // For now, they test the structure and error handling
+    #[tokio::test]
+    async fn test_new_manager_creates_and_loads_wallet() {
+        // This test requires filesystem access to create a wallet.
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
+        let wallet_name = format!("test_wallet_{}", Uuid::new_v4());
 
-//     #[test]
-//     fn test_transaction_error_display() {
-//         let error = TransactionError::TransactionNotFound("test".to_string());
-//         assert!(error.to_string().contains("Transaction not found: test"));
-//     }
+        // First, create the manager, which should create a new wallet.
+        let manager1 = TransactionManager::new(
+            &config.blockchain.node_url,
+            &wallet_name,
+            "password",
+            db.clone(),
+            chrono::Duration::hours(12),
+        )
+        .await
+        .unwrap();
+        let addr1 = manager1.get_wallet_address();
 
-//     #[tokio::test]
-//     async fn test_wallet_address_format() {
-//         // This test can run without a node connection
-//         // This will fail without a node, but we can test the error handling
-//         let temp_file = NamedTempFile::new().unwrap();
-//         let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
-//         let db = Arc::new(DbPersistence::new(&db_url).await.unwrap());
+        // Now, create another manager with the same name to ensure it loads the existing wallet.
+        let manager2 = TransactionManager::new(
+            &config.blockchain.node_url,
+            &wallet_name,
+            "password",
+            db.clone(),
+            chrono::Duration::hours(12),
+        )
+        .await
+        .unwrap();
+        let addr2 = manager2.get_wallet_address();
 
-//         // This will fail with connection error
-//         let result = TransactionManager::new(
-//             "ws://invalid-url:9944",
-//             "test_wallet",
-//             "test_password",
-//             db,
-//             chrono::Duration::hours(12),
-//         )
-//         .await;
-
-//         // Should fail with connection error
-//         assert!(result.is_err());
-//     }
-// }
+        assert_eq!(addr1, addr2);
+    }
+}
