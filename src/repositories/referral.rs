@@ -45,7 +45,7 @@ mod tests {
         config::Config,
         models::{
             address::{Address, AddressInput},
-            referrals::{Referral, ReferralInput},
+            referrals::{Referral, ReferralData},
         },
         repositories::address::AddressRepository,
     };
@@ -90,11 +90,11 @@ mod tests {
         let referrer = create_persisted_address(&address_repo, "referrer_01").await;
         let referee = create_persisted_address(&address_repo, "referee_01").await;
 
-        let referral_input = ReferralInput {
+        let referral_data = ReferralData {
             referrer_address: referrer.quan_address.0.clone(),
             referee_address: referee.quan_address.0.clone(),
         };
-        let new_referral = Referral::new(referral_input).unwrap();
+        let new_referral = Referral::new(referral_data).unwrap();
 
         let created_id = referral_repo.create(&new_referral).await.unwrap();
         assert!(created_id > 0);
@@ -125,7 +125,7 @@ mod tests {
         // Create two referrals from the same referrer
         referral_repo
             .create(
-                &Referral::new(ReferralInput {
+                &Referral::new(ReferralData {
                     referrer_address: referrer.quan_address.0.clone(),
                     referee_address: referee1.quan_address.0.clone(),
                 })
@@ -135,7 +135,7 @@ mod tests {
             .unwrap();
         referral_repo
             .create(
-                &Referral::new(ReferralInput {
+                &Referral::new(ReferralData {
                     referrer_address: referrer.quan_address.0.clone(),
                     referee_address: referee2.quan_address.0.clone(),
                 })
@@ -146,7 +146,7 @@ mod tests {
         // Create an unrelated referral
         referral_repo
             .create(
-                &Referral::new(ReferralInput {
+                &Referral::new(ReferralData {
                     referrer_address: other_referrer.quan_address.0.clone(),
                     referee_address: referee1.quan_address.0.clone(),
                 })
