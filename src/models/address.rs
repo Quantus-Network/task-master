@@ -99,3 +99,8 @@ pub struct AddressInput {
     pub eth_address: Option<String>,
     pub referral_code: String,
 }
+
+#[derive(Debug,Clone, Deserialize)]
+pub struct NewAddressPayload {
+    pub quan_address: String,
+}
