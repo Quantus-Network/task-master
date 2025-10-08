@@ -133,6 +133,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::models::address::{Address, AddressInput};
+    use crate::utils::test_db::reset_database;
     use sqlx::PgPool;
 
     // Helper function to set up a test repository using the app's config loader.
@@ -144,11 +145,8 @@ mod tests {
             .await
             .expect("Failed to create pool.");
 
-        // Clean the table before each test run for isolation
-        sqlx::query("TRUNCATE addresses RESTART IDENTITY CASCADE")
-            .execute(&pool)
-            .await
-            .expect("Failed to truncate addresses table.");
+        // Clean database before each test
+        reset_database(&pool).await;
 
         AddressRepository::new(&pool)
     }

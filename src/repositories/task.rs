@@ -192,6 +192,7 @@ mod tests {
             task::TaskInput,
         },
         repositories::address::AddressRepository,
+        utils::test_db::reset_database,
     };
     use uuid::Uuid;
 
@@ -202,10 +203,7 @@ mod tests {
             .await
             .expect("Failed to create pool.");
 
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&pool)
-            .await
-            .expect("Failed to truncate tables.");
+        reset_database(&pool).await;
 
         (AddressRepository::new(&pool), TaskRepository::new(&pool))
     }

@@ -226,6 +226,7 @@ mod tests {
         models::task::{Task, TaskInput, TaskStatus},
         services::transaction_manager::TransactionManager,
         utils::generate_referral_code::generate_referral_code,
+        utils::test_db::reset_database,
     };
     use quantus_cli::wallet::WalletManager;
     use chrono::{Duration as ChronoDuration, Utc};
@@ -236,13 +237,10 @@ mod tests {
     async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>)
     {
         let config = Config::load().expect("Failed to load test configuration");
+        std::env::set_var("TASKMASTER_USE_DEV_ALICE", "1");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
-        // Clean tables for test isolation
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&db.pool)
-            .await
-            .unwrap();
+        reset_database(&db.pool).await;
 
         let wallet_name = format!("test_wallet_reverser_{}", Uuid::new_v4());
         let transaction_manager = Arc::new(
