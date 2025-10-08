@@ -146,7 +146,7 @@ mod tests {
     fn test_hex_prefix_handling() {
         let quan_address = "qz5CiMhML4GNdPP3ZFdTGZqQyU7hcU8aKJPXqQq8RgHq1b6a";
         let eth_address = "1234567890123456789012345678901234567890";
-        let signature = "0x" + &"0".repeat(8704);
+        let signature = String::from("0x") + &"0".repeat(8704);
 
         let pubkey = &"0".repeat(64);
 
@@ -154,12 +154,12 @@ mod tests {
         let result1 = verify_dilithium_signature(
             quan_address,
             &("0x".to_string() + eth_address),
-            signature,
+            &signature,
             pubkey,
         );
 
         // Should work without 0x prefix on eth_address
-        let result2 = verify_dilithium_signature(quan_address, eth_address, signature, pubkey);
+        let result2 = verify_dilithium_signature(quan_address, eth_address, &signature, pubkey);
 
         // Both should have the same error type (verification failed since we're using dummy data)
         assert!(result1.is_err());

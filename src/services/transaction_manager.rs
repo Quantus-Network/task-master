@@ -1,4 +1,5 @@
-use crate::db_persistence::{DbPersistence, TaskRecord};
+use crate::db_persistence::DbPersistence;
+use crate::models::task::{Task, TaskStatus};
 use chrono::Utc;
 use quantus_cli::chain::client::QuantusClient;
 use quantus_cli::cli::reversible::{cancel_transaction, schedule_transfer};
@@ -81,6 +82,7 @@ impl TransactionManager {
     pub async fn send_reversible_transaction(&self, task_id: &str) -> TransactionResult<String> {
         let task = self
             .db
+            .tasks
             .get_task(task_id)
             .await?
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
@@ -88,8 +90,8 @@ impl TransactionManager {
         tracing::info!(
             "Sending reversible transaction for task {} to {} (quan_amount: {})",
             task_id,
-            task.quan_address,
-            task.quan_amount
+            task.quan_address.0,
+            task.quan_amount.0
         );
 
         // Send the transaction
@@ -97,8 +99,8 @@ impl TransactionManager {
         let tx_hash = schedule_transfer(
             &*client,
             &self.keypair,
-            &task.quan_address,
-            task.quan_amount as u128, // Convert to u128 for quantus-cli
+            &task.quan_address.0,
+            task.quan_amount.0 as u128, // Convert to u128 for quantus-cli
         )
         .await?;
 
@@ -110,7 +112,8 @@ impl TransactionManager {
 
         // Update task with transaction details
         self.db
-            .update_task_transaction(task_id, format!("0x{:x}", tx_hash), send_time, end_time)
+            .tasks
+            .update_task_transaction(task_id, &format!("0x{:x}", tx_hash), send_time, end_time)
             .await?;
 
         let tx_hash_string = format!("0x{:x}", tx_hash);
@@ -128,6 +131,7 @@ impl TransactionManager {
     pub async fn reverse_transaction(&self, task_id: &str) -> TransactionResult<()> {
         let task = self
             .db
+            .tasks
             .get_task(task_id)
             .await?
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
@@ -156,7 +160,8 @@ impl TransactionManager {
 
         // Update task status
         self.db
-            .update_task_status(task_id, crate::db_persistence::TaskStatus::Reversed)
+            .tasks
+            .update_task_status(task_id, TaskStatus::Reversed)
             .await?;
 
         tracing::info!(
@@ -168,10 +173,7 @@ impl TransactionManager {
     }
 
     /// Process a batch of tasks for transaction sending
-    pub async fn process_task_batch(
-        &self,
-        tasks: Vec<TaskRecord>,
-    ) -> TransactionResult<Vec<String>> {
+    pub async fn process_task_batch(&self, tasks: Vec<Task>) -> TransactionResult<Vec<String>> {
         let mut processed_tasks = Vec::new();
         let task_count = tasks.len();
 
@@ -191,10 +193,8 @@ impl TransactionManager {
                     // Mark task as failed
                     if let Err(db_err) = self
                         .db
-                        .update_task_status(
-                            &task.task_id,
-                            crate::db_persistence::TaskStatus::Failed,
-                        )
+                        .tasks
+                        .update_task_status(&task.task_id, TaskStatus::Failed)
                         .await
                     {
                         tracing::error!("Failed to mark task as failed: {}", db_err);
@@ -278,37 +278,40 @@ impl TransactionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_persistence::DbPersistence;
-    use tempfile::NamedTempFile;
-
-    // Note: These tests would require a running Quantus node
-    // For now, they test the structure and error handling
-
-    #[test]
-    fn test_transaction_error_display() {
-        let error = TransactionError::TransactionNotFound("test".to_string());
-        assert!(error.to_string().contains("Transaction not found: test"));
-    }
+    use crate::config::Config;
+    use uuid::Uuid;
 
     #[tokio::test]
-    async fn test_wallet_address_format() {
-        // This test can run without a node connection
-        // This will fail without a node, but we can test the error handling
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_url = format!("sqlite:{}", temp_file.path().to_string_lossy());
-        let db = Arc::new(DbPersistence::new(&db_url).await.unwrap());
+    async fn test_new_manager_creates_and_loads_wallet() {
+        // This test requires filesystem access to create a wallet.
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
+        let wallet_name = format!("test_wallet_{}", Uuid::new_v4());
 
-        // This will fail with connection error
-        let result = TransactionManager::new(
-            "ws://invalid-url:9944",
-            "test_wallet",
-            "test_password",
-            db,
+        // First, create the manager, which should create a new wallet.
+        let manager1 = TransactionManager::new(
+            &config.blockchain.node_url,
+            &wallet_name,
+            "password",
+            db.clone(),
             chrono::Duration::hours(12),
         )
-        .await;
+        .await
+        .unwrap();
+        let addr1 = manager1.get_wallet_address();
 
-        // Should fail with connection error
-        assert!(result.is_err());
+        // Now, create another manager with the same name to ensure it loads the existing wallet.
+        let manager2 = TransactionManager::new(
+            &config.blockchain.node_url,
+            &wallet_name,
+            "password",
+            db.clone(),
+            chrono::Duration::hours(12),
+        )
+        .await
+        .unwrap();
+        let addr2 = manager2.get_wallet_address();
+
+        assert_eq!(addr1, addr2);
     }
 }

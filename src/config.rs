@@ -118,7 +118,7 @@ impl Default for Config {
                 check_interval_seconds: 30,
             },
             data: DataConfig {
-                database_url: "sqlite:taskmaster.db".to_string(),
+                database_url: "postgres://postgres:postgres@127.0.0.1:5432/task_master".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
