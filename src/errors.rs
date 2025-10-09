@@ -6,7 +6,6 @@ use axum::{
 use serde_json::json;
 use tracing::{error, info, warn};
 
-
 use crate::{
     db_persistence::DbError,
     models::ModelError,
@@ -53,10 +52,16 @@ impl IntoResponse for AppError {
             AppError::Database(err) => {
                 error!("{}", err);
 
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "An internal server error occurred".to_string(), 
-                )
+                match err {
+                    DbError::RecordNotFound(err)
+                    | DbError::AddressNotFound(err)
+                    | DbError::TaskNotFound(err) => (StatusCode::NOT_FOUND, err),
+
+                    DbError::Database(_) | DbError::InvalidStatus(_) | DbError::Migration(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "An internal server error occurred".to_string(),
+                    ),
+                }
             }
 
             AppError::Transaction(_)
@@ -68,7 +73,7 @@ impl IntoResponse for AppError {
             | AppError::Http(_)
             | AppError::Server(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "An internal server error occurred".to_string(), 
+                "An internal server error occurred".to_string(),
             ),
         };
 
