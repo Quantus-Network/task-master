@@ -20,6 +20,8 @@ use crate::{
 pub enum AppError {
     #[error("Configuration error: {0}")]
     Config(#[from] ::config::ConfigError),
+    #[error("Handler error: {0}")]
+    Handler(String),
     #[error("Data model error: {0}")]
     Model(#[from] ModelError),
     #[error("Database error: {0}")]
@@ -46,6 +48,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
+            AppError::Handler(err) => (StatusCode::BAD_REQUEST, err),
 
             AppError::Database(err) => {
                 error!("{}", err);

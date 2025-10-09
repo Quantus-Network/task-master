@@ -22,6 +22,7 @@ pub async fn handle_add_referral(
 ) -> Result<Json<SuccessResponse<String>>, AppError> {
     tracing::info!("Creating referral struct...");
 
+    // TODO: prevent adding self referral code maybe
     tracing::info!("Lookup referral code owner...");
     let referrer = state
         .db
@@ -29,6 +30,10 @@ pub async fn handle_add_referral(
         .find_by_referral_code(&referral_input.referral_code)
         .await?;
     if let Some(referrer) = referrer {
+        if referrer.quan_address.0 == referral_input.referee_address {
+            return Err(AppError::Handler(String::from("Self referral is not allowed!")));
+        };
+
         let referral_data = ReferralData {
             referrer_address: referrer.quan_address.0.clone(),
             referee_address: referral_input.referee_address,
@@ -37,7 +42,7 @@ pub async fn handle_add_referral(
         let referral = Referral::new(referral_data)?;
 
         let referral_code = generate_referral_code(referral.referee_address.0.clone()).await?;
-        
+
         tracing::info!("Creating referee address struct...");
         let referee = Address::new(AddressInput {
             quan_address: referral.referee_address.0.clone(),
@@ -48,7 +53,13 @@ pub async fn handle_add_referral(
         tracing::info!("Saving referee address to DB...");
         state.db.addresses.create(&referee).await?;
 
+        tracing::info!("Saving referral to DB...");
         state.db.referrals.create(&referral).await?;
+        state
+            .db
+            .addresses
+            .increment_referrals_count(&referrer.quan_address.0)
+            .await?;
 
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
