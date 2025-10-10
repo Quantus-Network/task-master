@@ -37,7 +37,7 @@ pub async fn handle_add_address(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{config::Config, db_persistence::DbPersistence, models::ModelError};
+    use crate::{config::Config, db_persistence::DbPersistence, models::ModelError, utils::test_db::reset_database};
     use std::sync::Arc;
 
     // Helper to set up a test AppState with a connection to a clean test DB.
@@ -45,11 +45,7 @@ mod tests {
         let config = Config::load().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
 
-        // Clean tables for test isolation
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&db.pool)
-            .await
-            .unwrap();
+        reset_database(&db.pool).await;
 
         AppState { db: Arc::new(db) }
     }
