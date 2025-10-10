@@ -2,6 +2,7 @@ use axum::Json;
 use serde::Serialize;
 
 pub mod referral;
+pub mod address;
 
 #[derive(Debug, Serialize)]
 pub struct SuccessResponse<T> {

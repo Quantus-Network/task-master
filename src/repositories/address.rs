@@ -13,7 +13,7 @@ impl AddressRepository {
 
     pub async fn create(&self, new_address: &Address) -> DbResult<String> {
         let created_id = sqlx::query_scalar::<_, String>(
-             "
+            "
         INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count) 
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (quan_address) 
@@ -76,6 +76,16 @@ impl AddressRepository {
         let address =
             sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE quan_address = $1")
                 .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(address)
+    }
+
+    pub async fn find_by_referral_code(&self, referral_code: &str) -> DbResult<Option<Address>> {
+        let address =
+            sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE referral_code = $1")
+                .bind(referral_code)
                 .fetch_optional(&self.pool)
                 .await?;
 
@@ -173,6 +183,19 @@ mod tests {
         assert_eq!(found.referral_code, "REF001");
     }
 
+      #[tokio::test]
+    async fn test_create_and_find_by_referral_code() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("001", "REF001");
+
+        let created_id = repo.create(&address).await.unwrap();
+        assert_eq!(created_id, address.quan_address.0);
+
+        let found = repo.find_by_referral_code(&address.referral_code).await.unwrap().unwrap();
+        assert_eq!(found.quan_address.0, address.quan_address.0);
+        assert_eq!(found.referral_code, "REF001");
+    }
+
     #[tokio::test]
     async fn test_create_conflict() {
         let repo = setup_test_repository().await;
@@ -200,18 +223,22 @@ mod tests {
     #[tokio::test]
     async fn test_find_all() {
         let repo = setup_test_repository().await;
-        
+
         // Initially empty
         let addresses = repo.find_all().await.unwrap();
         assert!(addresses.is_empty());
-        
+
         // After creation
-        repo.create(&create_mock_address("101", "REF101")).await.unwrap();
-        repo.create(&create_mock_address("102", "REF102")).await.unwrap();
+        repo.create(&create_mock_address("101", "REF101"))
+            .await
+            .unwrap();
+        repo.create(&create_mock_address("102", "REF102"))
+            .await
+            .unwrap();
         let addresses = repo.find_all().await.unwrap();
         assert_eq!(addresses.len(), 2);
     }
-    
+
     #[tokio::test]
     async fn test_create_many() {
         let repo = setup_test_repository().await;
@@ -226,11 +253,13 @@ mod tests {
         let all = repo.find_all().await.unwrap();
         assert_eq!(all.len(), 2);
     }
-    
+
     #[tokio::test]
     async fn test_create_many_with_conflicts() {
         let repo = setup_test_repository().await;
-        repo.create(&create_mock_address("301", "REF301")).await.unwrap();
+        repo.create(&create_mock_address("301", "REF301"))
+            .await
+            .unwrap();
 
         let addresses = vec![
             create_mock_address("301", "REF301"), // Conflict
@@ -250,11 +279,17 @@ mod tests {
         let repo = setup_test_repository().await;
         let address = create_mock_address("401", "REF401");
         repo.create(&address).await.unwrap();
-        
+
         let new_eth = "0x1234567890123456789012345678901234567890";
-        repo.update_address_eth(&address.quan_address.0, new_eth).await.unwrap();
-        
-        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        repo.update_address_eth(&address.quan_address.0, new_eth)
+            .await
+            .unwrap();
+
+        let updated = repo
+            .find_by_id(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
     }
 
@@ -264,28 +299,48 @@ mod tests {
         let address = create_mock_address("501", "REF501");
         repo.create(&address).await.unwrap();
 
-        let new_count = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
+        let new_count = repo
+            .increment_referrals_count(&address.quan_address.0)
+            .await
+            .unwrap();
         assert_eq!(new_count, 1);
 
-        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+        let updated = repo
+            .find_by_id(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(updated.referrals_count, 1);
-        
-        let new_count_2 = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
+
+        let new_count_2 = repo
+            .increment_referrals_count(&address.quan_address.0)
+            .await
+            .unwrap();
         assert_eq!(new_count_2, 2);
     }
-    
+
     #[tokio::test]
     async fn test_update_address_last_selected() {
         let repo = setup_test_repository().await;
         let address = create_mock_address("601", "REF601");
         repo.create(&address).await.unwrap();
-        
-        let initial = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+
+        let initial = repo
+            .find_by_id(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(initial.last_selected_at.is_none());
-        
-        repo.update_address_last_selected(&address.quan_address.0).await.unwrap();
-        
-        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
+
+        repo.update_address_last_selected(&address.quan_address.0)
+            .await
+            .unwrap();
+
+        let updated = repo
+            .find_by_id(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(updated.last_selected_at.is_some());
     }
 }

@@ -2,10 +2,12 @@ use qp_human_checkphrase::{address_to_checksum, load_bip39_list};
 use std::sync::OnceLock;
 use tokio::task;
 
+use crate::models::ModelError;
+
 // Create a static OnceLock instance for caching bip39 load.
 static WORD_LIST: OnceLock<Vec<String>> = OnceLock::new();
 
-pub async fn generate_referral_code(address: String) -> Result<String, String> {
+pub async fn generate_referral_code(address: String) -> Result<String, ModelError> {
     let result = task::spawn_blocking(move || {
         //    The closure `|| { ... }` is only executed on the very first call.
         //    `expect` is used here because if the word list can't load,
@@ -23,7 +25,7 @@ pub async fn generate_referral_code(address: String) -> Result<String, String> {
 
         Err(join_error) => {
             eprintln!("Blocking task failed to execute: {}", join_error);
-            Err(format!("Task execution failed: {}", join_error))
+            Err(ModelError::FailedGenerateCheckphrase)
         }
     }
 }

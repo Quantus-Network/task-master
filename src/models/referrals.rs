@@ -12,7 +12,7 @@ pub struct Referral {
     pub created_at: Option<DateTime<Utc>>,
 }
 impl Referral {
-    pub fn new(input: ReferralInput) -> ModelResult<Self> {
+    pub fn new(input: ReferralData) -> ModelResult<Self> {
         let referrer_address = match QuanAddress::from(&input.referrer_address) {
             Ok(name) => name,
             Err(e) => return Err(ModelError::InvalidInput),
@@ -50,6 +50,13 @@ impl<'r> FromRow<'r, PgRow> for Referral {
 // An unvalidated version that we can deserialize directly from JSON
 #[derive(Debug, Deserialize, Clone)]
 pub struct ReferralInput {
+    pub referral_code: String,
+    pub referee_address: String,
+}
+
+// An unvalidated version that we can deserialize directly from JSON
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReferralData {
     pub referrer_address: String,
     pub referee_address: String,
 }

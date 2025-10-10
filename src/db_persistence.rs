@@ -16,6 +16,8 @@ pub enum DbError {
     AddressNotFound(String),
     #[error("Invalid task status: {0}")]
     InvalidStatus(String),
+    #[error("Record not found: {0}")]
+    RecordNotFound(String),
 }
 
 #[derive(Debug, Clone)]
