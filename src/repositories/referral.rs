@@ -36,6 +36,16 @@ impl ReferralRepository {
 
         Ok(referrals)
     }
+
+    pub async fn find_by_referee(&self, quan_address: String) -> DbResult<Option<Referral>> {
+        let referral =
+            sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referee_address = $1")
+                .bind(quan_address.clone())
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(referral)
+    }
 }
 
 #[cfg(test)]
@@ -106,10 +116,33 @@ mod tests {
             .unwrap();
 
         assert_eq!(referrals.len(), 1);
-        assert_eq!(
-            referrals[0].referee_address.0,
-            referee.quan_address.0
-        );
+        assert_eq!(referrals[0].referee_address.0, referee.quan_address.0);
+    }
+
+    #[tokio::test]
+    async fn test_find_by_referee() {
+        let (address_repo, referral_repo) = setup_test_repositories().await;
+
+        // Referrals require existing addresses, so we create them first.
+        let referrer = create_persisted_address(&address_repo, "referrer_01").await;
+        let referee = create_persisted_address(&address_repo, "referee_01").await;
+
+        let referral_data = ReferralData {
+            referrer_address: referrer.quan_address.0.clone(),
+            referee_address: referee.quan_address.0.clone(),
+        };
+        let new_referral = Referral::new(referral_data).unwrap();
+
+        let created_id = referral_repo.create(&new_referral).await.unwrap();
+        assert!(created_id > 0);
+
+        let referral = referral_repo
+            .find_by_referee(referee.quan_address.0.clone())
+            .await;
+
+        assert!(referral.is_ok());
+        let referral = referral.unwrap().unwrap();
+        assert_eq!(referral.referee_address.0, referee.quan_address.0);
     }
 
     #[tokio::test]
@@ -165,12 +198,12 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_by_referrer_no_results() {
         let (_address_repo, referral_repo) = setup_test_repositories().await;
-        
+
         let results = referral_repo
             .find_all_by_referrer("qz_non_existent_address".to_string())
             .await
             .unwrap();
-            
+
         assert!(results.is_empty());
     }
 }

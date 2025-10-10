@@ -29,6 +29,12 @@ pub async fn handle_add_referral(
         .find_by_referral_code(&referral_input.referral_code)
         .await?;
     if let Some(referrer) = referrer {
+        if referrer.quan_address.0 == referral_input.referee_address {
+            return Err(AppError::Handler(String::from(
+                "Self referral is not allowed!",
+            )));
+        };
+
         let referral_data = ReferralData {
             referrer_address: referrer.quan_address.0.clone(),
             referee_address: referral_input.referee_address,
@@ -37,7 +43,7 @@ pub async fn handle_add_referral(
         let referral = Referral::new(referral_data)?;
 
         let referral_code = generate_referral_code(referral.referee_address.0.clone()).await?;
-        
+
         tracing::info!("Creating referee address struct...");
         let referee = Address::new(AddressInput {
             quan_address: referral.referee_address.0.clone(),
@@ -48,7 +54,13 @@ pub async fn handle_add_referral(
         tracing::info!("Saving referee address to DB...");
         state.db.addresses.create(&referee).await?;
 
+        tracing::info!("Saving referral to DB...");
         state.db.referrals.create(&referral).await?;
+        state
+            .db
+            .addresses
+            .increment_referrals_count(&referrer.quan_address.0)
+            .await?;
 
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
@@ -56,8 +68,28 @@ pub async fn handle_add_referral(
     }
 }
 
+pub async fn handle_get_referral_by_referee(
+    State(state): State<AppState>,
+    extract::Path(referee_address): extract::Path<String>,
+) -> Result<Json<SuccessResponse<Referral>>, AppError> {
+    tracing::info!("Creating referral struct...");
+
+    tracing::info!("Lookup referral code owner...");
+    let referral = state.db.referrals.find_by_referee(referee_address).await?;
+
+    if let Some(referral) = referral {
+        Ok(SuccessResponse::new(referral))
+    } else {
+        Err(AppError::Database(DbError::RecordNotFound(
+            "Referee doesn't have referral".to_string(),
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use axum::extract::Path;
+
     use super::*;
     use crate::{
         config::Config, db_persistence::DbPersistence, repositories::address::AddressRepository,
@@ -144,6 +176,35 @@ mod tests {
         assert!(
             referee.is_some(),
             "Referee address should have been created"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_referral_by_referee() {
+        // Arrange
+        let state = setup_test_app_state().await;
+        // Referrals require existing addresses, so we create them first.
+        let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
+        let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
+        let referral_data = ReferralData {
+            referrer_address: referrer.quan_address.0,
+            referee_address: referee.quan_address.0,
+        };
+        let new_referral = Referral::new(referral_data.clone()).unwrap();
+        state.db.referrals.create(&new_referral).await.unwrap();
+
+        let result = handle_get_referral_by_referee(
+            State(state.clone()),
+            Path(referral_data.referee_address.clone()),
+        )
+        .await;
+
+        // Assert: Check the handler's response.
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(
+            response.data.referee_address.0 == referral_data.referee_address,
+            "Expected the same input referee address as response data"
         );
     }
 
