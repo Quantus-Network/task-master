@@ -242,7 +242,7 @@ mod tests {
 
         reset_database(&db.pool).await;
 
-        let wallet_name = format!("test_wallet_reverser_{}", Uuid::new_v4());
+        let wallet_name = "//Alice";
         let transaction_manager = Arc::new(
             TransactionManager::new(
                 &config.blockchain.node_url,
@@ -296,9 +296,9 @@ mod tests {
             task_url: format!("http://example.com/{}", id),
         })
         .unwrap();
-        db.tasks.create(&task).await.unwrap();
+        let task_id = db.tasks.create(&task).await.unwrap();
 
-        tm.send_reversible_transaction(&task.task_id).await.unwrap();
+        tm.send_reversible_transaction(&task_id).await.unwrap();
 
         // Manually update the task's end_time to be within the reversal window.
         let new_end_time = Utc::now() + ChronoDuration::minutes(2);
@@ -310,7 +310,7 @@ mod tests {
             .unwrap();
 
         // Return the fully prepared task.
-        db.tasks.get_task(&task.task_id).await.unwrap().unwrap()
+        db.tasks.get_task(&task_id).await.unwrap().unwrap()
     }
 
     #[tokio::test]
