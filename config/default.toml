@@ -6,7 +6,7 @@ port = 3000
 
 [blockchain]
 # Quantus node WebSocket URL
-node_url = "ws://quantu.se"
+node_url = "wss://quantu.se"
 
 # Wallet configuration for transactions
 wallet_name = "test_seed_wallet2"

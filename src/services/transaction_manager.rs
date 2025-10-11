@@ -286,7 +286,6 @@ impl TransactionManager {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_new_manager_creates_and_loads_wallet() {
