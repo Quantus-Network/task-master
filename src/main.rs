@@ -89,6 +89,7 @@ async fn main() -> AppResult<()> {
         config.blockchain.node_url = node_url;
     }
 
+    crypto::set_default_ss58_version(Ss58AddressFormat::custom(189));
     // Initialize logging
     init_logging(&config.logging.level)?;
 
