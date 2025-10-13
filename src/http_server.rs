@@ -143,13 +143,26 @@ pub fn auth_from_headers(headers: &HeaderMap) -> Option<String> {
     if v.starts_with(prefix) { Some(v[prefix.len()..].to_string()) } else { None }
 }
 
-async fn require_session(state: &AppState, headers: &HeaderMap) -> Result<String, StatusCode> {
-    let Some(token) = auth_from_headers(headers) else { return Err(StatusCode::UNAUTHORIZED) };
-    let mut sessions = state.sessions.write().await;
-    let Some(s) = sessions.get_mut(&token) else { return Err(StatusCode::UNAUTHORIZED) };
-    if s.expires_at < Utc::now() { sessions.remove(&token); return Err(StatusCode::UNAUTHORIZED); }
-    s.expires_at = Utc::now() + chrono::Duration::hours(24);
-    Ok(s.address.clone())
+pub struct AuthSession {
+    pub address: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[axum::async_trait]
+impl axum::extract::FromRequestParts<AppState> for AuthSession {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let Some(token) = auth_from_headers(&parts.headers) else { return Err(StatusCode::UNAUTHORIZED) };
+        let mut sessions = state.sessions.write().await;
+        let Some(s) = sessions.get_mut(&token) else { return Err(StatusCode::UNAUTHORIZED) };
+        if s.expires_at < Utc::now() { sessions.remove(&token); return Err(StatusCode::UNAUTHORIZED) };
+        s.expires_at = Utc::now() + chrono::Duration::hours(24);
+        Ok(AuthSession { address: s.address.clone(), expires_at: s.expires_at })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,10 +173,9 @@ struct AddReferrerResponse { success: bool }
 
 async fn add_referrer(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthSession { address: _auth, expires_at: _ }: AuthSession,
     Json(body): Json<AddReferrerBody>,
 ) -> Result<Json<AddReferrerResponse>, StatusCode> {
-    let _addr = require_session(&state, &headers).await?;
     let referred = body.referred;
     let referrer = body.referrer;
     let addresses = state.db.addresses.find_all().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -554,10 +566,6 @@ pub async fn start_server(
 mod tests {
     use super::*;
     use axum::http::{self, StatusCode};
-    use sp_runtime::traits::IdentifyAccount;
-    use sp_core::crypto::Ss58Codec;
-    use tower::ServiceExt; // for oneshot
-    use serde_json::json;
 
     async fn test_app() -> axum::Router {
         let db = Arc::new(DbPersistence::new_unmigrated("postgres://postgres:postgres@127.0.0.1:55432/task_master").await.unwrap());
@@ -568,6 +576,4 @@ mod tests {
         };
         create_router(state)
     }
-
-    // auth tests moved to handlers::auth
 }
