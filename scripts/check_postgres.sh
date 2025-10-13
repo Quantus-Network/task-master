@@ -1,0 +1,1 @@
+podman compose -f docker-compose.yaml exec -T postgres pg_isready -U postgres && echo "Postgres ready" || echo "Postgres not ready"

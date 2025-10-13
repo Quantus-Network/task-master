@@ -1,13 +1,13 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
     container_name: task_master_test_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: task_master
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - ./migrations/001_initial_psql.sql:/docker-entrypoint-initdb.d/001_initial_psql.sql:ro
       - pgdata:/var/lib/postgresql/data
