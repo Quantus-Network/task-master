@@ -6,5 +6,5 @@
 
 ## Run test script
 ```shell
-./scripts/start_test.sh
+./scripts/run_test.sh
 ```

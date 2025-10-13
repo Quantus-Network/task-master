@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: task_master
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - ./migrations/001_initial_psql.sql:/docker-entrypoint-initdb.d/001_initial_psql.sql:ro
       - pgdata:/var/lib/postgresql/data
