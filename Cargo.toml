@@ -30,7 +30,13 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "chrono", "postgres", "uuid", "migrate"] }
+sqlx = { version = "0.7", features = [
+  "runtime-tokio-rustls",
+  "chrono",
+  "postgres",
+  "uuid",
+  "migrate",
+] }
 
 # Signature verification
 # Using quantus-cli's dilithium crypto for signature verification
@@ -65,6 +71,7 @@ anyhow = "1.0"
 dirs = "6.0"
 subxt = "0.43.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+qp-rusty-crystals-dilithium = "1.0.3"
 
 [dev-dependencies]
 wiremock = "0.6.5"

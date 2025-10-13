@@ -30,7 +30,7 @@ pub use db_persistence::DbError;
 pub use services::graphql_client::GraphqlError;
 pub use http_server::HttpServerError;
 pub use services::reverser::ReverserError;
-pub use services::signature_verification::{EthAddressAssociation, SignatureError};
+pub use services::ethereum_service::{EthAddressAssociation, SignatureError};
 pub use services::task_generator::TaskGeneratorError;
 pub use services::transaction_manager::TransactionError;
 

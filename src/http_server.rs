@@ -19,7 +19,7 @@ use crate::{
     routes::api_routes,
     services::{
         graphql_client::GraphqlClient,
-        signature_verification::{verify_dilithium_signature, SignatureError},
+        ethereum_service::{verify_dilithium_signature, SignatureError},
     }, utils::generate_referral_code::generate_referral_code,
 };
 
