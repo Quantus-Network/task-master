@@ -16,7 +16,7 @@ use crate::{
         address::{Address, AddressInput},
         task::{Task, TaskStatus},
     },
-    routes::api_routes,
+    routes::{api_routes, auth::auth_routes},
     services::{
         graphql_client::GraphqlClient,
     }, utils::generate_referral_code::generate_referral_code,
@@ -115,6 +115,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
         .nest("/api", api_routes())
+        .nest("/auth", auth_routes())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
