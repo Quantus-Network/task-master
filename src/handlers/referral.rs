@@ -95,17 +95,14 @@ mod tests {
         config::Config, db_persistence::DbPersistence, repositories::address::AddressRepository,
     };
     use std::sync::Arc;
+    use crate::utils::test_db::reset_database;
 
     // Helper to set up a test AppState with a connection to a real test DB.
     async fn setup_test_app_state() -> AppState {
         let config = Config::load().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
 
-        // Clean tables for test isolation
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&db.pool)
-            .await
-            .unwrap();
+        reset_database(&db.pool).await;
 
         AppState { db: Arc::new(db) }
     }

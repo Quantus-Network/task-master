@@ -54,6 +54,9 @@ pub struct LoggingConfig {
 }
 
 impl Config {
+    /// This is the **PRODUCTION** version, used for `cargo run` and `cargo build`.
+    /// It loads `config/default`.
+    #[cfg(not(test))]
     pub fn load() -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
             .add_source(config::File::with_name("config/default"))
@@ -61,6 +64,21 @@ impl Config {
             .build()?;
 
         settings.try_deserialize()
+    }
+
+    /// This is the **TEST** version, used only for `cargo test`.
+    /// It loads `config/test` instead of `config/default`.
+    #[cfg(test)]
+    pub fn load() -> Result<Self, config::ConfigError> {
+        println!("🧪 Loading TEST configuration..."); // For demonstration
+        let s = config::Config::builder()
+            // Load the test-specific configuration file
+            .add_source(config::File::with_name("config/test"))
+            // You can still layer environment variables for testing if you need to
+            .add_source(config::Environment::with_prefix("TASKMASTER"))
+            .build()?;
+
+        s.try_deserialize()
     }
 
     pub fn get_database_url(&self) -> &str {

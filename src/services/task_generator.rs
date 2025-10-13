@@ -246,6 +246,7 @@ impl TaskGenerator {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::utils::test_db::reset_database;
     use std::sync::Arc;
     use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
@@ -254,11 +255,7 @@ mod tests {
         let config = Config::load().expect("Failed to load test configuration");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
-        // Clean tables for test isolation
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&db.pool)
-            .await
-            .unwrap();
+        reset_database(&db.pool).await;
 
         TaskGenerator::new(db)
     }

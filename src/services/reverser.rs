@@ -226,6 +226,7 @@ mod tests {
         models::task::{Task, TaskInput, TaskStatus},
         services::transaction_manager::TransactionManager,
         utils::generate_referral_code::generate_referral_code,
+        utils::test_db::reset_database,
     };
     use quantus_cli::wallet::WalletManager;
     use chrono::{Duration as ChronoDuration, Utc};
@@ -236,15 +237,12 @@ mod tests {
     async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>)
     {
         let config = Config::load().expect("Failed to load test configuration");
+        std::env::set_var("TASKMASTER_USE_DEV_ALICE", "1");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
-        // Clean tables for test isolation
-        sqlx::query("TRUNCATE addresses, referrals, tasks RESTART IDENTITY CASCADE")
-            .execute(&db.pool)
-            .await
-            .unwrap();
+        reset_database(&db.pool).await;
 
-        let wallet_name = format!("test_wallet_reverser_{}", Uuid::new_v4());
+        let wallet_name = "//Alice";
         let transaction_manager = Arc::new(
             TransactionManager::new(
                 &config.blockchain.node_url,
@@ -298,9 +296,9 @@ mod tests {
             task_url: format!("http://example.com/{}", id),
         })
         .unwrap();
-        db.tasks.create(&task).await.unwrap();
+        let task_id = db.tasks.create(&task).await.unwrap();
 
-        tm.send_reversible_transaction(&task.task_id).await.unwrap();
+        tm.send_reversible_transaction(&task_id).await.unwrap();
 
         // Manually update the task's end_time to be within the reversal window.
         let new_end_time = Utc::now() + ChronoDuration::minutes(2);
@@ -312,7 +310,7 @@ mod tests {
             .unwrap();
 
         // Return the fully prepared task.
-        db.tasks.get_task(&task.task_id).await.unwrap().unwrap()
+        db.tasks.get_task(&task_id).await.unwrap().unwrap()
     }
 
     #[tokio::test]

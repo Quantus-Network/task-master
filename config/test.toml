@@ -5,8 +5,8 @@ host = "127.0.0.1"
 port = 3000
 
 [blockchain]
-# Quantus node WebSocket URL
-node_url = "wss://quantu.se"
+# Quantus node WebSocket URL (use local dev chain by default for testing)
+node_url = "ws://127.0.0.1:9944"
 
 # Wallet configuration for transactions
 wallet_name = "test_seed_wallet2"
@@ -16,8 +16,8 @@ wallet_password = "test123"
 reversal_period_hours = 12
 
 [candidates]
-# GraphQL endpoint to fetch candidate addresses
-graphql_url = "https://quantu.se/graphql"
+# GraphQL endpoint to fetch candidate addresses (local/dev default)
+graphql_url = "http://127.0.0.1:4000/graphql"
 # How often to refresh candidates (in minutes)
 refresh_interval_minutes = 30
 

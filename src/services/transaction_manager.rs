@@ -3,6 +3,7 @@ use crate::models::task::{Task, TaskStatus};
 use chrono::Utc;
 use quantus_cli::chain::client::QuantusClient;
 use quantus_cli::cli::reversible::{cancel_transaction, schedule_transfer};
+use quantus_cli::qp_dilithium_crypto::crystal_alice;
 use quantus_cli::wallet::{QuantumKeyPair, WalletManager};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -45,23 +46,29 @@ impl TransactionManager {
         // Initialize wallet manager
         let wallet_manager = WalletManager::new()?;
 
-        // Load or create wallet
-        let keypair = match wallet_manager.load_wallet(wallet_name, wallet_password) {
-            Ok(wallet_data) => {
-                tracing::info!("Loaded existing wallet: {}", wallet_name);
-                wallet_data.keypair
-            }
-            Err(_) => {
-                tracing::info!("Creating new wallet: {}", wallet_name);
-                let wallet_info = wallet_manager
-                    .create_wallet(wallet_name, Some(wallet_password))
-                    .await?;
-                tracing::info!("Created wallet with address: {}", wallet_info.address);
+        // Support dev keypair
+        let keypair = if wallet_name.starts_with("//Alice") {
+            tracing::info!("Using dev URI keypair: {}", wallet_name);
+            QuantumKeyPair::from_resonance_pair(&crystal_alice())
+        } else {
+            // Load or create wallet
+            match wallet_manager.load_wallet(wallet_name, wallet_password) {
+                Ok(wallet_data) => {
+                    tracing::info!("Loaded existing wallet: {}", wallet_name);
+                    wallet_data.keypair
+                }
+                Err(_) => {
+                    tracing::info!("Creating new wallet: {}", wallet_name);
+                    let wallet_info = wallet_manager
+                        .create_wallet(wallet_name, Some(wallet_password))
+                        .await?;
+                    tracing::info!("Created wallet with address: {}", wallet_info.address);
 
-                // Load the newly created wallet
-                wallet_manager
-                    .load_wallet(wallet_name, wallet_password)?
-                    .keypair
+                    // Load the newly created wallet
+                    wallet_manager
+                        .load_wallet(wallet_name, wallet_password)?
+                        .keypair
+                }
             }
         };
 
@@ -279,14 +286,13 @@ impl TransactionManager {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_new_manager_creates_and_loads_wallet() {
         // This test requires filesystem access to create a wallet.
         let config = Config::load().expect("Failed to load test configuration");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
-        let wallet_name = format!("test_wallet_{}", Uuid::new_v4());
+        let wallet_name = "//Alice"; // use dev key for local node
 
         // First, create the manager, which should create a new wallet.
         let manager1 = TransactionManager::new(
