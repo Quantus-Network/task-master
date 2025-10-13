@@ -58,13 +58,10 @@ pub async fn verify_login(
 pub struct AuthMeResponse { pub address: String, pub expires_at: String }
 
 pub async fn auth_me(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(_state): State<AppState>,
+    crate::http_server::AuthSession { address, expires_at }: crate::http_server::AuthSession,
 ) -> Result<Json<AuthMeResponse>, StatusCode> {
-    let token = super::super::http_server::auth_from_headers(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
-    let sessions = state.sessions.read().await;
-    let s = sessions.get(&token).ok_or(StatusCode::UNAUTHORIZED)?;
-    Ok(Json(AuthMeResponse { address: s.address.clone(), expires_at: s.expires_at.to_rfc3339() }))
+    Ok(Json(AuthMeResponse { address, expires_at: expires_at.to_rfc3339() }))
 }
 
 #[cfg(test)]
