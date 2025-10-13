@@ -7,6 +7,7 @@ use crate::{
     }
 };
 use clap::Parser;
+use sp_core::crypto::{self, Ss58AddressFormat};
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::{error, info, warn};

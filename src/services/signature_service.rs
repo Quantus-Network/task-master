@@ -2,6 +2,7 @@ use quantus_cli::qp_dilithium_crypto::{traits::verify as dilithium_verify, types
 use sp_core::crypto::{AccountId32, Ss58Codec};
 use std::convert::TryFrom;
 use sp_runtime::traits::IdentifyAccount;
+use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SigServiceError {
@@ -23,7 +24,15 @@ impl SignatureService {
         let pk_hex = public_key_hex.strip_prefix("0x").unwrap_or(public_key_hex);
         let sig = hex::decode(sig_hex)?;
         let pk = hex::decode(pk_hex)?;
-        Ok(dilithium_verify(&pk, message, &sig))
+        let ok = dilithium_verify(&pk, message, &sig);
+        info!(
+            message_len = message.len(),
+            signature_len = sig.len(),
+            public_key_len = pk.len(),
+            ok = ok,
+            "SignatureService::verify_message"
+        );
+        Ok(ok)
     }
 
     pub fn verify_address(public_key_hex: &str, address_ss58: &str) -> SigServiceResult<bool> {
@@ -33,7 +42,9 @@ impl SignatureService {
             .map_err(|e| SigServiceError::InvalidAddress(format!("{:?}", e)))?;
         let dil = DilithiumPublic::try_from(pk.as_slice()).map_err(|_| SigServiceError::VerifyFailed)?;
         let derived = dil.into_account();
-        Ok(derived == expected)
+        let ok = derived == expected;
+        info!(public_key_len = pk.len(), ok = ok, "SignatureService::verify_address");
+        Ok(ok)
     }
 }
 

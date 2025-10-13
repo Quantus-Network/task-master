@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{http_server::{AppState, Challenge, Session}, services::signature_service::SignatureService};
+use tracing::{info, warn};
 
 #[derive(Debug, Deserialize)]
 pub struct RequestChallengeBody { pub address: Option<String> }
@@ -37,13 +38,29 @@ pub async fn verify_login(
     State(state): State<AppState>,
     Json(body): Json<VerifyLoginBody>,
 ) -> Result<Json<VerifyLoginResponse>, StatusCode> {
+    let sig_len = body.signature.strip_prefix("0x").unwrap_or(&body.signature).len();
+    let pk_len = body.public_key.strip_prefix("0x").unwrap_or(&body.public_key).len();
+    info!(
+        temp_session_id = %body.temp_session_id,
+        address = %body.address,
+        signature_len = sig_len,
+        public_key_len = pk_len,
+        "verify_login: received payload"
+    );
     let Some(chal) = state.challenges.read().await.get(&body.temp_session_id).cloned() else {
         return Err(StatusCode::UNAUTHORIZED);
     };
     let message = format!("taskmaster:login:1|challenge={}|address={}", chal.challenge, body.address);
-    let addr_ok = SignatureService::verify_address(&body.public_key, &body.address).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    info!(message = %message, message_len = message.len(), message_hex = %hex::encode(message.as_bytes()), "verify_login: constructed message");
+
+    let addr_res = SignatureService::verify_address(&body.public_key, &body.address);
+    if let Err(e) = &addr_res { warn!(error = %e, "verify_login: verify_address error"); }
+    let addr_ok = addr_res.map_err(|_| StatusCode::UNAUTHORIZED)?;
     if !addr_ok { return Err(StatusCode::UNAUTHORIZED); }
-    let sig_ok = SignatureService::verify_message(message.as_bytes(), &body.signature, &body.public_key).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let sig_res = SignatureService::verify_message(message.as_bytes(), &body.signature, &body.public_key);
+    if let Err(e) = &sig_res { warn!(error = %e, "verify_login: verify_message error"); }
+    let sig_ok = sig_res.map_err(|_| StatusCode::UNAUTHORIZED)?;
+    info!(addr_ok = addr_ok, sig_ok = sig_ok, "verify_login: verification results");
     if !sig_ok { return Err(StatusCode::UNAUTHORIZED); }
     let session_key = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + chrono::Duration::hours(24);
