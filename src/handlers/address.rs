@@ -47,7 +47,7 @@ mod tests {
 
         reset_database(&db.pool).await;
 
-        AppState { db: Arc::new(db) }
+        AppState { db: Arc::new(db), sessions: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())), challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())) }
     }
 
     #[tokio::test]

@@ -3,6 +3,7 @@ use serde::Serialize;
 
 pub mod referral;
 pub mod address;
+pub mod auth;
 
 #[derive(Debug, Serialize)]
 pub struct SuccessResponse<T> {
