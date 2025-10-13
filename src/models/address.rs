@@ -54,12 +54,18 @@ impl Address {
     pub fn new(input: AddressInput) -> ModelResult<Self> {
         let quan_address = match QuanAddress::from(&input.quan_address) {
             Ok(name) => name,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid quan address input");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         let eth_address = match ETHAddress::from(input.eth_address.as_deref()) {
             Ok(eth_address) => eth_address,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid ETH address input");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         Ok(Address {

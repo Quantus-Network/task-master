@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use uuid::Uuid;
 
 use crate::{
     db_persistence::DbPersistence,
@@ -20,13 +19,10 @@ use crate::{
     routes::api_routes,
     services::{
         graphql_client::GraphqlClient,
-        ethereum_service::{verify_dilithium_signature, SignatureError},
-        signature_service::SignatureService,
     }, utils::generate_referral_code::generate_referral_code,
 };
 use tokio::sync::RwLock;
 use chrono::{DateTime, Utc};
-use axum::body::Body;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpServerError {
@@ -346,7 +342,7 @@ async fn associate_eth_address(
     );
 
     // Verify the signature
-    match verify_dilithium_signature(
+    match crate::services::ethereum_service::verify_dilithium_signature(
         &payload.quan_address,
         &payload.eth_address,
         &payload.signature,
@@ -362,7 +358,7 @@ async fn associate_eth_address(
             };
             return Err((StatusCode::UNAUTHORIZED, Json(response)));
         }
-        Err(SignatureError::VerificationFailed) => {
+        Err(crate::services::ethereum_service::SignatureError::VerificationFailed) => {
             tracing::warn!("Dilithium signature verification failed");
             let response = AssociateEthAddressResponse {
                 success: false,

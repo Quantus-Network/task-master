@@ -76,12 +76,18 @@ impl Task {
     pub fn new(input: TaskInput) -> ModelResult<Self> {
         let quan_address = match QuanAddress::from(&input.quan_address) {
             Ok(name) => name,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid quan address input for task");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         let quan_amount = match TokenAmount::from(input.quan_amount as i64) {
             Ok(quan_amount) => quan_amount,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid token amount input for task");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         let task_url = input.task_url;

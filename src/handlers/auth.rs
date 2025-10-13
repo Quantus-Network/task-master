@@ -1,10 +1,9 @@
 use axum::{extract::State, http::StatusCode, response::Json};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{http_server::{AppState, Challenge, Session}, services::signature_service::SignatureService};
-use axum::http::HeaderMap;
 
 #[derive(Debug, Deserialize)]
 pub struct RequestChallengeBody { pub address: Option<String> }
