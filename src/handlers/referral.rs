@@ -4,7 +4,7 @@ use axum::{
 };
 
 use crate::{
-    db_persistence::DbError,
+    handlers::HandlerError,
     http_server::AppState,
     models::{
         address::{Address, AddressInput},
@@ -15,6 +15,14 @@ use crate::{
 };
 
 use super::SuccessResponse;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReferralHandlerError {
+    #[error("{0}")]
+    ReferralNotFound(String),
+    #[error("{0}")]
+    InvalidReferral(String),
+}
 
 pub async fn handle_add_referral(
     State(state): State<AppState>,
@@ -30,8 +38,10 @@ pub async fn handle_add_referral(
         .await?;
     if let Some(referrer) = referrer {
         if referrer.quan_address.0 == referral_input.referee_address {
-            return Err(AppError::Handler(String::from(
-                "Self referral is not allowed!",
+            return Err(AppError::Handler(HandlerError::Referral(
+                ReferralHandlerError::InvalidReferral(String::from(
+                    "Self referral is not allowed!",
+                )),
             )));
         };
 
@@ -64,7 +74,9 @@ pub async fn handle_add_referral(
 
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
-        return Err(AppError::Database(DbError::AddressNotFound("".to_string())));
+        return Err(AppError::Handler(HandlerError::Referral(
+            ReferralHandlerError::ReferralNotFound(String::from("Referrer address not found!")),
+        )));
     }
 }
 
@@ -80,8 +92,8 @@ pub async fn handle_get_referral_by_referee(
     if let Some(referral) = referral {
         Ok(SuccessResponse::new(referral))
     } else {
-        Err(AppError::Database(DbError::RecordNotFound(
-            "Referee doesn't have referral".to_string(),
+        Err(AppError::Handler(HandlerError::Referral(
+            ReferralHandlerError::ReferralNotFound(String::from("Referee doesn't have referral")),
         )))
     }
 }
@@ -91,11 +103,11 @@ mod tests {
     use axum::extract::Path;
 
     use super::*;
+    use crate::utils::test_db::reset_database;
     use crate::{
         config::Config, db_persistence::DbPersistence, repositories::address::AddressRepository,
     };
     use std::sync::Arc;
-    use crate::utils::test_db::reset_database;
 
     // Helper to set up a test AppState with a connection to a real test DB.
     async fn setup_test_app_state() -> AppState {
@@ -104,7 +116,11 @@ mod tests {
 
         reset_database(&db.pool).await;
 
-        AppState { db: Arc::new(db), sessions: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())), challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())) }
+        AppState {
+            db: Arc::new(db),
+            sessions: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        }
     }
 
     // Helper to create a persisted address for tests.
