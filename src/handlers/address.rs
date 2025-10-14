@@ -259,7 +259,7 @@ mod tests {
 
         AppState {
             db: Arc::new(db),
-            sessions: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         }
     }
