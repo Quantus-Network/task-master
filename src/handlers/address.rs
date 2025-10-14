@@ -1,15 +1,20 @@
 use axum::{
     extract::{self, State},
+    response::NoContent,
     Json,
 };
 
 use crate::{
+    db_persistence::DbError,
     handlers::HandlerError,
     http_server::AppState,
-    models::{address::{
-        Address, AddressInput, AssociateEthAddressRequest, AssociateEthAddressResponse,
-        NewAddressPayload, SyncTransfersResponse,
-    }, ModelError},
+    models::{
+        address::{
+            Address, AddressInput, AssociateEthAddressRequest, AssociateEthAddressResponse,
+            NewAddressPayload, RewardProgramStatusPayload, SyncTransfersResponse,
+        },
+        ModelError,
+    },
     utils::generate_referral_code::generate_referral_code,
     AppError, GraphqlClient,
 };
@@ -22,6 +27,32 @@ pub enum AddressHandlerError {
     InvalidSignature(Json<AssociateEthAddressResponse>),
     #[error("Not authorized")]
     Unauthrorized(Json<AssociateEthAddressResponse>),
+}
+
+pub async fn handle_update_reward_program_status(
+    State(state): State<AppState>,
+    extract::Path(id): extract::Path<String>,
+    extract::Json(payload): Json<RewardProgramStatusPayload>,
+) -> Result<NoContent, AppError> {
+    tracing::info!("Making sure address exist by trying to save address...");
+
+    let _ = handle_add_address(
+        State(state.clone()),
+        Json(NewAddressPayload {
+            quan_address: id.clone(),
+        }),
+    )
+    .await?;
+
+    tracing::info!("Updating address reward status to {}", payload.new_status);
+
+    state
+        .db
+        .addresses
+        .update_address_reward_status(&id, payload.new_status)
+        .await?;
+
+    Ok(NoContent)
 }
 
 pub async fn handle_add_address(
@@ -42,6 +73,21 @@ pub async fn handle_add_address(
     let created_id = state.db.addresses.create(&address_data).await?;
 
     Ok(SuccessResponse::new(created_id))
+}
+
+pub async fn handle_get_address_reward_status_by_id(
+    State(state): State<AppState>,
+    extract::Path(id): extract::Path<String>,
+) -> Result<Json<SuccessResponse<bool>>, AppError> {
+    tracing::info!("Getting address by id {}", id);
+
+    if let Some(address) = state.db.addresses.find_by_id(&id).await? {
+        Ok(SuccessResponse::new(address.is_reward_program_participant))
+    } else {
+        Err(AppError::Database(DbError::AddressNotFound(
+            "Address not found!".to_string(),
+        )))
+    }
 }
 
 pub async fn associate_eth_address(
@@ -100,7 +146,6 @@ pub async fn associate_eth_address(
     let addresses = match state.db.addresses.find_all().await {
         Ok(addrs) => addrs,
         Err(db_err) => {
-
             return Err(AppError::Database(db_err));
         }
     };
@@ -149,9 +194,7 @@ pub async fn associate_eth_address(
                     payload.eth_address
                 );
             }
-            Err(db_err) => {
-                return Err(AppError::Database(db_err))
-            }
+            Err(db_err) => return Err(AppError::Database(db_err)),
         }
     }
 

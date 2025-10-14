@@ -47,6 +47,7 @@ pub struct Address {
     pub eth_address: ETHAddress,
     pub referral_code: String,
     pub referrals_count: i32,
+    pub is_reward_program_participant: bool,
     pub last_selected_at: Option<DateTime<Utc>>,
     pub created_at: Option<DateTime<Utc>>,
 }
@@ -72,6 +73,7 @@ impl Address {
             quan_address,
             eth_address,
             referral_code: input.referral_code,
+            is_reward_program_participant: false,
             referrals_count: 0,
             created_at: None,
             last_selected_at: None,
@@ -84,6 +86,7 @@ impl<'r> FromRow<'r, PgRow> for Address {
         let eth_address = row.try_get("eth_address")?;
         let referral_code = row.try_get("referral_code")?;
         let referrals_count = row.try_get("referrals_count")?;
+        let is_reward_program_participant = row.try_get("is_reward_program_participant")?;
         let created_at = row.try_get("created_at")?;
         let last_selected_at = row.try_get("last_selected_at")?;
 
@@ -92,6 +95,7 @@ impl<'r> FromRow<'r, PgRow> for Address {
             eth_address,
             referral_code,
             referrals_count,
+            is_reward_program_participant,
             created_at,
             last_selected_at,
         })
@@ -131,4 +135,8 @@ pub struct SyncTransfersResponse {
     pub message: String,
     pub transfers_processed: Option<usize>,
     pub addresses_stored: Option<usize>,
+}
+#[derive(Debug,Clone, Deserialize)]
+pub struct RewardProgramStatusPayload {
+    pub new_status: bool,
 }

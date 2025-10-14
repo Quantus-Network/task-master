@@ -14,11 +14,13 @@ CREATE TABLE IF NOT EXISTS addresses (
     eth_address VARCHAR(64),
     referral_code VARCHAR(255) UNIQUE,
     referrals_count INTEGER DEFAULT 0,
+    is_reward_program_participant BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_selected_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_addresses_last_selected ON addresses (last_selected_at);
+CREATE INDEX IF NOT EXISTS idx_addresses_referral_code ON addresses (referral_code);
 
 -- Referrals table
 CREATE TABLE IF NOT EXISTS referrals (
