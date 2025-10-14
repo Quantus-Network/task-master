@@ -110,3 +110,25 @@ pub struct AddressInput {
 pub struct NewAddressPayload {
     pub quan_address: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AssociateEthAddressRequest {
+    pub quan_address: String,
+    pub eth_address: String,
+    pub signature: String,
+    pub public_key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AssociateEthAddressResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncTransfersResponse {
+    pub success: bool,
+    pub message: String,
+    pub transfers_processed: Option<usize>,
+    pub addresses_stored: Option<usize>,
+}

@@ -8,6 +8,10 @@ use tracing::error;
 
 use crate::{
     db_persistence::DbError,
+    handlers::{
+        address::AddressHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
+        HandlerError,
+    },
     models::ModelError,
     services::{
         graphql_client::GraphqlError, reverser::ReverserError, task_generator::TaskGeneratorError,
@@ -19,8 +23,8 @@ use crate::{
 pub enum AppError {
     #[error("Configuration error: {0}")]
     Config(#[from] ::config::ConfigError),
-    #[error("Handler error: {0}")]
-    Handler(String),
+    #[error("Handler error")]
+    Handler(#[from] HandlerError),
     #[error("Data model error: {0}")]
     Model(#[from] ModelError),
     #[error("Database error: {0}")]
@@ -47,7 +51,32 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
-            AppError::Handler(err) => (StatusCode::BAD_REQUEST, err),
+
+            AppError::Handler(err) => match err {
+                HandlerError::Address(err) => match err {
+                    AddressHandlerError::InvalidSignature(err) => {
+                        return (StatusCode::BAD_REQUEST, err).into_response()
+                    }
+                    AddressHandlerError::Unauthrorized(err) => {
+                        return (StatusCode::UNAUTHORIZED, err).into_response()
+                    }
+                },
+                HandlerError::Referral(err) => match err {
+                    ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
+                    ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
+                },
+                HandlerError::Task(err) => match err {
+                    TaskHandlerError::TaskNotFound(err) => {
+                        return (StatusCode::NOT_FOUND, err).into_response()
+                    }
+                    TaskHandlerError::InvalidTaskUrl(err) => {
+                        return (StatusCode::BAD_REQUEST, err).into_response()
+                    }
+                    TaskHandlerError::StatusConflict(err) => {
+                        return (StatusCode::CONFLICT, err).into_response()
+                    }
+                },
+            },
 
             AppError::Database(err) => {
                 error!("{}", err);
