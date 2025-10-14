@@ -183,3 +183,15 @@ pub struct TaskInput {
     pub quan_amount: u64,
     pub task_url: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CompleteTaskRequest {
+    pub task_url: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CompleteTaskResponse {
+    pub success: bool,
+    pub message: String,
+    pub task_id: Option<String>,
+}
