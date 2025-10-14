@@ -31,10 +31,11 @@ pub async fn handle_add_referral(
     tracing::info!("Creating referral struct...");
 
     tracing::info!("Lookup referral code owner...");
+    let submitted_code = referral_input.referral_code.to_lowercase();
     let referrer = state
         .db
         .addresses
-        .find_by_referral_code(&referral_input.referral_code)
+        .find_by_referral_code(&submitted_code)
         .await?;
     if let Some(referrer) = referrer {
         if referrer.quan_address.0 == referral_input.referee_address {
@@ -75,7 +76,10 @@ pub async fn handle_add_referral(
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
         return Err(AppError::Handler(HandlerError::Referral(
-            ReferralHandlerError::ReferralNotFound(String::from("Referrer address not found!")),
+            ReferralHandlerError::ReferralNotFound(format!(
+                "Referrer not found for code '{}'",
+                submitted_code
+            )),
         )));
     }
 }
