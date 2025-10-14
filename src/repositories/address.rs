@@ -121,6 +121,22 @@ impl AddressRepository {
         Ok(())
     }
 
+    pub async fn update_address_reward_status(
+        &self,
+        quan_address: &str,
+        new_status: bool,
+    ) -> DbResult<()> {
+        sqlx::query(
+            "UPDATE addresses SET is_reward_program_participant = $1 WHERE quan_address = $2",
+        )
+        .bind(new_status)
+        .bind(quan_address)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn increment_referrals_count(&self, quan_address: &str) -> DbResult<i32> {
         let new_count = sqlx::query_scalar::<_, i32>(
             r#"
@@ -147,7 +163,7 @@ mod tests {
     use sqlx::PgPool;
 
     // Helper function to set up a test repository using the app's config loader.
-    // Note: This requires a `config/default.toml` file or equivalent environment
+    // Note: This requires a `config/test.toml` file or equivalent environment
     // variables (e.g., `TASKMASTER_DATA_DATABASE_URL`) for the tests to run.
     async fn setup_test_repository() -> AddressRepository {
         let config = Config::load().expect("Failed to load configuration for tests");
@@ -183,7 +199,7 @@ mod tests {
         assert_eq!(found.referral_code, "REF001");
     }
 
-      #[tokio::test]
+    #[tokio::test]
     async fn test_create_and_find_by_referral_code() {
         let repo = setup_test_repository().await;
         let address = create_mock_address("001", "REF001");
@@ -191,7 +207,11 @@ mod tests {
         let created_id = repo.create(&address).await.unwrap();
         assert_eq!(created_id, address.quan_address.0);
 
-        let found = repo.find_by_referral_code(&address.referral_code).await.unwrap().unwrap();
+        let found = repo
+            .find_by_referral_code(&address.referral_code)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
         assert_eq!(found.referral_code, "REF001");
     }
@@ -291,6 +311,26 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_update_address_reward_status() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("401", "REF401");
+        repo.create(&address).await.unwrap();
+
+        let new_status = true;
+        repo.update_address_reward_status(&address.quan_address.0, new_status)
+            .await
+            .unwrap();
+
+        let updated = repo
+            .find_by_id(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
+        
+        assert_eq!(updated.is_reward_program_participant, new_status);
     }
 
     #[tokio::test]
