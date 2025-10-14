@@ -7,6 +7,7 @@ use crate::{
     }
 };
 use clap::Parser;
+use sp_core::crypto::{self, Ss58AddressFormat};
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::{error, info, warn};
@@ -88,6 +89,7 @@ async fn main() -> AppResult<()> {
         config.blockchain.node_url = node_url;
     }
 
+    crypto::set_default_ss58_version(Ss58AddressFormat::custom(189));
     // Initialize logging
     init_logging(&config.logging.level)?;
 

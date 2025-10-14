@@ -35,7 +35,7 @@ check_interval_seconds = 30
 
 [data]
 # Database configuration
-database_url = "postgres://postgres:postgres@127.0.0.1:5432/task_master"
+database_url = "postgres://postgres:postgres@127.0.0.1:55432/task_master"
 
 [logging]
 # Log level: error, warn, info, debug, trace

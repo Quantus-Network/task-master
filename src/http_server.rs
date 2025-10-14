@@ -1,12 +1,12 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
@@ -16,12 +16,13 @@ use crate::{
         address::{Address, AddressInput},
         task::{Task, TaskStatus},
     },
-    routes::api_routes,
+    routes::{api_routes, auth::auth_routes},
     services::{
         graphql_client::GraphqlClient,
-        signature_verification::{verify_dilithium_signature, SignatureError},
     }, utils::generate_referral_code::generate_referral_code,
 };
+use tokio::sync::RwLock;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpServerError {
@@ -40,6 +41,22 @@ pub type HttpServerResult<T> = Result<T, HttpServerError>;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: Arc<DbPersistence>,
+    pub sessions: Arc<RwLock<HashMap<String, Session>>>,
+    pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Challenge {
+    pub id: String,
+    pub challenge: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub key: String,
+    pub address: String,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,10 +110,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(get_status))
         .route("/complete", post(complete_task))
         .route("/associate-eth", post(associate_eth_address))
+        .route("/referrals/add", post(add_referrer))
         .route("/sync-transfers", post(sync_transfers))
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/:task_id", get(get_task))
         .nest("/api", api_routes())
+        .nest("/auth", auth_routes())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -113,6 +132,66 @@ async fn health_check() -> Json<HealthResponse> {
         version: env!("CARGO_PKG_VERSION").to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
     })
+}
+
+pub fn auth_from_headers(headers: &HeaderMap) -> Option<String> {
+    let v = headers.get("authorization")?.to_str().ok()?.trim();
+    let prefix = "Session ";
+    if v.starts_with(prefix) { Some(v[prefix.len()..].to_string()) } else { None }
+}
+
+pub struct AuthSession {
+    pub address: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[axum::async_trait]
+impl axum::extract::FromRequestParts<AppState> for AuthSession {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let Some(token) = auth_from_headers(&parts.headers) else { return Err(StatusCode::UNAUTHORIZED) };
+        let mut sessions = state.sessions.write().await;
+        let Some(s) = sessions.get_mut(&token) else { return Err(StatusCode::UNAUTHORIZED) };
+        if s.expires_at < Utc::now() { sessions.remove(&token); return Err(StatusCode::UNAUTHORIZED) };
+        s.expires_at = Utc::now() + chrono::Duration::hours(24);
+        Ok(AuthSession { address: s.address.clone(), expires_at: s.expires_at })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct AddReferrerBody { referred: String, referrer: String }
+
+#[derive(Debug, Serialize)]
+struct AddReferrerResponse { success: bool }
+
+async fn add_referrer(
+    State(state): State<AppState>,
+    AuthSession { address: _auth, expires_at: _ }: AuthSession,
+    Json(body): Json<AddReferrerBody>,
+) -> Result<Json<AddReferrerResponse>, StatusCode> {
+    let referred = body.referred;
+    let referrer = body.referrer;
+    let addresses = state.db.addresses.find_all().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let have_referred = addresses.iter().any(|a| a.quan_address.0 == referred);
+    let have_referrer = addresses.iter().any(|a| a.quan_address.0 == referrer);
+    if !have_referred {
+        let referral_code = generate_referral_code(referred.clone()).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let addr = Address::new(AddressInput { quan_address: referred.clone(), eth_address: None, referral_code }).map_err(|_| StatusCode::BAD_REQUEST)?;
+        state.db.addresses.create(&addr).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    if !have_referrer {
+        let referral_code = generate_referral_code(referrer.clone()).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let addr = Address::new(AddressInput { quan_address: referrer.clone(), eth_address: None, referral_code }).map_err(|_| StatusCode::BAD_REQUEST)?;
+        state.db.addresses.create(&addr).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    use crate::models::referrals::{Referral, ReferralData};
+    let referral = Referral::new(ReferralData { referrer_address: referrer, referee_address: referred }).map_err(|_| StatusCode::BAD_REQUEST)?;
+    state.db.referrals.create(&referral).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(AddReferrerResponse { success: true }))
 }
 
 /// Get service status and task counts
@@ -264,7 +343,7 @@ async fn associate_eth_address(
     );
 
     // Verify the signature
-    match verify_dilithium_signature(
+    match crate::services::ethereum_service::verify_dilithium_signature(
         &payload.quan_address,
         &payload.eth_address,
         &payload.signature,
@@ -280,7 +359,7 @@ async fn associate_eth_address(
             };
             return Err((StatusCode::UNAUTHORIZED, Json(response)));
         }
-        Err(SignatureError::VerificationFailed) => {
+        Err(crate::services::ethereum_service::SignatureError::VerificationFailed) => {
             tracing::warn!("Dilithium signature verification failed");
             let response = AssociateEthAddressResponse {
                 success: false,
@@ -465,7 +544,11 @@ pub async fn start_server(
     db: Arc<DbPersistence>,
     bind_address: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let state = AppState { db };
+    let state = AppState {
+        db,
+        sessions: Arc::new(RwLock::new(HashMap::new())),
+        challenges: Arc::new(RwLock::new(HashMap::new())),
+    };
     let app = create_router(state);
 
     tracing::info!("Starting HTTP server on {}", bind_address);
@@ -474,4 +557,20 @@ pub async fn start_server(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{self, StatusCode};
+
+    async fn test_app() -> axum::Router {
+        let db = Arc::new(DbPersistence::new_unmigrated("postgres://postgres:postgres@127.0.0.1:55432/task_master").await.unwrap());
+        let state = AppState {
+            db,
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+            challenges: Arc::new(RwLock::new(HashMap::new())),
+        };
+        create_router(state)
+    }
 }

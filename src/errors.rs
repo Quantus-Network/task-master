@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
-use tracing::{error, info, warn};
+use tracing::error;
 
 use crate::{
     db_persistence::DbError,

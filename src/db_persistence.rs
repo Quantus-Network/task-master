@@ -51,4 +51,18 @@ impl DbPersistence {
             referrals,
         })
     }
+
+    #[cfg(test)]
+    pub async fn new_unmigrated(database_url: &str) -> DbResult<Self> {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
+
+        let tasks = TaskRepository::new(&pool);
+        let addresses = AddressRepository::new(&pool);
+        let referrals = ReferralRepository::new(&pool);
+
+        Ok(Self { pool, tasks, addresses, referrals })
+    }
 }

@@ -15,12 +15,18 @@ impl Referral {
     pub fn new(input: ReferralData) -> ModelResult<Self> {
         let referrer_address = match QuanAddress::from(&input.referrer_address) {
             Ok(name) => name,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid referrer address input");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         let referee_address = match QuanAddress::from(&input.referee_address) {
             Ok(name) => name,
-            Err(e) => return Err(ModelError::InvalidInput),
+            Err(e) => {
+                tracing::error!(error = %e, "Invalid referee address input");
+                return Err(ModelError::InvalidInput);
+            }
         };
 
         Ok(Referral {
