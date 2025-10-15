@@ -236,7 +236,7 @@ mod tests {
     // NOTE: Requires a local Quantus node running.
     async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>)
     {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         std::env::set_var("TASKMASTER_USE_DEV_ALICE", "1");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 

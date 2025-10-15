@@ -1,10 +1,13 @@
 use crate::{
-    db_persistence::DbPersistence, errors::{AppError, AppResult}, models::task::{Task, TaskInput}, services::{
+    db_persistence::DbPersistence,
+    errors::{AppError, AppResult},
+    models::task::{Task, TaskInput},
+    services::{
         graphql_client::{self, GraphqlClient},
         reverser::{self, start_reverser_service},
         task_generator::{self, TaskGenerator},
         transaction_manager::{self, TransactionManager},
-    }
+    },
 };
 use clap::Parser;
 use sp_core::crypto::{self, Ss58AddressFormat};
@@ -16,14 +19,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod config;
 mod db_persistence;
 mod errors;
+mod handlers;
 mod http_server;
+mod middlewares;
 mod models;
 mod repositories;
+mod routes;
 mod services;
 mod utils;
-mod routes;
-mod handlers;
-mod middlewares;
 
 use config::Config;
 
@@ -107,9 +110,11 @@ async fn main() -> AppResult<()> {
     let initial_task_count = db.tasks.task_count().await?;
     info!("Loaded {} existing tasks from database", initial_task_count);
 
+    // Initialize graphql client
+    let graphql_client = GraphqlClient::new((*db).clone(), config.candidates.graphql_url.clone());
+
     if args.sync_transfers {
         info!("Running in sync-transfers mode");
-        let graphql_client = GraphqlClient::new((*db).clone());
         let (transfer_count, address_count) = graphql_client.sync_transfers_and_addresses().await?;
         info!(
             "Sync completed successfully: {} transfers processed, {} addresses stored",
@@ -322,10 +327,11 @@ async fn main() -> AppResult<()> {
     info!("Starting HTTP server on {}", server_address);
 
     let server_db = db.clone();
+    let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
     let server_task = tokio::spawn(async move {
-        http_server::start_server(server_db, &server_addr_clone, server_config)
+        http_server::start_server(server_db, graphql_client, &server_addr_clone, server_config)
             .await
             .map_err(|e| AppError::Server(e.to_string()))
     });

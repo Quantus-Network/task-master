@@ -10,13 +10,14 @@ use crate::{
     http_server::AppState,
     models::{
         address::{
-            Address, AddressInput, AssociateEthAddressRequest, AssociateEthAddressResponse,
-            NewAddressPayload, RewardProgramStatusPayload, SyncTransfersResponse,
+            Address, AddressInput, AddressStatsResponse, AssociateEthAddressRequest,
+            AssociateEthAddressResponse, NewAddressPayload, RewardProgramStatusPayload,
+            SyncTransfersResponse,
         },
         ModelError,
     },
     utils::generate_referral_code::generate_referral_code,
-    AppError, GraphqlClient,
+    AppError,
 };
 
 use super::SuccessResponse;
@@ -73,6 +74,26 @@ pub async fn handle_add_address(
     let created_id = state.db.addresses.create(&address_data).await?;
 
     Ok(SuccessResponse::new(created_id))
+}
+
+pub async fn handle_get_address_stats(
+    State(state): State<AppState>,
+    extract::Path(id): extract::Path<String>,
+) -> Result<Json<SuccessResponse<AddressStatsResponse>>, AppError> {
+    tracing::info!("Getting address stats...");
+
+    let referrals = state.db.referrals.count_by_referrer(id.clone()).await? as u64;
+    let stats = state.graphql_client.get_address_stats(id.clone()).await?;
+
+    let data = AddressStatsResponse {
+        referrals,
+        immediate_txs: stats.total_transactions,
+        reversible_txs: stats.total_reversible_transactions,
+        mining_events: stats.total_mined_blocks,
+        mining_rewards: stats.total_mining_rewards,
+    };
+
+    Ok(SuccessResponse::new(data))
 }
 
 pub async fn handle_get_address_reward_status_by_id(
@@ -211,9 +232,7 @@ pub async fn sync_transfers(
 ) -> Result<Json<SyncTransfersResponse>, AppError> {
     tracing::info!("Received request to sync transfers from GraphQL endpoint");
 
-    let graphql_client = GraphqlClient::new((*state.db).clone());
-
-    match graphql_client.sync_transfers_and_addresses().await {
+    match state.graphql_client.sync_transfers_and_addresses().await {
         Ok((transfer_count, address_count)) => {
             tracing::info!(
                 "Transfer sync completed successfully: {} transfers, {} addresses",
@@ -246,19 +265,21 @@ mod tests {
     use super::*;
     use crate::{
         config::Config, db_persistence::DbPersistence, models::ModelError,
-        utils::test_db::reset_database,
+        utils::test_db::reset_database, GraphqlClient,
     };
     use std::sync::Arc;
 
-    // Helper to set up a test AppState with a connection to a clean test DB.
+    // Helper to set up a test AppState with a connection to a real test DB.
     async fn setup_test_app_state() -> AppState {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
+        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
 
         reset_database(&db.pool).await;
 
         AppState {
             db: Arc::new(db),
+            graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         }

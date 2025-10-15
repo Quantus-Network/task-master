@@ -61,8 +61,6 @@ pub struct JwtConfig {
 }
 
 impl Config {
-    /// Load configuration
-    #[cfg(not(test))]
     pub fn load(config_path: &str) -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
             .add_source(config::File::new(config_path, config::FileFormat::Toml))
@@ -72,10 +70,7 @@ impl Config {
         settings.try_deserialize()
     }
     
-    /// This is the **TEST** version, used only for `cargo test`.
-    /// It loads `config/test`, ignores config argument
-    #[cfg(test)]
-    pub fn load(_: &str) -> Result<Self, config::ConfigError> {
+    pub fn load_test_env() -> Result<Self, config::ConfigError> {
         println!("Loading TEST configuration..."); // For demonstration
         let settings = config::Config::builder()
             // Load the test-specific configuration file
