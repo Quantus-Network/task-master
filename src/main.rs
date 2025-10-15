@@ -79,8 +79,8 @@ struct Args {
 async fn main() -> AppResult<()> {
     let args = Args::parse();
 
-    // Load configuration
-    let mut config = Config::load().map_err(AppError::Config)?;
+    // Load configuration from --config path (defaults to config/default.toml)
+    let mut config = Config::load(&args.config).map_err(AppError::Config)?;
 
     // Apply CLI overrides
     if let Some(wallet_name) = args.wallet_name {
