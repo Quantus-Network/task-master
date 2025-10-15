@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS referrals (
 
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_referee ON referrals(referee_address);
+
 ---
 
 -- Tasks table
