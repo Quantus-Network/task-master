@@ -9,8 +9,6 @@ use crate::{
     utils::generate_referral_code::generate_referral_code,
 };
 
-const GRAPHQL_ENDPOINT: &str = "https://quantu.se/graphql";
-
 #[derive(Debug, thiserror::Error)]
 pub enum GraphqlError {
     #[error("HTTP request failed: {0}")]
@@ -62,6 +60,35 @@ pub struct TransferData {
     transfers: Vec<Transfer>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TransactionsConnection {
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ReversibleTransactionsConnection {
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MinerStat {
+    #[serde(rename = "totalMinedBlocks")]
+    pub total_mined_blocks: u64,
+    #[serde(rename = "totalRewards")]
+    pub total_rewards: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StatsData {
+    pub transactions: TransactionsConnection,
+    #[serde(rename = "reversibleTransactions")]
+    pub reversible_transactions: ReversibleTransactionsConnection,
+    #[serde(rename = "minerStats")]
+    pub miner_stats: Vec<MinerStat>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transfer {
     pub id: String,
@@ -75,38 +102,39 @@ pub struct Account {
     pub id: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct GraphqlClient {
     client: Client,
     db: DbPersistence,
+    graphql_url: String,
 }
 
 impl GraphqlClient {
-    pub fn new(db: DbPersistence) -> Self {
+    pub fn new(db: DbPersistence, graphql_url: String) -> Self {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_else(|_| Client::new());
 
-        Self { client, db }
+        Self {
+            client,
+            db,
+            graphql_url,
+        }
     }
 
     /// Execute a GraphQL query
-    pub async fn execute_query<T>(&self, query: &str) -> GraphqlResult<T>
+    pub async fn execute_query<T>(&self, payload: GraphqlQuery) -> GraphqlResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
-        let graphql_query = GraphqlQuery {
-            query: query.to_string(),
-            variables: None,
-        };
-
-        debug!("Executing GraphQL query: {}", query);
+        debug!("Executing GraphQL query: {}", payload.query);
 
         let response = self
             .client
-            .post(GRAPHQL_ENDPOINT)
+            .post(&self.graphql_url)
             .header("Content-Type", "application/json")
-            .json(&graphql_query)
+            .json(&payload)
             .send()
             .await?;
 
@@ -146,12 +174,17 @@ impl GraphqlClient {
         }
         "#;
 
+        let payload = GraphqlQuery {
+            query: TRANSFERS_QUERY.to_string(),
+            variables: None,
+        };
+
         info!(
             "Fetching transfers from GraphQL endpoint: {}",
-            GRAPHQL_ENDPOINT
+            &self.graphql_url
         );
 
-        let transfer_data: TransferData = self.execute_query(TRANSFERS_QUERY).await?;
+        let transfer_data: TransferData = self.execute_query(payload).await?;
 
         info!(
             "Successfully fetched {} transfers",
@@ -260,6 +293,62 @@ impl GraphqlClient {
             last_sync_time: chrono::Utc::now(),
         })
     }
+
+    pub async fn get_address_stats(&self, id: String) -> GraphqlResult<AddressStats> {
+        const GET_STATS_QUERY: &str = r#"
+        query GetStatsById($id: String!) {
+            transactions: transfersConnection(
+                orderBy: timestamp_DESC
+                where: {
+                    extrinsicHash_isNull: false
+                    AND: { from: { id_eq: $id }, OR: { to: { id_eq: $id } } }
+                }
+            ) {
+                totalCount
+            }
+            reversibleTransactions: reversibleTransfersConnection(
+                orderBy: timestamp_DESC
+                where: { from: { id_eq: $id }, OR: { to: { id_eq: $id } } }
+            ) {
+                totalCount
+            }
+            minerStats(where: { id_eq: $id} ) {
+                totalMinedBlocks
+                totalRewards
+            }
+        }
+        "#;
+
+        let mut variables = HashMap::new();
+        variables.insert("id".to_string(), serde_json::json!(id));
+
+        let payload = GraphqlQuery {
+            query: GET_STATS_QUERY.to_string(),
+            variables: Some(variables),
+        };
+
+        info!(
+            "Fetching transfers from GraphQL endpoint: {}",
+            &self.graphql_url
+        );
+
+        let stats_data: StatsData = self.execute_query(payload).await?;
+        let miner_stats = stats_data
+            .miner_stats
+            .first()
+            .unwrap_or(&MinerStat {
+                total_mined_blocks: 0,
+                total_rewards: "0".to_string(),
+            })
+            .to_owned();
+
+        Ok(AddressStats {
+            total_reversible_transactions: stats_data.reversible_transactions.total_count,
+            total_transactions: stats_data.transactions.total_count,
+            total_mined_blocks: miner_stats.total_mined_blocks,
+            total_mining_rewards: miner_stats.total_rewards,
+        })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -269,10 +358,25 @@ pub struct SyncStats {
     pub last_sync_time: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddressStats {
+    pub total_transactions: u64,
+    pub total_reversible_transactions: u64,
+    pub total_mining_rewards: String,
+    pub total_mined_blocks: u64,
+}
+
 #[cfg(test)]
 mod tests {
+
+    use crate::{http_server::AppState, utils::test_db::reset_database, Config};
+
     use super::*;
-    use std::collections::HashSet;
+    use std::{collections::HashSet, sync::Arc};
+    use wiremock::{
+        matchers::{body_json, method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     // Helper functions
     fn sample_transfers() -> Vec<Transfer> {
@@ -298,6 +402,93 @@ mod tests {
                 },
             },
         ]
+    }
+
+    // Helper to create a test GraphqlClient with a mock server
+    async fn setup_mock_graphql_client(mock_server: &MockServer) -> GraphqlClient {
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = DbPersistence::new(config.get_database_url()).await.unwrap();
+
+        // Use the mock server URI instead of the real GraphQL endpoint
+        let mock_url = mock_server.uri();
+        GraphqlClient::new(db, mock_url)
+    }
+
+    #[tokio::test]
+    async fn test_get_address_stats_success() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let address_string = "qzkxaHg7h4zgk5jPNkJ3a7r9xNgbJNGpJ6a5LPEThDnjkfrC6".to_string();
+
+        const GET_STATS_QUERY: &str = r#"
+        query GetStatsById($id: String!) {
+            transactions: transfersConnection(
+                orderBy: timestamp_DESC
+                where: {
+                    extrinsicHash_isNull: false
+                    AND: { from: { id_eq: $id }, OR: { to: { id_eq: $id } } }
+                }
+            ) {
+                totalCount
+            }
+            reversibleTransactions: reversibleTransfersConnection(
+                orderBy: timestamp_DESC
+                where: { from: { id_eq: $id }, OR: { to: { id_eq: $id } } }
+            ) {
+                totalCount
+            }
+            minerStats(where: { id_eq: $id} ) {
+                totalMinedBlocks
+                totalRewards
+            }
+        }
+        "#;
+
+        let expected_request = serde_json::json!({
+            "query": GET_STATS_QUERY,
+            "variables": {
+                "id": address_string
+            }
+        });
+
+        let mock_response = serde_json::json!({
+            "data": {
+                "transactions": {
+                    "totalCount": 42
+                },
+                "reversibleTransactions": {
+                    "totalCount": 5
+                },
+                "minerStats": [
+                    {
+                        "totalMinedBlocks": 10,
+                        "totalRewards": "1000000000000000000"
+                    }
+                ]
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(body_json(&expected_request))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&mock_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = setup_mock_graphql_client(&mock_server).await;
+
+        // Act
+        let result = client.get_address_stats(address_string).await;
+
+        // Assert
+        assert!(result.is_ok());
+
+        let stats = result.unwrap();
+        assert_eq!(stats.total_transactions, 42);
+        assert_eq!(stats.total_reversible_transactions, 5);
+        assert_eq!(stats.total_mined_blocks, 10);
+        assert_eq!(stats.total_mining_rewards, "1000000000000000000");
     }
 
     // ============================================================================
@@ -418,9 +609,12 @@ mod tests {
 
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: GraphqlQuery = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(original.query, deserialized.query);
-        assert_eq!(original.variables.is_none(), deserialized.variables.is_none());
+        assert_eq!(
+            original.variables.is_none(),
+            deserialized.variables.is_none()
+        );
     }
 
     // ============================================================================
@@ -445,7 +639,7 @@ mod tests {
         let response: GraphqlResponse<TransferData> = serde_json::from_str(json).unwrap();
         assert!(response.data.is_some());
         assert!(response.errors.is_none());
-        
+
         let data = response.data.unwrap();
         assert_eq!(data.transfers.len(), 1);
     }
@@ -465,7 +659,7 @@ mod tests {
         let response: GraphqlResponse<TransferData> = serde_json::from_str(json).unwrap();
         assert!(response.data.is_none());
         assert!(response.errors.is_some());
-        
+
         let errors = response.errors.unwrap();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].message, "Field 'transfers' not found");
@@ -501,7 +695,7 @@ mod tests {
         let error: GraphqlErrorDetail = serde_json::from_str(json).unwrap();
         assert_eq!(error.message, "Syntax error");
         assert!(error.locations.is_some());
-        
+
         let locations = error.locations.unwrap();
         assert_eq!(locations.len(), 2);
         assert_eq!(locations[0].line, 1);
@@ -528,7 +722,7 @@ mod tests {
     fn test_graphql_error_from_db_error() {
         let db_err = DbError::TaskNotFound("task-123".to_string());
         let graphql_err: GraphqlError = db_err.into();
-        
+
         match graphql_err {
             GraphqlError::DatabaseError(_) => (),
             _ => panic!("Expected DatabaseError conversion"),
@@ -539,7 +733,7 @@ mod tests {
     fn test_graphql_error_from_json_error() {
         let json_err = serde_json::from_str::<Transfer>("invalid json").unwrap_err();
         let graphql_err: GraphqlError = json_err.into();
-        
+
         match graphql_err {
             GraphqlError::JsonError(_) => (),
             _ => panic!("Expected JsonError conversion"),
@@ -576,14 +770,22 @@ mod tests {
             Transfer {
                 id: "0x1".to_string(),
                 amount: "100".to_string(),
-                from: Account { id: "0xA".to_string() },
-                to: Account { id: "0xB".to_string() },
+                from: Account {
+                    id: "0xA".to_string(),
+                },
+                to: Account {
+                    id: "0xB".to_string(),
+                },
             },
             Transfer {
                 id: "0x2".to_string(),
                 amount: "200".to_string(),
-                from: Account { id: "0xA".to_string() }, // Duplicate
-                to: Account { id: "0xB".to_string() },   // Duplicate
+                from: Account {
+                    id: "0xA".to_string(),
+                }, // Duplicate
+                to: Account {
+                    id: "0xB".to_string(),
+                }, // Duplicate
             },
         ];
 
@@ -598,14 +800,16 @@ mod tests {
 
     #[test]
     fn test_unique_addresses_same_from_and_to() {
-        let transfers = vec![
-            Transfer {
-                id: "0x123".to_string(),
-                amount: "1000".to_string(),
-                from: Account { id: "0xsame".to_string() },
-                to: Account { id: "0xsame".to_string() }, // Same address
-            }
-        ];
+        let transfers = vec![Transfer {
+            id: "0x123".to_string(),
+            amount: "1000".to_string(),
+            from: Account {
+                id: "0xsame".to_string(),
+            },
+            to: Account {
+                id: "0xsame".to_string(),
+            }, // Same address
+        }];
 
         let mut unique_addresses = HashSet::new();
         for transfer in &transfers {
@@ -673,8 +877,12 @@ mod tests {
         let transfer = Transfer {
             id: "0x123".to_string(),
             amount: "1000".to_string(),
-            from: Account { id: "0xabc".to_string() },
-            to: Account { id: "0xdef".to_string() },
+            from: Account {
+                id: "0xabc".to_string(),
+            },
+            to: Account {
+                id: "0xdef".to_string(),
+            },
         };
 
         let cloned = transfer.clone();
@@ -686,7 +894,9 @@ mod tests {
 
     #[test]
     fn test_account_clone() {
-        let account = Account { id: "0xtest".to_string() };
+        let account = Account {
+            id: "0xtest".to_string(),
+        };
         let cloned = account.clone();
         assert_eq!(account.id, cloned.id);
     }
@@ -696,8 +906,12 @@ mod tests {
         let transfer = Transfer {
             id: "0x123".to_string(),
             amount: "1000".to_string(),
-            from: Account { id: "0xabc".to_string() },
-            to: Account { id: "0xdef".to_string() },
+            from: Account {
+                id: "0xabc".to_string(),
+            },
+            to: Account {
+                id: "0xdef".to_string(),
+            },
         };
 
         let debug_str = format!("{:?}", transfer);
@@ -758,8 +972,12 @@ mod tests {
         let transfer = Transfer {
             id: "0x1".to_string(),
             amount: "999999999999999999999999999999".to_string(),
-            from: Account { id: "0xa".to_string() },
-            to: Account { id: "0xb".to_string() },
+            from: Account {
+                id: "0xa".to_string(),
+            },
+            to: Account {
+                id: "0xb".to_string(),
+            },
         };
 
         assert_eq!(transfer.amount, "999999999999999999999999999999");

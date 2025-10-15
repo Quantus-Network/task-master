@@ -178,7 +178,7 @@ pub async fn auth_me(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db_persistence::DbPersistence, routes::auth::auth_routes, Config};
+    use crate::{db_persistence::DbPersistence, routes::auth::auth_routes, Config, GraphqlClient};
     use axum::{body::Body, http};
     use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
     use sp_runtime::traits::IdentifyAccount;
@@ -190,9 +190,11 @@ mod tests {
         let db = DbPersistence::new_unmigrated(config.get_database_url())
             .await
             .unwrap();
+        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
 
         let state = AppState {
             db: Arc::new(db),
+            graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         };

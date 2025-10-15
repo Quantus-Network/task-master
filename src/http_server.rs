@@ -4,13 +4,17 @@ use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::{db_persistence::DbPersistence, models::task::TaskStatus, routes::api_routes, Config};
+use crate::{
+    db_persistence::DbPersistence, models::task::TaskStatus, routes::api_routes, Config,
+    GraphqlClient,
+};
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: Arc<DbPersistence>,
+    pub graphql_client: Arc<GraphqlClient>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
 }
@@ -103,11 +107,13 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
 /// Start the HTTP server
 pub async fn start_server(
     db: Arc<DbPersistence>,
+    graphql_client: Arc<GraphqlClient>,
     bind_address: &str,
     config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         db,
+        graphql_client,
         config,
         challenges: Arc::new(RwLock::new(HashMap::new())),
     };
@@ -130,9 +136,11 @@ mod tests {
         let db = DbPersistence::new_unmigrated(config.get_database_url())
             .await
             .unwrap();
+        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
 
         let state = AppState {
             db: Arc::new(db),
+            graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(RwLock::new(HashMap::new())),
         };
