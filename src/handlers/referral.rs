@@ -1,6 +1,6 @@
 use axum::{
     extract::{self, State},
-    Json,
+    Json, Extension,
 };
 
 use crate::{
@@ -26,6 +26,7 @@ pub enum ReferralHandlerError {
 
 pub async fn handle_add_referral(
     State(state): State<AppState>,
+    Extension(user): Extension<Address>,
     extract::Json(referral_input): Json<ReferralInput>,
 ) -> Result<Json<SuccessResponse<String>>, AppError> {
     tracing::info!("Creating referral struct...");
@@ -55,6 +56,14 @@ pub async fn handle_add_referral(
         };
 
         let referral = Referral::new(referral_data)?;
+
+        if referral.referee_address.0 != user.quan_address.0 {
+            return Err(AppError::Handler(HandlerError::Referral(
+                ReferralHandlerError::InvalidReferral(String::from(
+                    "Referee must match authenticated user",
+                )),
+            )));
+        }
 
         let referral_code = generate_referral_code(referral.referee_address.0.clone()).await?;
 
@@ -156,8 +165,25 @@ mod tests {
             referee_address: "qz_a_valid_referee_address".to_string(),
         };
 
+        // Authenticated user must match the referee
+        let auth_user = Address::new(AddressInput {
+            quan_address: input.referee_address.clone(),
+            eth_address: None,
+            referral_code: crate::utils::generate_referral_code::generate_referral_code(
+                input.referee_address.clone(),
+            )
+            .await
+            .unwrap(),
+        })
+        .unwrap();
+
         // Act: Call the handler function directly.
-        let result = handle_add_referral(State(state.clone()), Json(input.clone())).await;
+        let result = handle_add_referral(
+            State(state.clone()),
+            Extension(auth_user),
+            Json(input.clone()),
+        )
+        .await;
 
         print!("result: {:?}", result);
 
@@ -247,7 +273,17 @@ mod tests {
         };
 
         // Act
-        let result = handle_add_referral(State(state.clone()), Json(input)).await;
+        let auth_user = Address::new(AddressInput {
+            quan_address: "qz_valid_auth_user_for_test".to_string(),
+            eth_address: None,
+            referral_code: crate::utils::generate_referral_code::generate_referral_code(
+                "qz_valid_auth_user_for_test".to_string(),
+            )
+            .await
+            .unwrap(),
+        })
+        .unwrap();
+        let result = handle_add_referral(State(state.clone()), Extension(auth_user), Json(input)).await;
 
         // Assert
         assert!(result.is_err());
