@@ -198,7 +198,7 @@ mod tests {
 
     // Helper to set up repositories and clean all tables.
     async fn setup_test_repositories() -> (AddressRepository, TaskRepository) {
-        let config = Config::load().expect("Failed to load configuration for tests");
+        let config = Config::load_test_env().expect("Failed to load configuration for tests");
         let pool = PgPool::connect(config.get_database_url())
             .await
             .expect("Failed to create pool.");

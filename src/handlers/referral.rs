@@ -108,6 +108,7 @@ mod tests {
 
     use super::*;
     use crate::utils::test_db::reset_database;
+    use crate::GraphqlClient;
     use crate::{
         config::Config, db_persistence::DbPersistence, repositories::address::AddressRepository,
     };
@@ -115,13 +116,15 @@ mod tests {
 
     // Helper to set up a test AppState with a connection to a real test DB.
     async fn setup_test_app_state() -> AppState {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
+        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
 
         reset_database(&db.pool).await;
 
         AppState {
             db: Arc::new(db),
+            graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         }
@@ -152,6 +155,8 @@ mod tests {
 
         // Act: Call the handler function directly.
         let result = handle_add_referral(State(state.clone()), Json(input.clone())).await;
+
+        print!("result: {:?}", result);
 
         // Assert: Check the handler's response.
         assert!(result.is_ok());

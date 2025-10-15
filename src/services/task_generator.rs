@@ -252,7 +252,7 @@ mod tests {
 
     // Helper to set up a test generator with a real PostgreSQL test database.
     async fn setup_test_generator() -> TaskGenerator {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
 
         reset_database(&db.pool).await;

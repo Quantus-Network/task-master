@@ -72,7 +72,7 @@ impl Address {
         Ok(Address {
             quan_address,
             eth_address,
-            referral_code: input.referral_code,
+            referral_code: input.referral_code.to_lowercase(),
             is_reward_program_participant: false,
             referrals_count: 0,
             created_at: None,
@@ -136,7 +136,17 @@ pub struct SyncTransfersResponse {
     pub transfers_processed: Option<usize>,
     pub addresses_stored: Option<usize>,
 }
+
 #[derive(Debug,Clone, Deserialize)]
 pub struct RewardProgramStatusPayload {
     pub new_status: bool,
+}
+
+#[derive(Debug,Clone, Serialize, Deserialize)]
+pub struct AddressStatsResponse {
+    pub referrals: u64,
+    pub immediate_txs: u64,
+    pub reversible_txs: u64,
+    pub mining_events: u64,
+    pub mining_rewards: String
 }
