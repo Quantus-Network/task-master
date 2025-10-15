@@ -406,7 +406,7 @@ mod tests {
 
     // Helper to create a test GraphqlClient with a mock server
     async fn setup_mock_graphql_client(mock_server: &MockServer) -> GraphqlClient {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
 
         // Use the mock server URI instead of the real GraphQL endpoint

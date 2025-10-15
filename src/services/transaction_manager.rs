@@ -290,7 +290,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_manager_creates_and_loads_wallet() {
         // This test requires filesystem access to create a wallet.
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
         let wallet_name = "//Alice"; // use dev key for local node
 

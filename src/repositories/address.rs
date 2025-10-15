@@ -166,7 +166,7 @@ mod tests {
     // Note: This requires a `config/test.toml` file or equivalent environment
     // variables (e.g., `TASKMASTER_DATA_DATABASE_URL`) for the tests to run.
     async fn setup_test_repository() -> AddressRepository {
-        let config = Config::load().expect("Failed to load configuration for tests");
+        let config = Config::load_test_env().expect("Failed to load configuration for tests");
         let pool = PgPool::connect(config.get_database_url())
             .await
             .expect("Failed to create pool.");

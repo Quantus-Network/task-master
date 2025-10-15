@@ -271,7 +271,7 @@ mod tests {
 
     // Helper to set up a test AppState with a connection to a real test DB.
     async fn setup_test_app_state() -> AppState {
-        let config = Config::load().expect("Failed to load test configuration");
+        let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = DbPersistence::new(config.get_database_url()).await.unwrap();
         let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
 

@@ -72,7 +72,7 @@ impl Address {
         Ok(Address {
             quan_address,
             eth_address,
-            referral_code: input.referral_code,
+            referral_code: input.referral_code.to_lowercase(),
             is_reward_program_participant: false,
             referrals_count: 0,
             created_at: None,
