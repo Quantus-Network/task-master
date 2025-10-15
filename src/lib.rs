@@ -15,6 +15,7 @@ pub mod http_server;
 pub mod utils;
 pub mod routes;
 pub mod handlers;
+pub mod middlewares;
 
 // Re-export commonly used types
 pub use errors::{AppError, AppResult};

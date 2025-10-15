@@ -51,6 +51,10 @@ database_url = "sqlite:taskmaster.db"
 # Log level: error, warn, info, debug, trace
 level = "info"
 
+[jwt]
+secret = "example-secret"
+exp_in_hours = 24
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
