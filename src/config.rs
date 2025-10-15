@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -62,23 +61,22 @@ pub struct JwtConfig {
 }
 
 impl Config {
-    /// This is the **PRODUCTION** version, used for `cargo run` and `cargo build`.
-    /// It loads `config/default`.
+    /// Load configuration
     #[cfg(not(test))]
-    pub fn load() -> Result<Self, config::ConfigError> {
+    pub fn load(config_path: &str) -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
-            .add_source(config::File::with_name("config/default"))
+            .add_source(config::File::new(config_path, config::FileFormat::Toml))
             .add_source(config::Environment::with_prefix("TASKMASTER"))
             .build()?;
 
         settings.try_deserialize()
     }
-
+    
     /// This is the **TEST** version, used only for `cargo test`.
-    /// It loads `config/test` instead of `config/default`.
+    /// It loads `config/test`, ignores config argument
     #[cfg(test)]
-    pub fn load() -> Result<Self, config::ConfigError> {
-        println!("🧪 Loading TEST configuration..."); // For demonstration
+    pub fn load(_: &str) -> Result<Self, config::ConfigError> {
+        println!("Loading TEST configuration..."); // For demonstration
         let settings = config::Config::builder()
             // Load the test-specific configuration file
             .add_source(config::File::with_name("config/test"))
