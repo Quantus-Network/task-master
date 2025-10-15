@@ -4,18 +4,26 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use uuid::Uuid;
 
 use crate::{
-    handlers::SuccessResponse,
+    handlers::{HandlerError, SuccessResponse},
     http_server::{AppState, Challenge},
     models::{
-        address::Address,
+        address::{Address, AddressInput},
         auth::{
             RequestChallengeBody, RequestChallengeResponse, TokenClaims, VerifyLoginBody,
             VerifyLoginResponse,
         },
     },
     services::signature_service::SignatureService,
+    utils::generate_referral_code::generate_referral_code,
+    AppError,
 };
 use tracing::{info, warn};
+
+#[derive(Debug, thiserror::Error)]
+pub enum AuthHandlerError {
+    #[error("Not authorized: {0}")]
+    Unauthrorized(String),
+}
 
 pub async fn request_challenge(
     State(state): State<AppState>,
@@ -42,7 +50,7 @@ pub async fn request_challenge(
 pub async fn verify_login(
     State(state): State<AppState>,
     Json(body): Json<VerifyLoginBody>,
-) -> Result<Json<VerifyLoginResponse>, StatusCode> {
+) -> Result<Json<VerifyLoginResponse>, AppError> {
     let sig_len = body
         .signature
         .strip_prefix("0x")
@@ -67,7 +75,12 @@ pub async fn verify_login(
         .get(&body.temp_session_id)
         .cloned()
     else {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(AppError::Handler(HandlerError::Auth(
+            AuthHandlerError::Unauthrorized(format!(
+                "no challenge with key {} found",
+                &body.temp_session_id
+            )),
+        )));
     };
     let message = format!(
         "taskmaster:login:1|challenge={}|address={}",
@@ -79,23 +92,58 @@ pub async fn verify_login(
     if let Err(e) = &addr_res {
         warn!(error = %e, "verify_login: verify_address error");
     }
-    let addr_ok = addr_res.map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let addr_ok = addr_res.map_err(|_| {
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+            format!("address verification failed"),
+        )))
+    })?;
     if !addr_ok {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(AppError::Handler(HandlerError::Auth(
+            AuthHandlerError::Unauthrorized(format!("address verification failed")),
+        )));
     }
     let sig_res =
         SignatureService::verify_message(message.as_bytes(), &body.signature, &body.public_key);
     if let Err(e) = &sig_res {
         warn!(error = %e, "verify_login: verify_message error");
     }
-    let sig_ok = sig_res.map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let sig_ok = sig_res.map_err(|_| {
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+            format!("message verification failed"),
+        )))
+    })?;
     info!(
         addr_ok = addr_ok,
         sig_ok = sig_ok,
         "verify_login: verification results"
     );
     if !sig_ok {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(AppError::Handler(HandlerError::Auth(
+            AuthHandlerError::Unauthrorized(format!("message verification failed")),
+        )));
+    }
+
+    if state
+        .db
+        .addresses
+        .find_by_id(&body.address)
+        .await?
+        .is_none()
+    {
+        tracing::info!("Address is not saved yet, proceed to saving...");
+
+        tracing::info!("Generating address referral code...");
+        let referral_code = generate_referral_code(body.address.clone()).await?;
+
+        tracing::info!("Creating address struct...");
+        let referee = Address::new(AddressInput {
+            quan_address: body.address.clone(),
+            eth_address: None,
+            referral_code,
+        })?;
+
+        tracing::info!("Saving referee address to DB...");
+        state.db.addresses.create(&referee).await?;
     }
 
     let now = chrono::Utc::now();
@@ -130,17 +178,14 @@ pub async fn auth_me(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db_persistence::DbPersistence, models::address::AddressInput,
-        repositories::address::AddressRepository, routes::auth::auth_routes, Config,
-    };
+    use crate::{db_persistence::DbPersistence, routes::auth::auth_routes, Config};
     use axum::{body::Body, http};
-    use sp_core::crypto::{self, Ss58AddressFormat,Ss58Codec};
+    use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
     use sp_runtime::traits::IdentifyAccount;
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    async fn test_app() -> (AppState, axum::Router) {
+    async fn test_app() -> axum::Router {
         let config = Config::load().expect("Failed to load test configuration");
         let db = DbPersistence::new_unmigrated(config.get_database_url())
             .await
@@ -151,25 +196,13 @@ mod tests {
             config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         };
-        (state.clone(), auth_routes(state.clone()).with_state(state))
-    }
-
-    // Helper to create a persisted address for tests.
-    async fn create_persisted_address(repo: &AddressRepository, address: String) -> Address {
-        let input = AddressInput {
-            quan_address: address.clone(),
-            eth_address: None,
-            referral_code: format!("REF{}", address),
-        };
-        let address = Address::new(input).unwrap();
-        repo.create(&address).await.unwrap();
-        address
+        auth_routes(state.clone()).with_state(state)
     }
 
     #[tokio::test]
     async fn auth_challenge_and_verify_flow() {
         crypto::set_default_ss58_version(Ss58AddressFormat::custom(189));
-        let (state, app) = test_app().await;
+        let app = test_app().await;
 
         let resp = app
             .clone()
@@ -199,8 +232,6 @@ mod tests {
         .unwrap()
         .into_account()
         .to_ss58check();
-        create_persisted_address(&state.db.addresses, addr.clone()).await;
-
         let msg = format!(
             "taskmaster:login:1|challenge={}|address={}",
             challenge, addr
