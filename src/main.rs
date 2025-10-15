@@ -357,15 +357,15 @@ async fn main() -> AppResult<()> {
             error!("Candidates refresh task exited: {:?}", result);
             result.await??;
         }
-        result = start_task_generation_task(
-            task_generator.clone(),
-            transaction_manager.clone(),
-            config.task_generation.taskees_per_round,
-            config.get_task_generation_duration(),
-        ) => {
-            error!("Task generation task exited: {:?}", result);
-            result.await??;
-        }
+        // result = start_task_generation_task(
+        //     task_generator.clone(),
+        //     transaction_manager.clone(),
+        //     config.task_generation.taskees_per_round,
+        //     config.get_task_generation_duration(),
+        // ) => {
+        //     error!("Task generation task exited: {:?}", result);
+        //     result.await??;
+        // }
         result = start_reverser_service(
             db.clone(),
             transaction_manager.clone(),
