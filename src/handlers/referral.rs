@@ -37,6 +37,9 @@ pub async fn handle_add_referral(
         .addresses
         .find_by_referral_code(&submitted_code)
         .await?;
+
+// TODO make sure the logged in account by JWT is the referee account! 
+
     if let Some(referrer) = referrer {
         if referrer.quan_address.0 == referral_input.referee_address {
             return Err(AppError::Handler(HandlerError::Referral(
