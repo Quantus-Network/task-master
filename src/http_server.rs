@@ -1,23 +1,17 @@
-use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::{db_persistence::DbPersistence, models::task::TaskStatus, routes::api_routes};
+use crate::{db_persistence::DbPersistence, models::task::TaskStatus, routes::api_routes, Config};
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: Arc<DbPersistence>,
-    pub sessions: Arc<RwLock<HashMap<String, Session>>>,
+    pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
 }
 
@@ -26,13 +20,6 @@ pub struct Challenge {
     pub id: String,
     pub challenge: String,
     pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Session {
-    pub key: String,
-    pub address: String,
-    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,7 +45,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/status", get(get_status))
-        .nest("/api", api_routes())
+        .nest("/api", api_routes(state.clone()))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -75,48 +62,6 @@ async fn health_check() -> Json<HealthResponse> {
         version: env!("CARGO_PKG_VERSION").to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
     })
-}
-
-pub fn auth_from_headers(headers: &HeaderMap) -> Option<String> {
-    let v = headers.get("authorization")?.to_str().ok()?.trim();
-    let prefix = "Session ";
-    if v.starts_with(prefix) {
-        Some(v[prefix.len()..].to_string())
-    } else {
-        None
-    }
-}
-
-pub struct AuthSession {
-    pub address: String,
-    pub expires_at: DateTime<Utc>,
-}
-
-#[axum::async_trait]
-impl axum::extract::FromRequestParts<AppState> for AuthSession {
-    type Rejection = StatusCode;
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let Some(token) = auth_from_headers(&parts.headers) else {
-            return Err(StatusCode::UNAUTHORIZED);
-        };
-        let mut sessions = state.sessions.write().await;
-        let Some(s) = sessions.get_mut(&token) else {
-            return Err(StatusCode::UNAUTHORIZED);
-        };
-        if s.expires_at < Utc::now() {
-            sessions.remove(&token);
-            return Err(StatusCode::UNAUTHORIZED);
-        };
-        s.expires_at = Utc::now() + chrono::Duration::hours(24);
-        Ok(AuthSession {
-            address: s.address.clone(),
-            expires_at: s.expires_at,
-        })
-    }
 }
 
 /// Get service status and task counts
@@ -159,10 +104,11 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
 pub async fn start_server(
     db: Arc<DbPersistence>,
     bind_address: &str,
+    config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         db,
-        sessions: Arc::new(RwLock::new(HashMap::new())),
+        config,
         challenges: Arc::new(RwLock::new(HashMap::new())),
     };
     let app = create_router(state);
@@ -178,19 +124,16 @@ pub async fn start_server(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{self, StatusCode};
 
     async fn test_app() -> axum::Router {
-        let db = Arc::new(
-            DbPersistence::new_unmigrated(
-                "postgres://postgres:postgres@127.0.0.1:55432/task_master",
-            )
+        let config = Config::load().expect("Failed to load test configuration");
+        let db = DbPersistence::new_unmigrated(config.get_database_url())
             .await
-            .unwrap(),
-        );
+            .unwrap();
+
         let state = AppState {
-            db,
-            sessions: Arc::new(RwLock::new(HashMap::new())),
+            db: Arc::new(db),
+            config: Arc::new(config),
             challenges: Arc::new(RwLock::new(HashMap::new())),
         };
         create_router(state)

@@ -9,8 +9,7 @@ use tracing::error;
 use crate::{
     db_persistence::DbError,
     handlers::{
-        address::AddressHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
-        HandlerError,
+        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError, HandlerError
     },
     models::ModelError,
     services::{
@@ -53,6 +52,9 @@ impl IntoResponse for AppError {
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
             AppError::Handler(err) => match err {
+                HandlerError::Auth(err) => match err {
+                    AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
+                },
                 HandlerError::Address(err) => match err {
                     AddressHandlerError::InvalidSignature(err) => {
                         return (StatusCode::BAD_REQUEST, err).into_response()
@@ -62,6 +64,7 @@ impl IntoResponse for AppError {
                     }
                 },
                 HandlerError::Referral(err) => match err {
+                    
                     ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
                     ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
                 },

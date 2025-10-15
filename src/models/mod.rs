@@ -11,3 +11,4 @@ pub type ModelResult<T> = Result<T, ModelError>;
 pub mod address;
 pub mod referrals;
 pub mod task;
+pub mod auth;

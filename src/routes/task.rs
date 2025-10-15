@@ -8,7 +8,7 @@ use crate::{
     http_server::AppState,
 };
 
-pub fn task_routes() -> Router<AppState> {
+pub fn task_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/complete", put(complete_task))

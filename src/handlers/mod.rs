@@ -2,7 +2,7 @@ use axum::Json;
 use serde::Serialize;
 
 use crate::handlers::{
-    address::AddressHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
+    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError
 };
 
 pub mod address;
@@ -18,6 +18,8 @@ pub enum HandlerError {
     Referral(#[from] ReferralHandlerError),
     #[error("Address handler error")]
     Address(#[from] AddressHandlerError),
+    #[error("Auth handler error")]
+    Auth(#[from] AuthHandlerError),
 }
 
 #[derive(Debug, Serialize)]

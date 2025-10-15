@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -9,6 +10,7 @@ pub struct Config {
     pub reverser: ReverserConfig,
     pub data: DataConfig,
     pub logging: LoggingConfig,
+    pub jwt: JwtConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +55,12 @@ pub struct LoggingConfig {
     pub level: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JwtConfig {
+    pub secret: String,
+    pub exp_in_hours: i64,
+}
+
 impl Config {
     /// This is the **PRODUCTION** version, used for `cargo run` and `cargo build`.
     /// It loads `config/default`.
@@ -71,14 +79,14 @@ impl Config {
     #[cfg(test)]
     pub fn load() -> Result<Self, config::ConfigError> {
         println!("🧪 Loading TEST configuration..."); // For demonstration
-        let s = config::Config::builder()
+        let settings = config::Config::builder()
             // Load the test-specific configuration file
             .add_source(config::File::with_name("config/test"))
             // You can still layer environment variables for testing if you need to
             .add_source(config::Environment::with_prefix("TASKMASTER"))
             .build()?;
 
-        s.try_deserialize()
+        settings.try_deserialize()
     }
 
     pub fn get_database_url(&self) -> &str {
@@ -107,6 +115,10 @@ impl Config {
 
     pub fn get_early_reversal_duration(&self) -> chrono::Duration {
         chrono::Duration::minutes(self.reverser.early_reversal_minutes as i64)
+    }
+
+    pub fn get_jwt_expiration(&self) -> chrono::Duration {
+        chrono::Duration::hours(self.jwt.exp_in_hours)
     }
 }
 
@@ -140,6 +152,10 @@ impl Default for Config {
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
+            },
+            jwt: JwtConfig {
+                secret: "Change-in-production".to_string(),
+                exp_in_hours: 24,
             },
         }
     }

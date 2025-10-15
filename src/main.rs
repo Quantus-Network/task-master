@@ -23,6 +23,7 @@ mod services;
 mod utils;
 mod routes;
 mod handlers;
+mod middlewares;
 
 use config::Config;
 
@@ -322,8 +323,9 @@ async fn main() -> AppResult<()> {
 
     let server_db = db.clone();
     let server_addr_clone = server_address.clone();
+    let server_config = Arc::new(config.clone());
     let server_task = tokio::spawn(async move {
-        http_server::start_server(server_db, &server_addr_clone)
+        http_server::start_server(server_db, &server_addr_clone, server_config)
             .await
             .map_err(|e| AppError::Server(e.to_string()))
     });

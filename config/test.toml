@@ -40,3 +40,7 @@ database_url = "postgres://postgres:postgres@127.0.0.1:55432/task_master"
 [logging]
 # Log level: error, warn, info, debug, trace
 level = "info"
+
+[jwt]
+secret = "test-secret"
+exp_in_hours = 24
