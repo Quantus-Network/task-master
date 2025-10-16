@@ -17,7 +17,7 @@ use crate::{
     utils::generate_referral_code::generate_referral_code,
     AppError,
 };
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthHandlerError {
@@ -61,7 +61,7 @@ pub async fn verify_login(
         .strip_prefix("0x")
         .unwrap_or(&body.public_key)
         .len();
-    info!(
+    debug!(
         temp_session_id = %body.temp_session_id,
         address = %body.address,
         signature_len = sig_len,
@@ -86,7 +86,7 @@ pub async fn verify_login(
         "taskmaster:login:1|challenge={}|address={}",
         chal.challenge, body.address
     );
-    info!(message = %message, message_len = message.len(), message_hex = %hex::encode(message.as_bytes()), "verify_login: constructed message");
+    debug!(message = %message, message_len = message.len(), message_hex = %hex::encode(message.as_bytes()), "verify_login: constructed message");
 
     let addr_res = SignatureService::verify_address(&body.public_key, &body.address);
     if let Err(e) = &addr_res {
@@ -112,7 +112,7 @@ pub async fn verify_login(
             format!("message verification failed"),
         )))
     })?;
-    info!(
+    debug!(
         addr_ok = addr_ok,
         sig_ok = sig_ok,
         "verify_login: verification results"
@@ -132,18 +132,18 @@ pub async fn verify_login(
     {
         tracing::info!("Address is not saved yet, proceed to saving...");
 
-        tracing::info!("Generating address referral code...");
+        tracing::debug!("Generating address referral code...");
         let referral_code = generate_referral_code(body.address.clone()).await?;
 
-        tracing::info!("Creating address struct...");
-        let referee = Address::new(AddressInput {
+        tracing::debug!("Creating address struct...");
+        let address = Address::new(AddressInput {
             quan_address: body.address.clone(),
             eth_address: None,
             referral_code,
         })?;
 
-        tracing::info!("Saving referee address to DB...");
-        state.db.addresses.create(&referee).await?;
+        tracing::debug!("Saving address to DB...");
+        state.db.addresses.create(&address).await?;
     }
 
     let now = chrono::Utc::now();
