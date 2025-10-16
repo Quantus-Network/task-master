@@ -196,7 +196,7 @@ mod tests {
 
         let found = repo.find_by_id(&created_id).await.unwrap().unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
-        assert_eq!(found.referral_code, "REF001");
+        assert_eq!(found.referral_code, "ref001");
     }
 
     #[tokio::test]
@@ -213,7 +213,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
-        assert_eq!(found.referral_code, "REF001");
+        assert_eq!(found.referral_code, "ref001");
     }
 
     #[tokio::test]

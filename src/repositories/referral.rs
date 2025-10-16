@@ -185,12 +185,13 @@ mod tests {
             )
             .await
             .unwrap();
-        // Create an unrelated referral
+        // Create an unrelated referral with a different referee
+        let other_referee = create_persisted_address(&address_repo, "other_referee").await;
         referral_repo
             .create(
                 &Referral::new(ReferralData {
                     referrer_address: other_referrer.quan_address.0.clone(),
-                    referee_address: referee1.quan_address.0.clone(),
+                    referee_address: other_referee.quan_address.0.clone(),
                 })
                 .unwrap(),
             )
@@ -236,12 +237,13 @@ mod tests {
             )
             .await
             .unwrap();
-        // Create an unrelated referral
+        // Create an unrelated referral with a different referee
+        let other_referee = create_persisted_address(&address_repo, "other_referee").await;
         referral_repo
             .create(
                 &Referral::new(ReferralData {
                     referrer_address: other_referrer.quan_address.0.clone(),
-                    referee_address: referee1.quan_address.0.clone(),
+                    referee_address: other_referee.quan_address.0.clone(),
                 })
                 .unwrap(),
             )

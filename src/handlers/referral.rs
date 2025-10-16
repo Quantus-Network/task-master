@@ -56,18 +56,6 @@ pub async fn handle_add_referral(
 
         let referral = Referral::new(referral_data)?;
 
-        let referral_code = generate_referral_code(referee_address.clone()).await?;
-
-        tracing::info!("Creating referee address struct...");
-        let referee = Address::new(AddressInput {
-            quan_address: referee_address.clone(),
-            eth_address: None,
-            referral_code,
-        })?;
-
-        tracing::info!("Saving referee address to DB...");
-        state.db.addresses.create(&referee).await?;
-
         tracing::info!("Saving referral to DB...");
         state.db.referrals.create(&referral).await?;
         state
@@ -155,7 +143,7 @@ mod tests {
             referral_code: referrer.referral_code,
         };
 
-        // Authenticated user must match the referee
+        // Authenticated user must match the referee - create and persist the referee
         let referee_address = "qz_a_valid_referee_address".to_string();
         let auth_user = Address::new(AddressInput {
             quan_address: referee_address.clone(),
@@ -167,6 +155,9 @@ mod tests {
             .unwrap(),
         })
         .unwrap();
+        
+        // Persist the referee to the database since authenticated users must exist
+        state.db.addresses.create(&auth_user).await.unwrap();
 
         // Act: Call the handler function directly.
         let result = handle_add_referral(
@@ -217,7 +208,7 @@ mod tests {
 
         assert!(
             referee.is_some(),
-            "Referee address should have been created"
+            "Referee address should exist in database"
         );
     }
 

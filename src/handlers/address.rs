@@ -10,13 +10,11 @@ use crate::{
     http_server::AppState,
     models::{
         address::{
-            Address, AddressInput, AddressStatsResponse, AssociateEthAddressRequest,
-            AssociateEthAddressResponse, NewAddressPayload, RewardProgramStatusPayload,
+            Address, AddressStatsResponse, AssociateEthAddressRequest,
+            AssociateEthAddressResponse, RewardProgramStatusPayload,
             SyncTransfersResponse,
         },
-        ModelError,
     },
-    utils::generate_referral_code::generate_referral_code,
     AppError,
 };
 
@@ -57,25 +55,6 @@ pub async fn handle_update_reward_program_status(
     Ok(NoContent)
 }
 
-pub async fn handle_add_address(
-    State(state): State<AppState>,
-    Extension(user): Extension<Address>,
-) -> Result<Json<SuccessResponse<String>>, AppError> {
-    tracing::info!("Creating address struct for user: {}", user.quan_address.0);
-
-    let referral_code = generate_referral_code(user.quan_address.0.clone()).await?;
-    let input = AddressInput {
-        quan_address: user.quan_address.0.clone(),
-        eth_address: None,
-        referral_code,
-    };
-
-    let address_data = Address::new(input)?;
-
-    let created_id = state.db.addresses.create(&address_data).await?;
-
-    Ok(SuccessResponse::new(created_id))
-}
 
 pub async fn handle_get_address_stats(
     State(state): State<AppState>,
@@ -184,132 +163,4 @@ pub async fn sync_transfers(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        config::Config, db_persistence::DbPersistence, models::ModelError,
-        utils::test_db::reset_database, GraphqlClient,
-    };
-    use axum::Extension;
-    use std::sync::Arc;
-
-    // Helper to set up a test AppState with a connection to a real test DB.
-    async fn setup_test_app_state() -> AppState {
-        let config = Config::load_test_env().expect("Failed to load test configuration");
-        let db = DbPersistence::new(config.get_database_url()).await.unwrap();
-        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
-
-        reset_database(&db.pool).await;
-
-        AppState {
-            db: Arc::new(db),
-            graphql_client: Arc::new(graphql_client),
-            config: Arc::new(config),
-            challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_add_address_success() {
-        // Arrange
-        let state = setup_test_app_state().await;
-        let quan_address = "qz_a_valid_and_long_address_string".to_string();
-        
-        // Create a test user
-        let test_user = Address::new(AddressInput {
-            quan_address: quan_address.clone(),
-            eth_address: None,
-            referral_code: generate_referral_code(quan_address.clone()).await.unwrap(),
-        }).unwrap();
-
-        // Act: Call the handler function directly.
-        let result = handle_add_address(State(state.clone()), Extension(test_user)).await;
-
-        // Assert: Check the handler's response.
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert_eq!(
-            response.data, quan_address,
-            "Expected the created address ID to be returned"
-        );
-
-        // Assert: Verify the address was correctly saved to the database.
-        let created_address = state
-            .db
-            .addresses
-            .find_by_id(&quan_address)
-            .await
-            .unwrap();
-
-        assert!(
-            created_address.is_some(),
-            "Address was not found in the database"
-        );
-        let address_data = created_address.unwrap();
-        assert!(
-            !address_data.referral_code.is_empty(),
-            "A referral code should have been generated"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_add_address_invalid_input() {
-        // Arrange
-        let state = setup_test_app_state().await;
-        // This address is too short and will fail validation inside `Address::new`.
-        let quan_address = "qzshort".to_string();
-        
-        // Create a test user with invalid address
-        let test_user_result = Address::new(AddressInput {
-            quan_address: quan_address.clone(),
-            eth_address: None,
-            referral_code: generate_referral_code(quan_address.clone()).await.unwrap(),
-        });
-
-        // Act - Address creation should fail due to invalid input
-        assert!(test_user_result.is_err());
-        let error = test_user_result.unwrap_err();
-        assert!(matches!(error, ModelError::InvalidInput));
-
-        // Verify that no records were created in the database.
-        let addresses = state.db.addresses.find_all().await.unwrap();
-        assert!(
-            addresses.is_empty(),
-            "No address should be created on validation failure"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_add_address_handles_conflict() {
-        // Arrange
-        let state = setup_test_app_state().await;
-        let address_string = "qz_an_existing_address_for_conflict".to_string();
-
-        // Manually create an address first.
-        let initial_address = Address::new(AddressInput {
-            quan_address: address_string.clone(),
-            eth_address: None,
-            referral_code: "INITIAL_CODE".to_string(),
-        })
-        .unwrap();
-        state.db.addresses.create(&initial_address).await.unwrap();
-
-        // Create a test user with the same address.
-        let test_user = Address::new(AddressInput {
-            quan_address: address_string.clone(),
-            eth_address: None,
-            referral_code: generate_referral_code(address_string.clone()).await.unwrap(),
-        }).unwrap();
-
-        // Act: Call the handler with the duplicate address.
-        let result = handle_add_address(State(state.clone()), Extension(test_user)).await;
-
-        // Assert: The operation should still be successful due to ON CONFLICT.
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert_eq!(response.data, address_string);
-
-        // Verify there is still only one address in the database.
-        let addresses = state.db.addresses.find_all().await.unwrap();
-        assert_eq!(addresses.len(), 1, "No duplicate address should be created");
-    }
 }
