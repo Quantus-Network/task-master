@@ -26,11 +26,13 @@ pub fn address_routes(state: AppState) -> Router<AppState> {
         .route("/addresses/:id/stats", get(handle_get_address_stats))
         .route(
             "/addresses/:id/reward-program",
-            get(handle_get_address_reward_status_by_id).put(
-                handle_update_reward_program_status
-                    .layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth)),
+            get(handle_get_address_reward_status_by_id)
+            .put(handle_update_reward_program_status
+                .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
             ),
         )
-        .route("/addresses/associate-eth", put(associate_eth_address))
+        .route("/addresses/associate-eth", put(associate_eth_address
+            .layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth))
+        ))
         .route("/addresses/sync-transfers", post(sync_transfers))
 }

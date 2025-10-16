@@ -117,10 +117,7 @@ pub struct NewAddressPayload {
 
 #[derive(Debug, Deserialize)]
 pub struct AssociateEthAddressRequest {
-    pub quan_address: String,
     pub eth_address: String,
-    pub signature: String,
-    pub public_key: String,
 }
 
 #[derive(Debug, Serialize)]

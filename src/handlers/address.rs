@@ -1,7 +1,7 @@
 use axum::{
     extract::{self, State},
     response::NoContent,
-    Json,
+    Extension, Json,
 };
 
 use crate::{
@@ -24,17 +24,23 @@ use super::SuccessResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AddressHandlerError {
-    #[error("Invalid signature")]
-    InvalidSignature(Json<AssociateEthAddressResponse>),
-    #[error("Not authorized")]
-    Unauthrorized(Json<AssociateEthAddressResponse>),
+    #[error("{0}")]
+    Unauthorized(String),
 }
 
 pub async fn handle_update_reward_program_status(
     State(state): State<AppState>,
+    Extension(user): Extension<Address>,
     extract::Path(id): extract::Path<String>,
     extract::Json(payload): Json<RewardProgramStatusPayload>,
 ) -> Result<NoContent, AppError> {
+    // Ensure the authenticated user can only update their own reward program status
+    if user.quan_address.0 != id {
+        return Err(AppError::Handler(HandlerError::Address(
+            AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
+        )));
+    }
+
     tracing::info!("Making sure address exist by trying to save address...");
 
     let _ = handle_add_address(
@@ -113,110 +119,31 @@ pub async fn handle_get_address_reward_status_by_id(
 
 pub async fn associate_eth_address(
     State(state): State<AppState>,
+    Extension(user): Extension<Address>,
     Json(payload): Json<AssociateEthAddressRequest>,
 ) -> Result<Json<AssociateEthAddressResponse>, AppError> {
+
     tracing::info!(
-        "Received ETH address association request for quan_address: {} -> eth_address: {} (pubkey: {})",
-        payload.quan_address,
+        "Received ETH address association request for quan_address: {} -> eth_address: {}",
+        user.quan_address.0,
         payload.eth_address,
-        payload.public_key
     );
 
-    // Verify the signature
-    match crate::services::ethereum_service::verify_dilithium_signature(
-        &payload.quan_address,
-        &payload.eth_address,
-        &payload.signature,
-        &payload.public_key,
-    ) {
-        Ok(true) => {
-            tracing::info!("Signature verification successful");
+    // Update the user's ETH address
+    match state
+        .db
+        .addresses
+        .update_address_eth(&user.quan_address.0, &payload.eth_address)
+        .await
+    {
+        Ok(_) => {
+            tracing::info!(
+                "Updated quan_address {} with eth_address {}",
+                user.quan_address.0,
+                payload.eth_address
+            );
         }
-        Ok(false) => {
-            let response = AssociateEthAddressResponse {
-                success: false,
-                message: "Signature verification failed".to_string(),
-            };
-            return Err(AppError::Handler(HandlerError::Address(
-                AddressHandlerError::Unauthrorized(Json(response)),
-            )));
-        }
-        Err(crate::services::ethereum_service::SignatureError::VerificationFailed) => {
-            tracing::warn!("Dilithium signature verification failed");
-            let response = AssociateEthAddressResponse {
-                success: false,
-                message: "Dilithium signature verification failed".to_string(),
-            };
-            return Err(AppError::Handler(HandlerError::Address(
-                AddressHandlerError::Unauthrorized(Json(response)),
-            )));
-        }
-        Err(e) => {
-            tracing::error!("Signature verification error: {}", e);
-            let response = AssociateEthAddressResponse {
-                success: false,
-                message: format!("Signature verification failed: {}", e),
-            };
-            return Err(AppError::Handler(HandlerError::Address(
-                AddressHandlerError::InvalidSignature(Json(response)),
-            )));
-        }
-    }
-
-    // Check if the quan_address exists in the database
-    let addresses = match state.db.addresses.find_all().await {
-        Ok(addrs) => addrs,
-        Err(db_err) => {
-            return Err(AppError::Database(db_err));
-        }
-    };
-
-    let quan_address_exists = addresses
-        .iter()
-        .any(|addr| addr.quan_address.0 == payload.quan_address);
-
-    if !quan_address_exists {
-        if let Ok(referral_code) = generate_referral_code(payload.quan_address.clone()).await {
-            let new_address_input = AddressInput {
-                quan_address: payload.quan_address.clone(),
-                eth_address: Some(payload.eth_address.clone()),
-                referral_code,
-            };
-
-            if let Ok(new_address) = Address::new(new_address_input) {
-                // Add the quan_address to the database if it doesn't exist
-                if let Err(db_err) = state.db.addresses.create(&new_address).await {
-                    return Err(AppError::Database(db_err));
-                }
-
-                tracing::info!(
-                    "Added new quan_address {} with eth_address {}",
-                    payload.quan_address,
-                    payload.eth_address
-                );
-            } else {
-                return Err(AppError::Model(ModelError::InvalidInput));
-            };
-        } else {
-            return Err(AppError::Model(ModelError::FailedGenerateCheckphrase));
-        }
-    } else {
-        // Update existing address with eth_address
-        match state
-            .db
-            .addresses
-            .update_address_eth(&payload.quan_address, &payload.eth_address)
-            .await
-        {
-            Ok(_) => {
-                tracing::info!(
-                    "Updated quan_address {} with eth_address {}",
-                    payload.quan_address,
-                    payload.eth_address
-                );
-            }
-            Err(db_err) => return Err(AppError::Database(db_err)),
-        }
+        Err(db_err) => return Err(AppError::Database(db_err)),
     }
 
     let response = AssociateEthAddressResponse {
