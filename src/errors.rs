@@ -11,6 +11,7 @@ use crate::{
     handlers::{
         address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError, HandlerError
     },
+    middlewares::jwt_auth::ErrorResponse,
     models::ModelError,
     services::{
         graphql_client::GraphqlError, reverser::ReverserError, task_generator::TaskGeneratorError,
@@ -56,11 +57,11 @@ impl IntoResponse for AppError {
                     AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
                 },
                 HandlerError::Address(err) => match err {
-                    AddressHandlerError::InvalidSignature(err) => {
-                        return (StatusCode::BAD_REQUEST, err).into_response()
-                    }
-                    AddressHandlerError::Unauthrorized(err) => {
-                        return (StatusCode::UNAUTHORIZED, err).into_response()
+                    AddressHandlerError::Unauthorized(err) => {
+                        return (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+                            status: "fail",
+                            message: err,
+                        })).into_response()
                     }
                 },
                 HandlerError::Referral(err) => match err {

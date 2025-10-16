@@ -304,10 +304,14 @@ Available levels: `error`, `warn`, `info`, `debug`, `trace`
 
 ## Development
 
-### Running Tests
+### Running Integration Tests
+
+Running integration tests requires the database to be running and a blockchain node in dev mode. Also requires threads to be == 1 or else database failures occur. 
+
+The best way to run them is with the test script
 
 ```bash
-cargo test
+./scrips/run_tests.sh
 ```
 
 ### Running with Debug Logging
