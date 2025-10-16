@@ -68,6 +68,7 @@ impl IntoResponse for AppError {
                     
                     ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
                     ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
+                    ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
                 },
                 HandlerError::Task(err) => match err {
                     TaskHandlerError::TaskNotFound(err) => {

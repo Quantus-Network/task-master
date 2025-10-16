@@ -22,6 +22,8 @@ pub enum ReferralHandlerError {
     ReferralNotFound(String),
     #[error("{0}")]
     InvalidReferral(String),
+    #[error("{0}")]
+    DuplicateReferral(String),
 }
 
 pub async fn handle_add_referral(
@@ -46,6 +48,21 @@ pub async fn handle_add_referral(
                 )),
             )));
         };
+
+        // Check if referral already exists
+        let existing_referral = state
+            .db
+            .referrals
+            .find_by_referee(referee_address.clone())
+            .await?;
+
+        if existing_referral.is_some() {
+            return Err(AppError::Handler(HandlerError::Referral(
+                ReferralHandlerError::DuplicateReferral(
+                    "Referrer was already set".to_string(),
+                ),
+            )));
+        }
 
         let referral_data = ReferralData {
             referrer_address: referrer.quan_address.0.clone(),
@@ -275,5 +292,44 @@ mod tests {
             addresses.len() == 1,
             "No addresses should be created on validation failure"
         );
+    }
+
+    #[tokio::test]
+    async fn test_add_referral_duplicate() {
+        // Arrange
+        let state = setup_test_app_state().await;
+        let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
+        let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
+        
+        let input = ReferralInput {
+            referral_code: referrer.referral_code,
+        };
+
+        // Act: Call the handler function directly for the first time
+        let result1 = handle_add_referral(
+            State(state.clone()),
+            Extension(referee.clone()),
+            Json(input.clone()),
+        )
+        .await;
+
+        // Assert: First call should succeed
+        assert!(result1.is_ok());
+
+        // Act: Call the handler function directly for the second time
+        let result2 = handle_add_referral(
+            State(state.clone()),
+            Extension(referee),
+            Json(input),
+        )
+        .await;
+
+        // Assert: Second call should fail with duplicate referral error
+        assert!(result2.is_err());
+        let error = result2.unwrap_err();
+        assert!(matches!(
+            error,
+            AppError::Handler(HandlerError::Referral(ReferralHandlerError::DuplicateReferral(_)))
+        ));
     }
 }
