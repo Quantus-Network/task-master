@@ -43,13 +43,8 @@ pub async fn handle_update_reward_program_status(
 
     tracing::info!("Making sure address exist by trying to save address...");
 
-    let _ = handle_add_address(
-        State(state.clone()),
-        Json(NewAddressPayload {
-            quan_address: id.clone(),
-        }),
-    )
-    .await?;
+    // The user is already authenticated and exists in the database
+    // No need to call handle_add_address since we're just updating the reward status
 
     tracing::info!("Updating address reward status to {}", payload.new_status);
 
@@ -64,13 +59,13 @@ pub async fn handle_update_reward_program_status(
 
 pub async fn handle_add_address(
     State(state): State<AppState>,
-    extract::Json(payload): Json<NewAddressPayload>,
+    Extension(user): Extension<Address>,
 ) -> Result<Json<SuccessResponse<String>>, AppError> {
-    tracing::info!("Creating address struct...");
+    tracing::info!("Creating address struct for user: {}", user.quan_address.0);
 
-    let referral_code = generate_referral_code(payload.quan_address.clone()).await?;
+    let referral_code = generate_referral_code(user.quan_address.0.clone()).await?;
     let input = AddressInput {
-        quan_address: payload.quan_address,
+        quan_address: user.quan_address.0.clone(),
         eth_address: None,
         referral_code,
     };
@@ -194,6 +189,7 @@ mod tests {
         config::Config, db_persistence::DbPersistence, models::ModelError,
         utils::test_db::reset_database, GraphqlClient,
     };
+    use axum::Extension;
     use std::sync::Arc;
 
     // Helper to set up a test AppState with a connection to a real test DB.
@@ -216,18 +212,23 @@ mod tests {
     async fn test_add_address_success() {
         // Arrange
         let state = setup_test_app_state().await;
-        let payload = NewAddressPayload {
-            quan_address: "qz_a_valid_and_long_address_string".to_string(),
-        };
+        let quan_address = "qz_a_valid_and_long_address_string".to_string();
+        
+        // Create a test user
+        let test_user = Address::new(AddressInput {
+            quan_address: quan_address.clone(),
+            eth_address: None,
+            referral_code: generate_referral_code(quan_address.clone()).await.unwrap(),
+        }).unwrap();
 
         // Act: Call the handler function directly.
-        let result = handle_add_address(State(state.clone()), Json(payload.clone())).await;
+        let result = handle_add_address(State(state.clone()), Extension(test_user)).await;
 
         // Assert: Check the handler's response.
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(
-            response.data, payload.quan_address,
+            response.data, quan_address,
             "Expected the created address ID to be returned"
         );
 
@@ -235,7 +236,7 @@ mod tests {
         let created_address = state
             .db
             .addresses
-            .find_by_id(&payload.quan_address)
+            .find_by_id(&quan_address)
             .await
             .unwrap();
 
@@ -255,18 +256,19 @@ mod tests {
         // Arrange
         let state = setup_test_app_state().await;
         // This address is too short and will fail validation inside `Address::new`.
-        let payload = NewAddressPayload {
-            quan_address: "qzshort".to_string(),
-        };
+        let quan_address = "qzshort".to_string();
+        
+        // Create a test user with invalid address
+        let test_user_result = Address::new(AddressInput {
+            quan_address: quan_address.clone(),
+            eth_address: None,
+            referral_code: generate_referral_code(quan_address.clone()).await.unwrap(),
+        });
 
-        // Act
-        let result = handle_add_address(State(state.clone()), Json(payload)).await;
-
-        // Assert
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        // Check that it's the expected validation error.
-        assert!(matches!(error, AppError::Model(ModelError::InvalidInput)));
+        // Act - Address creation should fail due to invalid input
+        assert!(test_user_result.is_err());
+        let error = test_user_result.unwrap_err();
+        assert!(matches!(error, ModelError::InvalidInput));
 
         // Verify that no records were created in the database.
         let addresses = state.db.addresses.find_all().await.unwrap();
@@ -291,13 +293,15 @@ mod tests {
         .unwrap();
         state.db.addresses.create(&initial_address).await.unwrap();
 
-        // Create a payload with the same address.
-        let payload = NewAddressPayload {
+        // Create a test user with the same address.
+        let test_user = Address::new(AddressInput {
             quan_address: address_string.clone(),
-        };
+            eth_address: None,
+            referral_code: generate_referral_code(address_string.clone()).await.unwrap(),
+        }).unwrap();
 
         // Act: Call the handler with the duplicate address.
-        let result = handle_add_address(State(state.clone()), Json(payload)).await;
+        let result = handle_add_address(State(state.clone()), Extension(test_user)).await;
 
         // Assert: The operation should still be successful due to ON CONFLICT.
         assert!(result.is_ok());

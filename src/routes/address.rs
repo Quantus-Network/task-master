@@ -18,7 +18,7 @@ pub fn address_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route(
             "/addresses",
-            post(handle_add_address.layer(middleware::from_fn_with_state(
+            put(handle_add_address.layer(middleware::from_fn_with_state(
                 state.clone(),
                 jwt_auth::jwt_auth,
             ))),
