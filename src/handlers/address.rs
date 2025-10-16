@@ -38,12 +38,6 @@ pub async fn handle_update_reward_program_status(
             AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
         )));
     }
-
-    tracing::info!("Making sure address exist by trying to save address...");
-
-    // The user is already authenticated and exists in the database
-    // No need to call handle_add_address since we're just updating the reward status
-
     tracing::info!("Updating address reward status to {}", payload.new_status);
 
     state
