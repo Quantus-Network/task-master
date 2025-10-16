@@ -29,9 +29,7 @@ pub async fn handle_add_referral(
     Extension(user): Extension<Address>,
     extract::Json(referral_input): Json<ReferralInput>,
 ) -> Result<Json<SuccessResponse<String>>, AppError> {
-    tracing::info!("Creating referral struct...");
-
-    tracing::info!("Lookup referral code owner...");
+    tracing::debug!("Lookup referral code owner...");
     let submitted_code = referral_input.referral_code.to_lowercase();
     let referrer = state
         .db
@@ -56,7 +54,7 @@ pub async fn handle_add_referral(
 
         let referral = Referral::new(referral_data)?;
 
-        tracing::info!("Saving referral to DB...");
+        tracing::debug!("Saving referral to DB...");
         state.db.referrals.create(&referral).await?;
         state
             .db
@@ -79,9 +77,7 @@ pub async fn handle_get_referral_by_referee(
     State(state): State<AppState>,
     extract::Path(referee_address): extract::Path<String>,
 ) -> Result<Json<SuccessResponse<Referral>>, AppError> {
-    tracing::info!("Creating referral struct...");
-
-    tracing::info!("Lookup referral code owner...");
+    tracing::debug!("Lookup referral code owner...");
     let referral = state.db.referrals.find_by_referee(referee_address).await?;
 
     if let Some(referral) = referral {

@@ -38,7 +38,7 @@ pub async fn handle_update_reward_program_status(
             AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
         )));
     }
-    tracing::info!("Updating address reward status to {}", payload.new_status);
+    tracing::debug!("Updating address reward status to {}", payload.new_status);
 
     state
         .db
