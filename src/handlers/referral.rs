@@ -39,8 +39,9 @@ pub async fn handle_add_referral(
         .find_by_referral_code(&submitted_code)
         .await?;
 
+    let referee_address = &user.quan_address.0;
     if let Some(referrer) = referrer {
-        if referrer.quan_address.0 == referral_input.referee_address {
+        if referrer.quan_address.0 == *referee_address {
             return Err(AppError::Handler(HandlerError::Referral(
                 ReferralHandlerError::InvalidReferral(String::from(
                     "Self referral is not allowed!",
@@ -50,24 +51,16 @@ pub async fn handle_add_referral(
 
         let referral_data = ReferralData {
             referrer_address: referrer.quan_address.0.clone(),
-            referee_address: referral_input.referee_address,
+            referee_address: referee_address.clone(),
         };
 
         let referral = Referral::new(referral_data)?;
 
-        if referral.referee_address.0 != user.quan_address.0 {
-            return Err(AppError::Handler(HandlerError::Referral(
-                ReferralHandlerError::InvalidReferral(String::from(
-                    "Referee must match authenticated user",
-                )),
-            )));
-        }
-
-        let referral_code = generate_referral_code(referral.referee_address.0.clone()).await?;
+        let referral_code = generate_referral_code(referee_address.clone()).await?;
 
         tracing::info!("Creating referee address struct...");
         let referee = Address::new(AddressInput {
-            quan_address: referral.referee_address.0.clone(),
+            quan_address: referee_address.clone(),
             eth_address: None,
             referral_code,
         })?;
@@ -160,15 +153,15 @@ mod tests {
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let input = ReferralInput {
             referral_code: referrer.referral_code,
-            referee_address: "qz_a_valid_referee_address".to_string(),
         };
 
         // Authenticated user must match the referee
+        let referee_address = "qz_a_valid_referee_address".to_string();
         let auth_user = Address::new(AddressInput {
-            quan_address: input.referee_address.clone(),
+            quan_address: referee_address.clone(),
             eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(
-                input.referee_address.clone(),
+                referee_address.clone(),
             )
             .await
             .unwrap(),
@@ -213,12 +206,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(referrals.len(), 1);
-        assert_eq!(referrals[0].referee_address.0, input.referee_address);
+        assert_eq!(referrals[0].referee_address.0, referee_address);
 
         let referee = state
             .db
             .addresses
-            .find_by_id(&input.referee_address)
+            .find_by_id(&referee_address)
             .await
             .unwrap();
 
@@ -265,31 +258,28 @@ mod tests {
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
 
         // This address is too short and will fail validation in `Referral::new`.
-        let input = ReferralInput {
+        let _input = ReferralInput {
             referral_code: referrer.referral_code,
-            referee_address: "qzshort".to_string(),
         };
 
-        // Act
-        let auth_user = Address::new(AddressInput {
-            quan_address: "qz_valid_auth_user_for_test".to_string(),
+        // Act - Use an invalid address that will fail validation
+        let invalid_address = "qzshort".to_string();
+        let auth_user_result = Address::new(AddressInput {
+            quan_address: invalid_address.clone(),
             eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(
-                "qz_valid_auth_user_for_test".to_string(),
+                invalid_address.clone(),
             )
             .await
             .unwrap(),
-        })
-        .unwrap();
-        let result = handle_add_referral(State(state.clone()), Extension(auth_user), Json(input)).await;
+        });
 
-        // Assert
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        // Check that it's the expected validation error.
+        // Assert - Address creation should fail due to invalid input
+        assert!(auth_user_result.is_err());
+        let error = auth_user_result.unwrap_err();
         assert!(matches!(
             error,
-            AppError::Model(crate::models::ModelError::InvalidInput)
+            crate::models::ModelError::InvalidInput
         ));
 
         // Verify that no records were created in the database.
