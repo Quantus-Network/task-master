@@ -110,7 +110,7 @@ pub struct AddressInput {
     pub referral_code: String,
 }
 
-#[derive(Debug,Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct NewAddressPayload {
     pub quan_address: String,
 }
@@ -134,16 +134,23 @@ pub struct SyncTransfersResponse {
     pub addresses_stored: Option<usize>,
 }
 
-#[derive(Debug,Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RewardProgramStatusPayload {
     pub new_status: bool,
 }
 
-#[derive(Debug,Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressStatsResponse {
     pub referrals: u64,
+    pub referral_events: u64,
     pub immediate_txs: u64,
     pub reversible_txs: u64,
     pub mining_events: u64,
-    pub mining_rewards: String
+    pub mining_rewards: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AggregateStatsQueryParams {
+    #[serde(default)]
+    pub addresses: Vec<String>,
 }

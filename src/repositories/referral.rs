@@ -205,7 +205,6 @@ mod tests {
         assert_eq!(results.len(), 2);
     }
 
-
     #[tokio::test]
     async fn test_count_by_referrer() {
         let (address_repo, referral_repo) = setup_test_repositories().await;
