@@ -92,10 +92,34 @@ impl AddressRepository {
         Ok(address)
     }
 
+    pub async fn get_total_items(&self) -> DbResult<i64> {
+        let total_items = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM addresses")
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(total_items)
+    }
+
     pub async fn find_all(&self) -> DbResult<Vec<Address>> {
         let addresses = sqlx::query_as::<_, Address>("SELECT * FROM addresses")
             .fetch_all(&self.pool)
             .await?;
+
+        Ok(addresses)
+    }
+
+    pub async fn get_leaderboard_entries(
+        &self,
+        page_size: u32,
+        offset: u32,
+    ) -> DbResult<Vec<Address>> {
+        let addresses = sqlx::query_as::<_, Address>(
+            "SELECT * FROM addresses ORDER BY referrals_count DESC LIMIT $1 OFFSET $2",
+        )
+        .bind(page_size as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await?;
 
         Ok(addresses)
     }
@@ -186,6 +210,23 @@ mod tests {
         Address::new(input).unwrap()
     }
 
+    fn create_mock_address_with_referrals_count(
+        id: &str,
+        code: &str,
+        referrals_count: i32,
+    ) -> Address {
+        let input = AddressInput {
+            quan_address: format!("qz_test_address_{}", id),
+            eth_address: None,
+            referral_code: code.to_string(),
+        };
+
+        let mut address = Address::new(input).unwrap();
+        address.referrals_count = referrals_count;
+
+        address
+    }
+
     #[tokio::test]
     async fn test_create_and_find_by_id() {
         let repo = setup_test_repository().await;
@@ -197,6 +238,37 @@ mod tests {
         let found = repo.find_by_id(&created_id).await.unwrap().unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
         assert_eq!(found.referral_code, "ref001");
+    }
+
+    #[tokio::test]
+    async fn test_create_and_get_total_items() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("001", "REF001");
+
+        let created_id = repo.create(&address).await.unwrap();
+        assert_eq!(created_id, address.quan_address.0);
+
+        let total_items = repo.get_total_items().await.unwrap();
+        assert_eq!(total_items, 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_leaderboard() {
+        let repo = setup_test_repository().await;
+        let address1 = create_mock_address_with_referrals_count("001", "REF001", 0);
+        let address2 = create_mock_address_with_referrals_count("002", "REF002", 10);
+        let address3 = create_mock_address_with_referrals_count("003", "REF003", 5);
+        let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
+
+        repo.create_many(vec![address1, address2.clone(), address3, address4])
+            .await
+            .unwrap();
+
+        let addresses = repo.get_leaderboard_entries(1, 0).await.unwrap();
+        assert_eq!(addresses.len(), 1);
+        
+        let first_index_address = addresses.first().unwrap();
+        assert_eq!(first_index_address.quan_address.0, address2.quan_address.0);
     }
 
     #[tokio::test]
@@ -329,7 +401,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        
+
         assert_eq!(updated.is_reward_program_participant, new_status);
     }
 

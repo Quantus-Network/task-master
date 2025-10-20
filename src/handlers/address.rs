@@ -1,19 +1,16 @@
 use axum::{
-    extract::{self, State},
+    extract::{self, Query, State},
     response::NoContent,
     Extension, Json,
 };
 
 use crate::{
     db_persistence::DbError,
-    handlers::HandlerError,
+    handlers::{HandlerError, PaginationMetadata, QueryParams},
     http_server::AppState,
-    models::{
-        address::{
-            Address, AddressStatsResponse, AssociateEthAddressRequest,
-            AssociateEthAddressResponse, RewardProgramStatusPayload,
-            SyncTransfersResponse,
-        },
+    models::address::{
+        Address, AddressStatsResponse, AssociateEthAddressRequest, AssociateEthAddressResponse,
+        PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
     },
     AppError,
 };
@@ -35,7 +32,9 @@ pub async fn handle_update_reward_program_status(
     // Ensure the authenticated user can only update their own reward program status
     if user.quan_address.0 != id {
         return Err(AppError::Handler(HandlerError::Address(
-            AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
+            AddressHandlerError::Unauthorized(
+                "You can only update your own reward program status".to_string(),
+            ),
         )));
     }
     tracing::debug!("Updating address reward status to {}", payload.new_status);
@@ -48,7 +47,6 @@ pub async fn handle_update_reward_program_status(
 
     Ok(NoContent)
 }
-
 
 pub async fn handle_get_address_stats(
     State(state): State<AppState>,
@@ -68,6 +66,47 @@ pub async fn handle_get_address_stats(
     };
 
     Ok(SuccessResponse::new(data))
+}
+
+pub async fn handle_get_leaderboard(
+    State(state): State<AppState>,
+    Query(params): Query<QueryParams>,
+) -> Result<Json<PaginatedAddressesResponse>, AppError> {
+    tracing::info!("Getting leadeboard data...");
+
+    if params.page < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page query params must not be less than 1".to_string(),
+        )));
+    }
+
+    if params.page_size < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page size query params must not be less than 1".to_string(),
+        )));
+    }
+
+    let total_items = state.db.addresses.get_total_items().await? as u32;
+    let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
+    let offset = (params.page - 1) * params.page_size;
+
+    let addresses = state
+        .db
+        .addresses
+        .get_leaderboard_entries(params.page_size, offset)
+        .await?;
+
+    let response = PaginatedAddressesResponse {
+        data: addresses,
+        meta: PaginationMetadata {
+            page: params.page,
+            page_size: params.page_size,
+            total_items,
+            total_pages,
+        },
+    };
+
+    Ok(Json(response))
 }
 
 pub async fn handle_get_address_reward_status_by_id(
@@ -90,7 +129,6 @@ pub async fn associate_eth_address(
     Extension(user): Extension<Address>,
     Json(payload): Json<AssociateEthAddressRequest>,
 ) -> Result<Json<AssociateEthAddressResponse>, AppError> {
-
     tracing::info!(
         "Received ETH address association request for quan_address: {} -> eth_address: {}",
         user.quan_address.0,
@@ -156,5 +194,4 @@ pub async fn sync_transfers(
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

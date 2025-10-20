@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 use crate::{
-    models::{ModelError, ModelResult},
-    utils::eth_address_validator::is_valid_eth_address,
+    handlers::PaginationMetadata, models::{ModelError, ModelResult}, utils::eth_address_validator::is_valid_eth_address
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
@@ -146,4 +145,11 @@ pub struct AddressStatsResponse {
     pub reversible_txs: u64,
     pub mining_events: u64,
     pub mining_rewards: String
+}
+
+// Response struct with pagination metadata
+#[derive(Debug, Serialize)]
+pub struct PaginatedAddressesResponse {
+    pub data: Vec<Address>,
+    pub meta: PaginationMetadata,
 }
