@@ -9,7 +9,8 @@ use tracing::error;
 use crate::{
     db_persistence::DbError,
     handlers::{
-        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError, HandlerError
+        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError,
+        task::TaskHandlerError, HandlerError,
     },
     middlewares::jwt_auth::ErrorResponse,
     models::ModelError,
@@ -53,6 +54,7 @@ impl IntoResponse for AppError {
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
             AppError::Handler(err) => match err {
+                HandlerError::QueryParams(err) => (StatusCode::BAD_REQUEST, err.to_string()),
                 HandlerError::Auth(err) => match err {
                     AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
                 },
@@ -64,14 +66,17 @@ impl IntoResponse for AppError {
                         })).into_response()
                     }
                     AddressHandlerError::Unauthorized(err) => {
-                        return (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
-                            status: "fail",
-                            message: err,
-                        })).into_response()
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            Json(ErrorResponse {
+                                status: "fail",
+                                message: err,
+                            }),
+                        )
+                            .into_response()
                     }
                 },
                 HandlerError::Referral(err) => match err {
-                    
                     ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
                     ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
                     ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),

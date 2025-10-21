@@ -8,7 +8,7 @@ use axum::{
 use crate::{
     handlers::address::{
         associate_eth_address, handle_aggregate_address_stats,
-        handle_get_address_reward_status_by_id, handle_get_address_stats,
+        handle_get_address_reward_status_by_id, handle_get_address_stats, handle_get_leaderboard,
         handle_update_reward_program_status, sync_transfers,
     },
     http_server::AppState,
@@ -17,6 +17,7 @@ use crate::{
 
 pub fn address_routes(state: AppState) -> Router<AppState> {
     Router::new()
+        .route("/addresses/leaderboard", get(handle_get_leaderboard))
         .route(
             "/addresses/stats",
             get(

@@ -6,11 +6,12 @@ use axum::{
 
 use crate::{
     db_persistence::DbError,
-    handlers::HandlerError,
+    handlers::{HandlerError, PaginationMetadata, QueryParams},
     http_server::AppState,
     models::address::{
         Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
-        AssociateEthAddressResponse, RewardProgramStatusPayload, SyncTransfersResponse,
+        AssociateEthAddressResponse, PaginatedAddressesResponse, RewardProgramStatusPayload,
+        SyncTransfersResponse,
     },
     AppError,
 };
@@ -114,6 +115,47 @@ pub async fn handle_aggregate_address_stats(
     };
 
     Ok(SuccessResponse::new(data))
+}
+
+pub async fn handle_get_leaderboard(
+    State(state): State<AppState>,
+    Query(params): Query<QueryParams>,
+) -> Result<Json<PaginatedAddressesResponse>, AppError> {
+    tracing::info!("Getting leadeboard data...");
+
+    if params.page < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page query params must not be less than 1".to_string(),
+        )));
+    }
+
+    if params.page_size < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page size query params must not be less than 1".to_string(),
+        )));
+    }
+
+    let total_items = state.db.addresses.get_total_items().await? as u32;
+    let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
+    let offset = (params.page - 1) * params.page_size;
+
+    let addresses = state
+        .db
+        .addresses
+        .get_leaderboard_entries(params.page_size, offset)
+        .await?;
+
+    let response = PaginatedAddressesResponse {
+        data: addresses,
+        meta: PaginationMetadata {
+            page: params.page,
+            page_size: params.page_size,
+            total_items,
+            total_pages,
+        },
+    };
+
+    Ok(Json(response))
 }
 
 pub async fn handle_get_address_reward_status_by_id(
