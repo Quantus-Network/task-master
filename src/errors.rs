@@ -59,6 +59,12 @@ impl IntoResponse for AppError {
                     AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
                 },
                 HandlerError::Address(err) => match err {
+                    AddressHandlerError::InvalidQueryParams(err) => {
+                         return (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                            status: "fail",
+                            message: err,
+                        })).into_response()
+                    }
                     AddressHandlerError::Unauthorized(err) => {
                         return (
                             StatusCode::UNAUTHORIZED,

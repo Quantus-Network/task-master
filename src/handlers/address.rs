@@ -9,8 +9,9 @@ use crate::{
     handlers::{HandlerError, PaginationMetadata, QueryParams},
     http_server::AppState,
     models::address::{
-        Address, AddressStatsResponse, AssociateEthAddressRequest, AssociateEthAddressResponse,
-        PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
+        Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
+        AssociateEthAddressResponse, PaginatedAddressesResponse, RewardProgramStatusPayload,
+        SyncTransfersResponse,
     },
     AppError,
 };
@@ -21,6 +22,8 @@ use super::SuccessResponse;
 pub enum AddressHandlerError {
     #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
+    InvalidQueryParams(String),
 }
 
 pub async fn handle_update_reward_program_status(
@@ -59,6 +62,52 @@ pub async fn handle_get_address_stats(
 
     let data = AddressStatsResponse {
         referrals,
+        referral_events: 0,
+        immediate_txs: stats.total_transactions,
+        reversible_txs: stats.total_reversible_transactions,
+        mining_events: stats.total_mined_blocks,
+        mining_rewards: stats.total_mining_rewards,
+    };
+
+    Ok(SuccessResponse::new(data))
+}
+
+pub async fn handle_aggregate_address_stats(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+    Query(params): Query<AggregateStatsQueryParams>,
+) -> Result<Json<SuccessResponse<AddressStatsResponse>>, AppError> {
+    tracing::info!("Aggregate addresses stats...");
+
+    if params.addresses.is_empty() {
+        return Err(AppError::Handler(HandlerError::Address(
+            AddressHandlerError::InvalidQueryParams(
+                "Addresses query parameter should be defined and not empty!".to_string(),
+            ),
+        )));
+    }
+
+    let referrals = state
+        .db
+        .referrals
+        .find_all_by_referrer(user.quan_address.0)
+        .await?;
+    let referred_addresses: Vec<String> = referrals
+        .iter()
+        .map(|acc| acc.referee_address.0.clone())
+        .collect();
+    let referral_events = state
+        .graphql_client
+        .get_addresses_events_count(referred_addresses)
+        .await?;
+    let stats = state
+        .graphql_client
+        .get_addresses_stats(params.addresses.clone())
+        .await?;
+
+    let data = AddressStatsResponse {
+        referrals: referrals.len() as u64,
+        referral_events,
         immediate_txs: stats.total_transactions,
         reversible_txs: stats.total_reversible_transactions,
         mining_events: stats.total_mined_blocks,

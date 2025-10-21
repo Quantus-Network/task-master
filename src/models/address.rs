@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 use crate::{
-    handlers::PaginationMetadata, models::{ModelError, ModelResult}, utils::eth_address_validator::is_valid_eth_address
+    handlers::PaginationMetadata,
+    models::{ModelError, ModelResult},
+    utils::eth_address_validator::is_valid_eth_address,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
@@ -109,7 +111,7 @@ pub struct AddressInput {
     pub referral_code: String,
 }
 
-#[derive(Debug,Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct NewAddressPayload {
     pub quan_address: String,
 }
@@ -133,18 +135,19 @@ pub struct SyncTransfersResponse {
     pub addresses_stored: Option<usize>,
 }
 
-#[derive(Debug,Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RewardProgramStatusPayload {
     pub new_status: bool,
 }
 
-#[derive(Debug,Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressStatsResponse {
     pub referrals: u64,
+    pub referral_events: u64,
     pub immediate_txs: u64,
     pub reversible_txs: u64,
     pub mining_events: u64,
-    pub mining_rewards: String
+    pub mining_rewards: String,
 }
 
 // Response struct with pagination metadata
@@ -152,4 +155,10 @@ pub struct AddressStatsResponse {
 pub struct PaginatedAddressesResponse {
     pub data: Vec<Address>,
     pub meta: PaginationMetadata,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AggregateStatsQueryParams {
+    #[serde(default)]
+    pub addresses: Vec<String>,
 }
