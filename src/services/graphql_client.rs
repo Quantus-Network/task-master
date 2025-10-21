@@ -61,6 +61,12 @@ pub struct TransferData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EventsConnection {
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TransactionsConnection {
     #[serde(rename = "totalCount")]
     pub total_count: u64,
@@ -87,6 +93,11 @@ pub struct StatsData {
     pub reversible_transactions: ReversibleTransactionsConnection,
     #[serde(rename = "minerStats")]
     pub miner_stats: Vec<MinerStat>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EventCountData {
+    pub events: EventsConnection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -349,6 +360,137 @@ impl GraphqlClient {
             total_mining_rewards: miner_stats.total_rewards,
         })
     }
+
+    pub async fn get_addresses_stats(&self, ids: Vec<String>) -> GraphqlResult<AddressStats> {
+        if ids.is_empty() {
+            return Ok(AddressStats {
+                total_reversible_transactions: 0,
+                total_transactions: 0,
+                total_mined_blocks: 0,
+                total_mining_rewards: "0".to_string(),
+            });
+        }
+
+        const GET_STATS_QUERY: &str = r#"
+    query GetStatsByIds($ids: [String!]!) {
+        transactions: transfersConnection(
+            orderBy: timestamp_DESC
+            where: {
+                extrinsicHash_isNull: false
+                AND: { from: { id_in: $ids }, OR: { to: { id_in: $ids } } }
+            }
+        ) {
+            totalCount
+        }
+        reversibleTransactions: reversibleTransfersConnection(
+            orderBy: timestamp_DESC
+            where: { from: { id_in: $ids }, OR: { to: { id_in: $ids } } }
+        ) {
+            totalCount
+        }
+        minerStats(where: { id_in: $ids } ) {
+            totalMinedBlocks
+            totalRewards
+        }
+    }
+    "#;
+
+        let mut variables = HashMap::new();
+        variables.insert("ids".to_string(), serde_json::json!(ids));
+
+        let payload = GraphqlQuery {
+            query: GET_STATS_QUERY.to_string(),
+            variables: Some(variables),
+        };
+
+        info!(
+            "Fetching transfers from GraphQL endpoint: {}",
+            &self.graphql_url
+        );
+
+        let stats_data: StatsData = self.execute_query(payload).await?;
+
+        // Aggregate miner stats from all addresses
+        let total_mined_blocks = stats_data
+            .miner_stats
+            .iter()
+            .map(|stat| stat.total_mined_blocks)
+            .sum();
+
+        let total_rewards: u128 = stats_data
+            .miner_stats
+            .iter()
+            .filter_map(|stat| stat.total_rewards.parse::<u128>().ok())
+            .sum();
+
+        Ok(AddressStats {
+            total_reversible_transactions: stats_data.reversible_transactions.total_count,
+            total_transactions: stats_data.transactions.total_count,
+            total_mined_blocks,
+            total_mining_rewards: total_rewards.to_string(),
+        })
+    }
+
+    pub async fn get_addresses_events_count(&self, ids: Vec<String>) -> GraphqlResult<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        const GET_EVENT_COUNT_QUERY: &str = r#"
+query GetEventCountByIds($ids: [String!]!) {
+  eventsConnection(
+    orderBy: id_ASC, 
+    where: {
+      AND: [
+        { type_not_eq: BALANCE },
+        {
+          OR: [
+            {
+              OR: [
+                { transfer: { from: { id_in: $ids } } },
+                { transfer: { to: { id_in: $ids } } }
+              ]
+            },
+            {
+              OR: [
+                { reversibleTransfer: { from: { id_in: $ids } } },
+                { reversibleTransfer: { to: { id_in: $ids } } }
+              ]
+            },
+            {
+              minerReward: {
+                miner: {
+                  id_in: $ids
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    totalCount
+  }
+}
+"#;
+
+        let mut variables = HashMap::new();
+        variables.insert("ids".to_string(), serde_json::json!(ids));
+
+        let payload = GraphqlQuery {
+            query: GET_EVENT_COUNT_QUERY.to_string(),
+            variables: Some(variables),
+        };
+
+        info!(
+            "Fetching event count from GraphQL endpoint: {}",
+            &self.graphql_url
+        );
+
+        let event_count_data: EventCountData = self.execute_query(payload).await?;
+
+        Ok(event_count_data.events.total_count)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -369,10 +511,10 @@ pub struct AddressStats {
 #[cfg(test)]
 mod tests {
 
-    use crate::{http_server::AppState, utils::test_db::reset_database, Config};
+    use crate::Config;
 
     use super::*;
-    use std::{collections::HashSet, sync::Arc};
+    use std::collections::HashSet;
     use wiremock::{
         matchers::{body_json, method, path},
         Mock, MockServer, ResponseTemplate,
@@ -489,6 +631,88 @@ mod tests {
         assert_eq!(stats.total_reversible_transactions, 5);
         assert_eq!(stats.total_mined_blocks, 10);
         assert_eq!(stats.total_mining_rewards, "1000000000000000000");
+    }
+
+    #[tokio::test]
+    async fn test_get_addresses_event_count() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let addresses = vec![
+            "qzkxaHg7h4zgk5jPNkJ3a7r9xNgbJNGpJ6a5LPEThDnjkfrC6".to_string(),
+            "qzkxaHg7h4zgk5jPNkJ3a7r9xNgbJNGpJ6a5LPEThDnjkfrC7".to_string(),
+        ];
+
+        const GET_EVENT_COUNT_QUERY: &str = r#"
+query GetEventCountByIds($ids: [String!]!) {
+  eventsConnection(
+    orderBy: id_ASC, 
+    where: {
+      AND: [
+        { type_not_eq: BALANCE },
+        {
+          OR: [
+            {
+              OR: [
+                { transfer: { from: { id_in: $ids } } },
+                { transfer: { to: { id_in: $ids } } }
+              ]
+            },
+            {
+              OR: [
+                { reversibleTransfer: { from: { id_in: $ids } } },
+                { reversibleTransfer: { to: { id_in: $ids } } }
+              ]
+            },
+            {
+              minerReward: {
+                miner: {
+                  id_in: $ids
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    totalCount
+  }
+}
+"#;
+
+        let expected_request = serde_json::json!({
+            "query": GET_EVENT_COUNT_QUERY,
+            "variables": {
+                "ids": addresses
+            }
+        });
+
+        let mock_response = serde_json::json!({
+            "data": {
+                "events": {
+                    "totalCount": 16561
+                }
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(body_json(&expected_request))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&mock_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = setup_mock_graphql_client(&mock_server).await;
+
+        // Act
+        let result = client.get_addresses_events_count(addresses).await;
+
+        // Assert
+        assert!(result.is_ok());
+
+        let data = result.unwrap();
+        assert_eq!(data, 16561);
     }
 
     // ============================================================================

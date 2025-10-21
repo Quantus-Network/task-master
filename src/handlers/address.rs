@@ -1,5 +1,5 @@
 use axum::{
-    extract::{self, State},
+    extract::{self, Query, State},
     response::NoContent,
     Extension, Json,
 };
@@ -8,12 +8,9 @@ use crate::{
     db_persistence::DbError,
     handlers::HandlerError,
     http_server::AppState,
-    models::{
-        address::{
-            Address, AddressStatsResponse, AssociateEthAddressRequest,
-            AssociateEthAddressResponse, RewardProgramStatusPayload,
-            SyncTransfersResponse,
-        },
+    models::address::{
+        Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
+        AssociateEthAddressResponse, RewardProgramStatusPayload, SyncTransfersResponse,
     },
     AppError,
 };
@@ -24,6 +21,8 @@ use super::SuccessResponse;
 pub enum AddressHandlerError {
     #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
+    InvalidQueryParams(String),
 }
 
 pub async fn handle_update_reward_program_status(
@@ -35,7 +34,9 @@ pub async fn handle_update_reward_program_status(
     // Ensure the authenticated user can only update their own reward program status
     if user.quan_address.0 != id {
         return Err(AppError::Handler(HandlerError::Address(
-            AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
+            AddressHandlerError::Unauthorized(
+                "You can only update your own reward program status".to_string(),
+            ),
         )));
     }
     tracing::debug!("Updating address reward status to {}", payload.new_status);
@@ -49,7 +50,6 @@ pub async fn handle_update_reward_program_status(
     Ok(NoContent)
 }
 
-
 pub async fn handle_get_address_stats(
     State(state): State<AppState>,
     extract::Path(id): extract::Path<String>,
@@ -61,6 +61,52 @@ pub async fn handle_get_address_stats(
 
     let data = AddressStatsResponse {
         referrals,
+        referral_events: 0,
+        immediate_txs: stats.total_transactions,
+        reversible_txs: stats.total_reversible_transactions,
+        mining_events: stats.total_mined_blocks,
+        mining_rewards: stats.total_mining_rewards,
+    };
+
+    Ok(SuccessResponse::new(data))
+}
+
+pub async fn handle_aggregate_address_stats(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+    Query(params): Query<AggregateStatsQueryParams>,
+) -> Result<Json<SuccessResponse<AddressStatsResponse>>, AppError> {
+    tracing::info!("Aggregate addresses stats...");
+
+    if params.addresses.is_empty() {
+        return Err(AppError::Handler(HandlerError::Address(
+            AddressHandlerError::InvalidQueryParams(
+                "Addresses query parameter should be defined and not empty!".to_string(),
+            ),
+        )));
+    }
+
+    let referrals = state
+        .db
+        .referrals
+        .find_all_by_referrer(user.quan_address.0)
+        .await?;
+    let referred_addresses: Vec<String> = referrals
+        .iter()
+        .map(|acc| acc.referee_address.0.clone())
+        .collect();
+    let referral_events = state
+        .graphql_client
+        .get_addresses_events_count(referred_addresses)
+        .await?;
+    let stats = state
+        .graphql_client
+        .get_addresses_stats(params.addresses.clone())
+        .await?;
+
+    let data = AddressStatsResponse {
+        referrals: referrals.len() as u64,
+        referral_events,
         immediate_txs: stats.total_transactions,
         reversible_txs: stats.total_reversible_transactions,
         mining_events: stats.total_mined_blocks,
@@ -90,7 +136,6 @@ pub async fn associate_eth_address(
     Extension(user): Extension<Address>,
     Json(payload): Json<AssociateEthAddressRequest>,
 ) -> Result<Json<AssociateEthAddressResponse>, AppError> {
-
     tracing::info!(
         "Received ETH address association request for quan_address: {} -> eth_address: {}",
         user.quan_address.0,
@@ -156,5 +201,4 @@ pub async fn sync_transfers(
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
