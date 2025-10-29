@@ -242,5 +242,15 @@ pub async fn sync_transfers(
     }
 }
 
+pub async fn handle_get_opted_in_users(
+    State(state): State<AppState>,
+) -> Result<Json<SuccessResponse<Vec<Address>>>, AppError> {
+    tracing::info!("Getting first 100 opted-in users");
+
+    let users = state.db.addresses.get_opted_in_users(100).await?;
+
+    Ok(SuccessResponse::new(users))
+}
+
 #[cfg(test)]
 mod tests {}

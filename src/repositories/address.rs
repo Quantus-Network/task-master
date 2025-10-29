@@ -176,6 +176,17 @@ impl AddressRepository {
 
         Ok(new_count)
     }
+
+    pub async fn get_opted_in_users(&self, limit: i64) -> DbResult<Vec<Address>> {
+        let addresses = sqlx::query_as::<_, Address>(
+            "SELECT * FROM addresses WHERE is_reward_program_participant = true ORDER BY created_at ASC LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(addresses)
+    }
 }
 
 #[cfg(test)]
