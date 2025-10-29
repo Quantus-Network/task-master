@@ -162,3 +162,10 @@ pub struct AggregateStatsQueryParams {
     #[serde(default)]
     pub addresses: Vec<String>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct OptedInPositionResponse {
+    pub quan_address: String,
+    pub position: i64,
+    pub is_opted_in: bool,
+}

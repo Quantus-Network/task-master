@@ -10,8 +10,8 @@ use crate::{
     http_server::AppState,
     models::address::{
         Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
-        AssociateEthAddressResponse, PaginatedAddressesResponse, RewardProgramStatusPayload,
-        SyncTransfersResponse,
+        AssociateEthAddressResponse, OptedInPositionResponse, PaginatedAddressesResponse,
+        RewardProgramStatusPayload, SyncTransfersResponse,
     },
     AppError,
 };
@@ -250,6 +250,34 @@ pub async fn handle_get_opted_in_users(
     let users = state.db.addresses.get_opted_in_users(100).await?;
 
     Ok(SuccessResponse::new(users))
+}
+
+pub async fn handle_get_opted_in_position(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+) -> Result<Json<SuccessResponse<OptedInPositionResponse>>, AppError> {
+    tracing::info!("Getting opted-in position for {}", user.quan_address.0);
+
+    if !user.is_reward_program_participant {
+        return Ok(SuccessResponse::new(OptedInPositionResponse {
+            quan_address: user.quan_address.0.clone(),
+            position: 0,
+            is_opted_in: false,
+        }));
+    }
+
+    let position = state
+        .db
+        .addresses
+        .get_opted_in_position(&user.quan_address.0)
+        .await?
+        .unwrap_or(0);
+
+    Ok(SuccessResponse::new(OptedInPositionResponse {
+        quan_address: user.quan_address.0,
+        position,
+        is_opted_in: true,
+    }))
 }
 
 #[cfg(test)]

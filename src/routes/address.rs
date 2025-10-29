@@ -9,7 +9,8 @@ use crate::{
     handlers::address::{
         associate_eth_address, handle_aggregate_address_stats,
         handle_get_address_reward_status_by_id, handle_get_address_stats, handle_get_leaderboard,
-        handle_get_opted_in_users, handle_update_reward_program_status, sync_transfers,
+        handle_get_opted_in_position, handle_get_opted_in_users, handle_update_reward_program_status,
+        sync_transfers,
     },
     http_server::AppState,
     middlewares::jwt_auth,
@@ -19,6 +20,15 @@ pub fn address_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/addresses/leaderboard", get(handle_get_leaderboard))
         .route("/addresses/opted-in", get(handle_get_opted_in_users))
+        .route(
+            "/addresses/my-position",
+            get(
+                handle_get_opted_in_position.layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    jwt_auth::jwt_auth,
+                )),
+            ),
+        )
         .route(
             "/addresses/stats",
             get(

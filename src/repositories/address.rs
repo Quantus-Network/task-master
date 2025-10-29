@@ -187,6 +187,22 @@ impl AddressRepository {
 
         Ok(addresses)
     }
+
+    pub async fn get_opted_in_position(&self, quan_address: &str) -> DbResult<Option<i64>> {
+        let position = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*) + 1
+            FROM addresses
+            WHERE is_reward_program_participant = true 
+            AND created_at < COALESCE((SELECT created_at FROM addresses WHERE quan_address = $1), NOW())
+            "#,
+        )
+        .bind(quan_address)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(position)
+    }
 }
 
 #[cfg(test)]
