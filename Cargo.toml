@@ -75,4 +75,4 @@ qp-rusty-crystals-dilithium = "1.0.3"
 jsonwebtoken = "9.3.1"
 
 [dev-dependencies]
-wiremock = "0.6.5"
+wiremock = "0.5"

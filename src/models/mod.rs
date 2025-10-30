@@ -12,3 +12,4 @@ pub mod address;
 pub mod referrals;
 pub mod task;
 pub mod auth;
+pub mod opt_in;
