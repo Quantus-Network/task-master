@@ -42,9 +42,7 @@ pub async fn handle_update_reward_program_status(
     tracing::debug!("Updating address reward status to {}", payload.new_status);
 
     if payload.new_status {
-        let opt_in_count = state.db.opt_ins.count().await?;
-        let opt_in_number = (opt_in_count + 1) as i32;
-        state.db.opt_ins.create(&id, opt_in_number).await?;
+        state.db.opt_ins.create(&id).await?;
     } else {
         state.db.opt_ins.delete(&id).await?;
     }
