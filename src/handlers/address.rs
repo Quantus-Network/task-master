@@ -167,7 +167,7 @@ pub async fn handle_get_address_reward_status_by_id(
 
     if state.db.addresses.find_by_id(&id).await?.is_none() {
         return Err(AppError::Database(DbError::AddressNotFound(
-            "Address not found!".to_string(),
+            "Address not found".to_string(),
         )));
     }
 
