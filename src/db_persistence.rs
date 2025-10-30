@@ -2,7 +2,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::repositories::DbResult;
 use crate::repositories::{
-    address::AddressRepository, referral::ReferralRepository, task::TaskRepository,
+    address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository, task::TaskRepository,
 };
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -25,6 +25,7 @@ pub struct DbPersistence {
     pub tasks: TaskRepository,
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
+    pub opt_ins: OptInRepository,
 
     pub pool: PgPool,
 }
@@ -43,12 +44,14 @@ impl DbPersistence {
         let tasks = TaskRepository::new(&pool);
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
+        let opt_ins = OptInRepository::new(&pool);
 
         Ok(Self {
             pool,
             tasks,
             addresses,
             referrals,
+            opt_ins,
         })
     }
 
@@ -62,7 +65,8 @@ impl DbPersistence {
         let tasks = TaskRepository::new(&pool);
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
+        let opt_ins = OptInRepository::new(&pool);
 
-        Ok(Self { pool, tasks, addresses, referrals })
+        Ok(Self { pool, tasks, addresses, referrals, opt_ins })
     }
 }

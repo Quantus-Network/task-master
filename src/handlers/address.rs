@@ -32,7 +32,6 @@ pub async fn handle_update_reward_program_status(
     extract::Path(id): extract::Path<String>,
     extract::Json(payload): Json<RewardProgramStatusPayload>,
 ) -> Result<NoContent, AppError> {
-    // Ensure the authenticated user can only update their own reward program status
     if user.quan_address.0 != id {
         return Err(AppError::Handler(HandlerError::Address(
             AddressHandlerError::Unauthorized(
@@ -42,11 +41,13 @@ pub async fn handle_update_reward_program_status(
     }
     tracing::debug!("Updating address reward status to {}", payload.new_status);
 
-    state
-        .db
-        .addresses
-        .update_address_reward_status(&id, payload.new_status)
-        .await?;
+    if payload.new_status {
+        let opt_in_count = state.db.opt_ins.count().await?;
+        let opt_in_number = (opt_in_count + 1) as i32;
+        state.db.opt_ins.create(&id, opt_in_number).await?;
+    } else {
+        state.db.opt_ins.delete(&id).await?;
+    }
 
     Ok(NoContent)
 }
@@ -164,13 +165,14 @@ pub async fn handle_get_address_reward_status_by_id(
 ) -> Result<Json<SuccessResponse<bool>>, AppError> {
     tracing::info!("Getting address by id {}", id);
 
-    if let Some(address) = state.db.addresses.find_by_id(&id).await? {
-        Ok(SuccessResponse::new(address.is_reward_program_participant))
-    } else {
-        Err(AppError::Database(DbError::AddressNotFound(
+    if state.db.addresses.find_by_id(&id).await?.is_none() {
+        return Err(AppError::Database(DbError::AddressNotFound(
             "Address not found!".to_string(),
-        )))
+        )));
     }
+
+    let is_opted_in = state.db.opt_ins.find_by_address(&id).await?.is_some();
+    Ok(SuccessResponse::new(is_opted_in))
 }
 
 pub async fn associate_eth_address(
@@ -244,12 +246,12 @@ pub async fn sync_transfers(
 
 pub async fn handle_get_opted_in_users(
     State(state): State<AppState>,
-) -> Result<Json<SuccessResponse<Vec<Address>>>, AppError> {
+) -> Result<Json<SuccessResponse<Vec<crate::models::opt_in::OptIn>>>, AppError> {
     tracing::info!("Getting first 100 opted-in users");
 
-    let users = state.db.addresses.get_opted_in_users(100).await?;
+    let opt_ins = state.db.opt_ins.get_all_ordered(100).await?;
 
-    Ok(SuccessResponse::new(users))
+    Ok(SuccessResponse::new(opt_ins))
 }
 
 pub async fn handle_get_opted_in_position(
@@ -258,26 +260,19 @@ pub async fn handle_get_opted_in_position(
 ) -> Result<Json<SuccessResponse<OptedInPositionResponse>>, AppError> {
     tracing::info!("Getting opted-in position for {}", user.quan_address.0);
 
-    if !user.is_reward_program_participant {
-        return Ok(SuccessResponse::new(OptedInPositionResponse {
-            quan_address: user.quan_address.0.clone(),
+    if let Some(opt_in) = state.db.opt_ins.find_by_address(&user.quan_address.0).await? {
+        Ok(SuccessResponse::new(OptedInPositionResponse {
+            quan_address: user.quan_address.0,
+            position: opt_in.opt_in_number as i64,
+            is_opted_in: true,
+        }))
+    } else {
+        Ok(SuccessResponse::new(OptedInPositionResponse {
+            quan_address: user.quan_address.0,
             position: 0,
             is_opted_in: false,
-        }));
+        }))
     }
-
-    let position = state
-        .db
-        .addresses
-        .get_opted_in_position(&user.quan_address.0)
-        .await?
-        .unwrap_or(0);
-
-    Ok(SuccessResponse::new(OptedInPositionResponse {
-        quan_address: user.quan_address.0,
-        position,
-        is_opted_in: true,
-    }))
 }
 
 #[cfg(test)]

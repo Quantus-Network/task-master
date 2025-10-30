@@ -145,22 +145,6 @@ impl AddressRepository {
         Ok(())
     }
 
-    pub async fn update_address_reward_status(
-        &self,
-        quan_address: &str,
-        new_status: bool,
-    ) -> DbResult<()> {
-        sqlx::query(
-            "UPDATE addresses SET is_reward_program_participant = $1 WHERE quan_address = $2",
-        )
-        .bind(new_status)
-        .bind(quan_address)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
     pub async fn increment_referrals_count(&self, quan_address: &str) -> DbResult<i32> {
         let new_count = sqlx::query_scalar::<_, i32>(
             r#"
@@ -175,33 +159,6 @@ impl AddressRepository {
         .await?;
 
         Ok(new_count)
-    }
-
-    pub async fn get_opted_in_users(&self, limit: i64) -> DbResult<Vec<Address>> {
-        let addresses = sqlx::query_as::<_, Address>(
-            "SELECT * FROM addresses WHERE is_reward_program_participant = true ORDER BY created_at ASC LIMIT $1",
-        )
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(addresses)
-    }
-
-    pub async fn get_opted_in_position(&self, quan_address: &str) -> DbResult<Option<i64>> {
-        let position = sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COUNT(*) + 1
-            FROM addresses
-            WHERE is_reward_program_participant = true 
-            AND created_at < COALESCE((SELECT created_at FROM addresses WHERE quan_address = $1), NOW())
-            "#,
-        )
-        .bind(quan_address)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(position)
     }
 }
 
@@ -410,26 +367,6 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_update_address_reward_status() {
-        let repo = setup_test_repository().await;
-        let address = create_mock_address("401", "REF401");
-        repo.create(&address).await.unwrap();
-
-        let new_status = true;
-        repo.update_address_reward_status(&address.quan_address.0, new_status)
-            .await
-            .unwrap();
-
-        let updated = repo
-            .find_by_id(&address.quan_address.0)
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(updated.is_reward_program_participant, new_status);
     }
 
     #[tokio::test]
