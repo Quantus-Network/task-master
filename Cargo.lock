@@ -4112,7 +4112,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "qp-poseidon",
- "qp-rusty-crystals-dilithium",
+ "qp-rusty-crystals-dilithium 1.0.3",
  "qp-rusty-crystals-hdwallet",
  "scale-info",
  "sp-core",
@@ -4178,6 +4178,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "qp-rusty-crystals-dilithium"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a42bfb3430fa3bf3f5a148f8132de301876ceb1bdf0891909c2728f044a58"
+dependencies = [
+ "aes",
+ "cipher",
+ "sha2 0.10.9",
+ "subtle",
+]
+
+[[package]]
 name = "qp-rusty-crystals-hdwallet"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4188,7 +4200,7 @@ dependencies = [
  "hex-literal",
  "nam-tiny-hderive",
  "qp-poseidon-core",
- "qp-rusty-crystals-dilithium",
+ "qp-rusty-crystals-dilithium 1.0.3",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
  "serde",
@@ -4213,7 +4225,7 @@ dependencies = [
  "parity-scale-codec",
  "qp-dilithium-crypto",
  "qp-poseidon",
- "qp-rusty-crystals-dilithium",
+ "qp-rusty-crystals-dilithium 1.0.3",
  "qp-rusty-crystals-hdwallet",
  "rand 0.9.2",
  "rpassword",
@@ -6343,7 +6355,7 @@ dependencies = [
  "hex",
  "jsonwebtoken",
  "qp-human-checkphrase",
- "qp-rusty-crystals-dilithium",
+ "qp-rusty-crystals-dilithium 2.0.0",
  "quantus-cli",
  "rand 0.9.2",
  "reqwest 0.11.27",
