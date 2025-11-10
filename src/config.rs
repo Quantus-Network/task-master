@@ -70,6 +70,7 @@ impl Config {
         settings.try_deserialize()
     }
     
+    #[cfg(test)]
     pub fn load_test_env() -> Result<Self, config::ConfigError> {
         println!("Loading TEST configuration..."); // For demonstration
         let settings = config::Config::builder()

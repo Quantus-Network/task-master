@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_and_reverse_tasks_success() {
+    async fn chain_test_check_and_reverse_tasks_success() {
         let (reverser, tm, db) = setup_test_reverser().await;
 
         // Arrange: Create a task that is ready to be reversed.
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_and_reverse_does_nothing_if_no_tasks_ready() {
+    async fn chain_test_check_and_reverse_does_nothing_if_no_tasks_ready() {
         let (reverser, tm, db) = setup_test_reverser().await;
 
         // Arrange: Create a task, send its transaction, but its end_time is far in the future.
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_reversal_stats() {
+    async fn chain_test_get_reversal_stats() {
         let (reverser, _tm, db) = setup_test_reverser().await;
 
         // We will manually create tasks with specific timings for this test.

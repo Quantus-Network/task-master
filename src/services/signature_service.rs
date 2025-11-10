@@ -68,9 +68,11 @@ mod tests {
     #[test]
     fn sign_and_verify_roundtrip() {
         let msg = b"quantus-signature-test";
-        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(None);
+        let entropy = [7u8; 32];
+        let hedge = [2u8; 32];
+        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(&entropy);
         let pk = kp.public.to_bytes();
-        let sig = kp.sign(msg, None, true);
+        let sig = kp.sign(msg, None, Some(hedge));
         let pk_hex = hex::encode(pk);
         let sig_hex = hex::encode(sig);
         assert!(SignatureService::verify_message(msg, &sig_hex, &pk_hex).unwrap());

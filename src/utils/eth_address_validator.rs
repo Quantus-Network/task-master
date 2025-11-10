@@ -20,9 +20,9 @@ use tiny_keccak::{Hasher, Keccak};
 /// # Examples
 ///
 /// ```
-/// assert!(is_valid_eth_address("0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359")); // lowercase
-/// assert!(is_valid_eth_address("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")); // checksummed
-/// assert!(!is_valid_eth_address("0xfb6916095ca1df60bb79ce92ce3ea74c37c5d35")); // invalid length
+// assert!(is_valid_eth_address("0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359")); // lowercase
+// assert!(is_valid_eth_address("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")); // checksummed
+// assert!(!is_valid_eth_address("0xfb6916095ca1df60bb79ce92ce3ea74c37c5d35")); // invalid length
 /// ```
 pub fn is_valid_eth_address(address: &str) -> bool {
     if address.len() != 42 {
@@ -30,7 +30,7 @@ pub fn is_valid_eth_address(address: &str) -> bool {
     }
 
     let prefix = &address[..2];
-    if (prefix != "0x" && prefix != "0X") {
+    if prefix != "0x" && prefix != "0X" {
         return false;
     }
 

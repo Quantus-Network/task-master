@@ -108,6 +108,7 @@ impl TransactionManager {
             &self.keypair,
             &task.quan_address.0,
             task.quan_amount.0 as u128, // Convert to u128 for quantus-cli
+            false,
         )
         .await?;
 
@@ -161,7 +162,7 @@ impl TransactionManager {
         );
 
         let client = self.client.read().await;
-        let cancel_tx_hash = cancel_transaction(&*client, &self.keypair, tx_hash_str).await?;
+        let cancel_tx_hash = cancel_transaction(&*client, &self.keypair, tx_hash_str, false).await?;
 
         drop(client);
 

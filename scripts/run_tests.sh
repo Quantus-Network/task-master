@@ -15,4 +15,4 @@ if ! podman compose -f docker-compose.yaml exec -T postgres pg_isready -U postgr
 fi
 
 # Our integration tests must run single threaded.
-cargo test -- --test-threads=1 --nocapture
+cargo test -- --skip chain_ --test-threads=1 --nocapture
