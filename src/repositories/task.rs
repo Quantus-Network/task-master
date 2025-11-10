@@ -314,13 +314,13 @@ mod tests {
         let address = create_persisted_address(&address_repo, "005").await;
 
         // This task's end time is soon, so it should be picked up
-        let mut task1 = create_mock_task_object(&address.quan_address.0);
+        let task1 = create_mock_task_object(&address.quan_address.0);
         task_repo.create(&task1).await.unwrap();
         let end_time1 = Utc::now() + chrono::Duration::minutes(5);
         task_repo.update_task_transaction(&task1.task_id, "tx1", Utc::now(), end_time1).await.unwrap();
         
         // This task's end time is far in the future
-        let mut task2 = create_mock_task_object(&address.quan_address.0);
+        let task2 = create_mock_task_object(&address.quan_address.0);
         task_repo.create(&task2).await.unwrap();
         let end_time2 = Utc::now() + chrono::Duration::minutes(30);
         task_repo.update_task_transaction(&task2.task_id, "tx2", Utc::now(), end_time2).await.unwrap();
