@@ -17,6 +17,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
+mod metrics;
 mod db_persistence;
 mod errors;
 mod handlers;

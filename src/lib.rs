@@ -10,6 +10,7 @@ pub mod repositories;
 pub mod errors;
 pub mod models;
 pub mod db_persistence;
+pub mod metrics;
 pub mod services;
 pub mod http_server;
 pub mod utils;

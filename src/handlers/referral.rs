@@ -111,6 +111,7 @@ mod tests {
     use axum::extract::Path;
 
     use super::*;
+    use crate::metrics::Metrics;
     use crate::utils::test_db::reset_database;
     use crate::GraphqlClient;
     use crate::{
@@ -128,6 +129,7 @@ mod tests {
 
         AppState {
             db: Arc::new(db),
+            metrics: Arc::new(Metrics::new()),
             graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
