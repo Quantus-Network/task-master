@@ -1,12 +1,15 @@
-use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
+use axum::{extract::State, http::StatusCode, middleware, response::Json, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    db_persistence::DbPersistence, models::task::TaskStatus, routes::api_routes, Config,
-    GraphqlClient,
+    db_persistence::DbPersistence,
+    metrics::{metrics_handler, track_metrics, Metrics},
+    models::task::TaskStatus,
+    routes::api_routes,
+    Config, GraphqlClient,
 };
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
@@ -14,6 +17,7 @@ use tokio::sync::RwLock;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: Arc<DbPersistence>,
+    pub metrics: Arc<Metrics>,
     pub graphql_client: Arc<GraphqlClient>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
@@ -49,7 +53,9 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/status", get(get_status))
+        .route("/metrics", get(metrics_handler))
         .nest("/api", api_routes(state.clone()))
+        .layer(middleware::from_fn(track_metrics))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -113,6 +119,7 @@ pub async fn start_server(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         db,
+        metrics: Arc::new(Metrics::new()),
         graphql_client,
         config,
         challenges: Arc::new(RwLock::new(HashMap::new())),
@@ -137,9 +144,11 @@ mod tests {
             .await
             .unwrap();
         let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
+        let metrics = Metrics::new();
 
         let state = AppState {
             db: Arc::new(db),
+            metrics: Arc::new(metrics),
             graphql_client: Arc::new(graphql_client),
             config: Arc::new(config),
             challenges: Arc::new(RwLock::new(HashMap::new())),

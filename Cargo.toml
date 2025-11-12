@@ -25,8 +25,8 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 
 # Database
 sqlx = { version = "0.7", features = [
@@ -71,6 +71,8 @@ dirs = "6.0"
 subxt = "0.43.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 jsonwebtoken = "9.3.1"
+prometheus = { version = "0.14.0", features = ["process"] }
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 wiremock = "0.5"
