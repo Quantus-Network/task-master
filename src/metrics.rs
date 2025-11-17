@@ -13,7 +13,6 @@ use std::time::Instant;
 
 use crate::http_server::AppState;
 
-
 // Define comprehensive metrics for REST API monitoring
 lazy_static! {
     pub static ref HTTP_REQUESTS_TOTAL: IntCounterVec = IntCounterVec::new(
@@ -199,8 +198,22 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
         eprintln!("Failed to encode metrics: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, Vec::new());
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            String::from("Failed to encode metrics"),
+        );
     }
 
-    (StatusCode::OK, buffer)
+    let res = match String::from_utf8(buffer) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("custom metrics could not be from_utf8'd: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                String::from("Failed to encode metrics"),
+            );
+        }
+    };
+
+    (StatusCode::OK, res)
 }
