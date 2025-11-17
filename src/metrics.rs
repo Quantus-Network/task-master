@@ -208,7 +208,10 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         Ok(v) => v,
         Err(e) => {
             eprintln!("custom metrics could not be from_utf8'd: {}", e);
-            String::default()
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                String::from("Failed to encode metrics"),
+            );
         }
     };
 
