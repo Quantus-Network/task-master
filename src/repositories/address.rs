@@ -7,6 +7,18 @@ pub struct AddressRepository {
     pool: PgPool,
 }
 impl AddressRepository {
+    fn push_leaderboard_base_query<'a>(
+        qb: &mut QueryBuilder<'a, sqlx::Postgres>,
+        with_referral_code: Option<String>,
+    ) {
+        qb.push(" FROM addresses WHERE referrals_count > 0");
+
+        if let Some(code) = with_referral_code {
+            qb.push(" AND referral_code ILIKE ")
+                .push_bind(format!("{}%", code));
+        }
+    }
+
     pub fn new(pool: &PgPool) -> Self {
         Self { pool: pool.clone() }
     }
@@ -93,11 +105,8 @@ impl AddressRepository {
     }
 
     pub async fn get_total_items(&self, with_referral_code: Option<String>) -> DbResult<i64> {
-        let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM addresses WHERE referrals_count > 0");
-
-        if let Some(code) = with_referral_code {
-            qb.push(" AND referral_code = ").push_bind(code);
-        }
+        let mut qb = QueryBuilder::new("SELECT COUNT(*) ");
+        AddressRepository::push_leaderboard_base_query(&mut qb, with_referral_code);
 
         let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
 
@@ -118,13 +127,9 @@ impl AddressRepository {
         offset: u32,
         with_referral_code: Option<String>,
     ) -> DbResult<Vec<Address>> {
-        let mut qb = QueryBuilder::new("SELECT * FROM addresses WHERE referrals_count > 0");
+        let mut qb = QueryBuilder::new("SELECT * ");
 
-        if let Some(code) = with_referral_code {
-            qb.push(" AND referral_code ILIKE ")
-                .push_bind(format!("{}%", code));
-        }
-
+        AddressRepository::push_leaderboard_base_query(&mut qb, with_referral_code);
         qb.push(" ORDER BY referrals_count DESC LIMIT ")
             .push_bind(page_size as i64)
             .push(" OFFSET ")
@@ -240,10 +245,13 @@ mod tests {
     #[tokio::test]
     async fn test_create_and_get_total_items() {
         let repo = setup_test_repository().await;
-        let address = create_mock_address("001", "REF001");
+        let address = create_mock_address("001", "REF001",);
+        let address2 = create_mock_address_with_referrals_count("002", "REF002", 9);
 
         let created_id = repo.create(&address).await.unwrap();
+        let created_id_2 = repo.create(&address2).await.unwrap();
         assert_eq!(created_id, address.quan_address.0);
+        assert_eq!(created_id_2, address2.quan_address.0);
 
         let total_items = repo.get_total_items(None).await.unwrap();
         assert_eq!(total_items, 1);
