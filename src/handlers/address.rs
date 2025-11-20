@@ -134,14 +134,14 @@ pub async fn handle_get_leaderboard(
         )));
     }
 
-    let total_items = state.db.addresses.get_total_items().await? as u32;
+    let total_items = state.db.addresses.get_total_items(params.referral_code.clone()).await? as u32;
     let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
     let offset = (params.page - 1) * params.page_size;
 
     let addresses = state
         .db
         .addresses
-        .get_leaderboard_entries(params.page_size, offset)
+        .get_leaderboard_entries(params.page_size, offset, params.referral_code)
         .await?;
 
     let response = PaginatedAddressesResponse {

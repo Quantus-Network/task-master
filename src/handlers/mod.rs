@@ -2,7 +2,8 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::{
-    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError
+    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError,
+    task::TaskHandlerError,
 };
 
 pub mod address;
@@ -24,8 +25,6 @@ pub enum HandlerError {
     #[error("{0}")]
     QueryParams(String),
 }
-
-
 
 #[derive(Debug, Serialize)]
 pub struct SuccessResponse<T> {
@@ -50,11 +49,17 @@ pub struct QueryParams {
     // Pagination
     #[serde(default = "default_page")]
     pub page: u32,
-    
+
     #[serde(default = "default_page_size")]
     pub page_size: u32,
+
+    pub referral_code: Option<String>,
 }
 
 // Default values for query params
-fn default_page() -> u32 { 1 }
-fn default_page_size() -> u32 { 25 }
+fn default_page() -> u32 {
+    1
+}
+fn default_page_size() -> u32 {
+    25
+}
