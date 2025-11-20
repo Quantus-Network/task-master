@@ -1,18 +1,23 @@
 use sqlx::{PgPool, QueryBuilder};
 
-use crate::{models::address::Address, repositories::DbResult};
+use crate::{
+    models::address::{Address, AddressWithRank},
+    repositories::DbResult,
+};
 
 #[derive(Clone, Debug)]
 pub struct AddressRepository {
     pool: PgPool,
 }
 impl AddressRepository {
-    fn push_leaderboard_base_query<'a>(
+    fn push_leaderboard_base_query<'a>(qb: &mut QueryBuilder<'a, sqlx::Postgres>) {
+        qb.push(" FROM addresses WHERE referrals_count > 0");
+    }
+
+    fn push_leaderboard_filter_query_if_possible<'a>(
         qb: &mut QueryBuilder<'a, sqlx::Postgres>,
         with_referral_code: Option<String>,
     ) {
-        qb.push(" FROM addresses WHERE referrals_count > 0");
-
         if let Some(code) = with_referral_code {
             qb.push(" AND referral_code ILIKE ")
                 .push_bind(format!("{}%", code));
@@ -106,7 +111,8 @@ impl AddressRepository {
 
     pub async fn get_total_items(&self, with_referral_code: Option<String>) -> DbResult<i64> {
         let mut qb = QueryBuilder::new("SELECT COUNT(*) ");
-        AddressRepository::push_leaderboard_base_query(&mut qb, with_referral_code);
+        AddressRepository::push_leaderboard_base_query(&mut qb);
+        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, with_referral_code);
 
         let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
 
@@ -126,16 +132,25 @@ impl AddressRepository {
         page_size: u32,
         offset: u32,
         with_referral_code: Option<String>,
-    ) -> DbResult<Vec<Address>> {
-        let mut qb = QueryBuilder::new("SELECT * ");
+    ) -> DbResult<Vec<AddressWithRank>> {
+        let mut qb = QueryBuilder::new(
+            "WITH ranked_addresses AS (
+            SELECT 
+                *,
+                ROW_NUMBER() OVER (ORDER BY referrals_count DESC) as rank
+        ",
+        );
 
-        AddressRepository::push_leaderboard_base_query(&mut qb, with_referral_code);
-        qb.push(" ORDER BY referrals_count DESC LIMIT ")
+        AddressRepository::push_leaderboard_base_query(&mut qb);
+        qb.push(") SELECT * FROM ranked_addresses WHERE 1=1");
+
+        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, with_referral_code);
+        qb.push(" ORDER BY rank LIMIT ")
             .push_bind(page_size as i64)
             .push(" OFFSET ")
             .push_bind(offset as i64);
 
-        let query = qb.build_query_as::<Address>();
+        let query = qb.build_query_as::<AddressWithRank>();
 
         let addresses = query.fetch_all(&self.pool).await?;
 
@@ -186,6 +201,7 @@ mod tests {
     use crate::config::Config;
     use crate::models::address::{Address, AddressInput};
     use crate::utils::test_db::reset_database;
+    use sp_runtime::print;
     use sqlx::PgPool;
 
     // Helper function to set up a test repository using the app's config loader.
@@ -243,17 +259,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_and_get_total_items() {
+    async fn test_create_many_and_get_total_items() {
         let repo = setup_test_repository().await;
-        let address = create_mock_address("001", "REF001",);
+        let address = create_mock_address("001", "REF001");
         let address2 = create_mock_address_with_referrals_count("002", "REF002", 9);
+        let address3 = create_mock_address_with_referrals_count("003", "REF003", 10);
+        let address4 = create_mock_address_with_referrals_count("004", "REF004", 11);
 
-        let created_id = repo.create(&address).await.unwrap();
-        let created_id_2 = repo.create(&address2).await.unwrap();
-        assert_eq!(created_id, address.quan_address.0);
-        assert_eq!(created_id_2, address2.quan_address.0);
+        repo.create_many([address, address2, address3, address4].to_vec())
+            .await
+            .unwrap();
 
         let total_items = repo.get_total_items(None).await.unwrap();
+        assert_eq!(total_items, 3);
+    }
+
+    #[tokio::test]
+    async fn test_get_total_items_with_referral_code_filter() {
+        let repo = setup_test_repository().await;
+        let address = create_mock_address("001", "REF001");
+        let address2 = create_mock_address_with_referrals_count("002", "REF002", 9);
+        let address3 = create_mock_address_with_referrals_count("003", "REF003", 10);
+        let address4 = create_mock_address_with_referrals_count("004", "REF004", 11);
+
+        repo.create_many([address, address2, address3, address4].to_vec())
+            .await
+            .unwrap();
+
+        let total_items = repo
+            .get_total_items(Some(String::from("REF003")))
+            .await
+            .unwrap();
         assert_eq!(total_items, 1);
     }
 
@@ -273,7 +309,10 @@ mod tests {
         assert_eq!(addresses.len(), 1);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.quan_address.0, address2.quan_address.0);
+        assert_eq!(
+            first_index_address.address.quan_address.0,
+            address2.quan_address.0
+        );
     }
 
     #[tokio::test]
@@ -292,7 +331,10 @@ mod tests {
         assert_eq!(addresses.len(), 3);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.quan_address.0, address2.quan_address.0);
+        assert_eq!(
+            first_index_address.address.quan_address.0,
+            address2.quan_address.0
+        );
     }
 
     #[tokio::test]
@@ -302,19 +344,31 @@ mod tests {
         let address2 = create_mock_address_with_referrals_count("002", "REF002", 10);
         let address3 = create_mock_address_with_referrals_count("003", "REF003", 5);
         let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
+        let address5 = create_mock_address_with_referrals_count("005", "REF005", 7);
 
-        repo.create_many(vec![address1, address2, address3.clone(), address4])
-            .await
-            .unwrap();
+        repo.create_many(vec![
+            address1,
+            address2,
+            address3.clone(),
+            address4,
+            address5.clone(),
+        ])
+        .await
+        .unwrap();
 
         let addresses = repo
-            .get_leaderboard_entries(4, 0, Some(String::from("REF003")))
+            .get_leaderboard_entries(4, 0, Some(String::from("REF005")))
             .await
             .unwrap();
         assert_eq!(addresses.len(), 1);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.quan_address.0, address3.quan_address.0);
+        assert_eq!(
+            first_index_address.address.quan_address.0,
+            address5.quan_address.0
+        );
+
+        assert_eq!(first_index_address.rank, 3);
     }
 
     #[tokio::test]

@@ -149,7 +149,7 @@ pub struct AddressStatsResponse {
 // Response struct with pagination metadata
 #[derive(Debug, Serialize)]
 pub struct PaginatedAddressesResponse {
-    pub data: Vec<Address>,
+    pub data: Vec<AddressWithRank>,
     pub meta: PaginationMetadata,
 }
 
@@ -164,4 +164,11 @@ pub struct OptedInPositionResponse {
     pub quan_address: String,
     pub position: i64,
     pub is_opted_in: bool,
+}
+
+#[derive(sqlx::FromRow, Debug, Clone, Serialize)]
+pub struct AddressWithRank {
+    #[sqlx(flatten)]
+    pub address: Address,
+    pub rank: i64,
 }
