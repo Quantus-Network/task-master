@@ -1,7 +1,9 @@
 use axum::{extract::State, http::StatusCode, middleware, response::Json, routing::get, Router};
+use rusx::{PkceCodeVerifier, TwitterAuth};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 use tower::ServiceBuilder;
+use tower_cookies::CookieManagerLayer;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
@@ -21,6 +23,8 @@ pub struct AppState {
     pub graphql_client: Arc<GraphqlClient>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
+    pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
+    pub x_oauth: Arc<TwitterAuth>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +65,7 @@ pub fn create_router(state: AppState) -> Router {
                 .layer(TraceLayer::new_for_http())
                 .layer(CorsLayer::permissive()),
         )
+        .layer(CookieManagerLayer::new()) // Enable Cookie support
         .with_state(state)
 }
 
@@ -114,6 +119,7 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
 pub async fn start_server(
     db: Arc<DbPersistence>,
     graphql_client: Arc<GraphqlClient>,
+    x_oauth: Arc<TwitterAuth>,
     bind_address: &str,
     config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -122,7 +128,9 @@ pub async fn start_server(
         metrics: Arc::new(Metrics::new()),
         graphql_client,
         config,
+        x_oauth,
         challenges: Arc::new(RwLock::new(HashMap::new())),
+        oauth_sessions: Arc::new(Mutex::new(HashMap::new())),
     };
     let app = create_router(state);
 
@@ -136,23 +144,13 @@ pub async fn start_server(
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::test_app_state::create_test_app_state;
+
     use super::*;
 
     async fn test_app() -> axum::Router {
-        let config = Config::load_test_env().expect("Failed to load test configuration");
-        let db = DbPersistence::new_unmigrated(config.get_database_url())
-            .await
-            .unwrap();
-        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
-        let metrics = Metrics::new();
+        let state = create_test_app_state().await;
 
-        let state = AppState {
-            db: Arc::new(db),
-            metrics: Arc::new(metrics),
-            graphql_client: Arc::new(graphql_client),
-            config: Arc::new(config),
-            challenges: Arc::new(RwLock::new(HashMap::new())),
-        };
         create_router(state)
     }
 }

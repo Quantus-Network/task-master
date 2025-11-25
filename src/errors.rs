@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use rusx::error::SdkError;
 use serde_json::json;
 use tracing::error;
 
@@ -44,6 +45,8 @@ pub enum AppError {
     Graphql(#[from] GraphqlError),
     #[error("HTTP server error: {0}")]
     Http(#[from] axum::http::Error),
+    #[error("Rusx error: {0}")]
+    Rusx(#[from] SdkError),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -53,17 +56,42 @@ impl IntoResponse for AppError {
         let (status, error_message) = match self {
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
+            AppError::Rusx(err) => match err {
+                SdkError::Api { status, data } => {
+                    tracing::error!("Rusx API error: {:?}", data);
+
+                    (
+                        StatusCode::from_u16(status)
+                            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR),
+                        data.title,
+                    )
+                }
+
+                SdkError::AuthConfiguration(_)
+                | SdkError::Http(_)
+                | SdkError::Json(_)
+                | SdkError::Unknown(_) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal server error occurred".to_string(),
+                ),
+            },
+
             AppError::Handler(err) => match err {
                 HandlerError::QueryParams(err) => (StatusCode::BAD_REQUEST, err.to_string()),
                 HandlerError::Auth(err) => match err {
                     AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
+                    AuthHandlerError::OAuth(err) => (StatusCode::BAD_REQUEST, err),
                 },
                 HandlerError::Address(err) => match err {
                     AddressHandlerError::InvalidQueryParams(err) => {
-                         return (StatusCode::BAD_REQUEST, Json(ErrorResponse {
-                            status: "fail",
-                            message: err,
-                        })).into_response()
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                status: "fail",
+                                message: err,
+                            }),
+                        )
+                            .into_response()
                     }
                     AddressHandlerError::Unauthorized(err) => {
                         return (

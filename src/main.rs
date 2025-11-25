@@ -10,6 +10,7 @@ use crate::{
     },
 };
 use clap::Parser;
+use rusx::TwitterAuth;
 use sp_core::crypto::{self, Ss58AddressFormat};
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -17,11 +18,11 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
-mod metrics;
 mod db_persistence;
 mod errors;
 mod handlers;
 mod http_server;
+mod metrics;
 mod middlewares;
 mod models;
 mod repositories;
@@ -331,10 +332,17 @@ async fn main() -> AppResult<()> {
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
+    let server_x_oauth = Arc::new(TwitterAuth::new(config.x_oauth.clone())?);
     let server_task = tokio::spawn(async move {
-        http_server::start_server(server_db, graphql_client, &server_addr_clone, server_config)
-            .await
-            .map_err(|e| AppError::Server(e.to_string()))
+        http_server::start_server(
+            server_db,
+            graphql_client,
+            server_x_oauth,
+            &server_addr_clone,
+            server_config,
+        )
+        .await
+        .map_err(|e| AppError::Server(e.to_string()))
     });
 
     info!("🎯 TaskMaster is now running!");
