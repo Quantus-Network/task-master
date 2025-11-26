@@ -6,5 +6,3 @@ pub async fn reset_database(pool: &PgPool) {
         .await
         .expect("Failed to truncate tables for tests");
 }
-
-

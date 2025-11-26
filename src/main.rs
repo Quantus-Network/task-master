@@ -17,11 +17,11 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
-mod metrics;
 mod db_persistence;
 mod errors;
 mod handlers;
 mod http_server;
+mod metrics;
 mod middlewares;
 mod models;
 mod repositories;
@@ -134,10 +134,7 @@ async fn main() -> AppResult<()> {
             return Err(AppError::TaskGenerator(e));
         }
 
-        info!(
-            "Loaded {} candidates from database",
-            task_generator.candidates_count()
-        );
+        info!("Loaded {} candidates from database", task_generator.candidates_count());
 
         // Test generating tasks
         let test_count = 5; // Generate 5 test tasks
@@ -191,10 +188,7 @@ async fn main() -> AppResult<()> {
 
         let node_info = transaction_manager.get_node_info().await?;
         info!("✅ Connected to: {}", node_info);
-        info!(
-            "Wallet address: {}",
-            transaction_manager.get_wallet_address()
-        );
+        info!("Wallet address: {}", transaction_manager.get_wallet_address());
 
         // Check wallet balance
         match transaction_manager.get_wallet_balance().await {
@@ -203,9 +197,7 @@ async fn main() -> AppResult<()> {
         }
 
         // Create or get test task
-        let (task_id, destination_address, amount) = if let (Some(dest), Some(amt)) =
-            (&args.destination, args.amount)
-        {
+        let (task_id, destination_address, amount) = if let (Some(dest), Some(amt)) = (&args.destination, args.amount) {
             // Create a temporary task for testing with custom parameters
             let task_input = TaskInput {
                 quan_address: dest.clone(),
@@ -229,9 +221,7 @@ async fn main() -> AppResult<()> {
             let tasks = db.tasks.get_all_tasks().await?;
             if tasks.is_empty() {
                 error!("No tasks found in database. Run --test-selection first to create some tasks, or provide --destination and --amount arguments.");
-                return Err(AppError::Server(
-                    "No tasks available for testing".to_string(),
-                ));
+                return Err(AppError::Server("No tasks available for testing".to_string()));
             }
 
             let test_task = &tasks[0];
@@ -248,10 +238,7 @@ async fn main() -> AppResult<()> {
         );
 
         // Send a reversible transaction
-        match transaction_manager
-            .send_reversible_transaction(&task_id)
-            .await
-        {
+        match transaction_manager.send_reversible_transaction(&task_id).await {
             Ok(tx_hash) => {
                 info!("✅ Reversible transaction sent successfully!");
                 info!("Transaction hash: {}", tx_hash);
@@ -289,10 +276,7 @@ async fn main() -> AppResult<()> {
 
     let node_info = transaction_manager.get_node_info().await?;
     info!("✅ Connected to: {}", node_info);
-    info!(
-        "Wallet address: {}",
-        transaction_manager.get_wallet_address()
-    );
+    info!("Wallet address: {}", transaction_manager.get_wallet_address());
 
     // Check wallet balance
     match transaction_manager.get_wallet_balance().await {
@@ -305,10 +289,7 @@ async fn main() -> AppResult<()> {
 
     // Initial candidate refresh
     info!("Fetching initial candidates...");
-    if let Err(e) = task_generator
-        .refresh_candidates(&config.candidates.graphql_url)
-        .await
-    {
+    if let Err(e) = task_generator.refresh_candidates(&config.candidates.graphql_url).await {
         error!("Failed to fetch initial candidates: {}", e);
         return Err(AppError::TaskGenerator(e));
     }
@@ -347,10 +328,7 @@ async fn main() -> AppResult<()> {
         "Candidates refresh interval: {} minutes",
         config.candidates.refresh_interval_minutes
     );
-    info!(
-        "Reversal period: {} hours",
-        config.blockchain.reversal_period_hours
-    );
+    info!("Reversal period: {} hours", config.blockchain.reversal_period_hours);
 
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {
@@ -394,10 +372,7 @@ async fn run_once(
     task_generator: TaskGenerator,
     transaction_manager: Arc<TransactionManager>,
 ) -> AppResult<()> {
-    info!(
-        "Generating {} tasks...",
-        config.task_generation.taskees_per_round
-    );
+    info!("Generating {} tasks...", config.task_generation.taskees_per_round);
 
     let tasks = task_generator
         .generate_and_save_tasks(config.task_generation.taskees_per_round)
@@ -428,10 +403,7 @@ async fn start_candidates_refresh_task(
             info!("Refreshing candidates...");
             match task_generator.refresh_candidates(&graphql_url).await {
                 Ok(()) => {
-                    info!(
-                        "Candidates refreshed: {} available",
-                        task_generator.candidates_count()
-                    );
+                    info!("Candidates refreshed: {} available", task_generator.candidates_count());
                 }
                 Err(e) => {
                     error!("Failed to refresh candidates: {}", e);
@@ -456,10 +428,7 @@ async fn start_task_generation_task(
 
             info!("Generating new batch of {} tasks...", taskees_per_round);
 
-            let tasks = match task_generator
-                .generate_and_save_tasks(taskees_per_round)
-                .await
-            {
+            let tasks = match task_generator.generate_and_save_tasks(taskees_per_round).await {
                 Ok(tasks) => tasks,
                 Err(e) => {
                     error!("Failed to generate tasks: {}", e);
@@ -467,10 +436,7 @@ async fn start_task_generation_task(
                 }
             };
 
-            info!(
-                "Generated {} tasks, processing transactions...",
-                tasks.len()
-            );
+            info!("Generated {} tasks, processing transactions...", tasks.len());
 
             match transaction_manager.process_task_batch(tasks).await {
                 Ok(processed) => {

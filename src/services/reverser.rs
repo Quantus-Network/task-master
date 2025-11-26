@@ -90,11 +90,7 @@ impl ReverserService {
                 task.reversible_tx_id.as_deref().unwrap_or("none")
             );
 
-            match self
-                .transaction_manager
-                .reverse_transaction(&task.task_id)
-                .await
-            {
+            match self.transaction_manager.reverse_transaction(&task.task_id).await {
                 Ok(()) => {
                     reversal_count += 1;
                     tracing::info!("Successfully reversed task {}", task.task_id);
@@ -140,11 +136,7 @@ impl ReverserService {
 
     /// Get statistics about tasks that need attention
     pub async fn get_reversal_stats(&self) -> ReverserResult<ReversalStats> {
-        let pending_tasks = self
-            .db
-            .tasks
-            .get_tasks_by_status(TaskStatus::Pending)
-            .await?;
+        let pending_tasks = self.db.tasks.get_tasks_by_status(TaskStatus::Pending).await?;
         let tasks_ready_for_reversal = self
             .db
             .tasks
@@ -206,12 +198,7 @@ pub async fn start_reverser_service(
     check_interval: Duration,
     early_reversal_minutes: i64,
 ) -> tokio::task::JoinHandle<ReverserResult<()>> {
-    let reverser = ReverserService::new(
-        db,
-        transaction_manager,
-        check_interval,
-        early_reversal_minutes,
-    );
+    let reverser = ReverserService::new(db, transaction_manager, check_interval, early_reversal_minutes);
 
     tokio::spawn(async move { reverser.start().await })
 }
@@ -228,14 +215,13 @@ mod tests {
         utils::generate_referral_code::generate_referral_code,
         utils::test_db::reset_database,
     };
-    use quantus_cli::wallet::WalletManager;
     use chrono::{Duration as ChronoDuration, Utc};
+    use quantus_cli::wallet::WalletManager;
     use uuid::Uuid;
 
     // Helper to set up a full test environment with a DB, TransactionManager, and ReverserService.
     // NOTE: Requires a local Quantus node running.
-    async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>)
-    {
+    async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>) {
         let config = Config::load_test_env().expect("Failed to load test configuration");
         std::env::set_var("TASKMASTER_USE_DEV_ALICE", "1");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());

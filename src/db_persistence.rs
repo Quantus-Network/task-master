@@ -32,14 +32,9 @@ pub struct DbPersistence {
 
 impl DbPersistence {
     pub async fn new(database_url: &str) -> DbResult<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(10)
-            .connect(database_url)
-            .await?;
+        let pool = PgPoolOptions::new().max_connections(10).connect(database_url).await?;
 
-        sqlx::migrate!("./migrations") 
-            .run(&pool)
-            .await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
 
         let tasks = TaskRepository::new(&pool);
         let addresses = AddressRepository::new(&pool);
@@ -57,16 +52,19 @@ impl DbPersistence {
 
     #[cfg(test)]
     pub async fn new_unmigrated(database_url: &str) -> DbResult<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
-            .await?;
+        let pool = PgPoolOptions::new().max_connections(5).connect(database_url).await?;
 
         let tasks = TaskRepository::new(&pool);
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
 
-        Ok(Self { pool, tasks, addresses, referrals, opt_ins })
+        Ok(Self {
+            pool,
+            tasks,
+            addresses,
+            referrals,
+            opt_ins,
+        })
     }
 }

@@ -1,7 +1,7 @@
 use quantus_cli::qp_dilithium_crypto::{traits::verify as dilithium_verify, types::DilithiumPublic};
 use sp_core::crypto::{AccountId32, Ss58Codec};
-use std::convert::TryFrom;
 use sp_runtime::traits::IdentifyAccount;
+use std::convert::TryFrom;
 use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
@@ -51,8 +51,8 @@ impl SignatureService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sp_core::crypto::Ss58Codec;
     use quantus_cli::qp_dilithium_crypto::types::DilithiumPublic;
+    use sp_core::crypto::Ss58Codec;
     use std::convert::TryFrom;
 
     // Smoke test: verifies API shape. For a full e2e, we'd integrate a signer to produce a real signature.
@@ -77,8 +77,10 @@ mod tests {
         let sig_hex = hex::encode(sig);
         assert!(SignatureService::verify_message(msg, &sig_hex, &pk_hex).unwrap());
 
-        let addr = DilithiumPublic::try_from(hex::decode(&pk_hex).unwrap().as_slice()).unwrap().into_account().to_ss58check();
+        let addr = DilithiumPublic::try_from(hex::decode(&pk_hex).unwrap().as_slice())
+            .unwrap()
+            .into_account()
+            .to_ss58check();
         assert!(SignatureService::verify_address(&pk_hex, &addr).unwrap());
     }
 }
-

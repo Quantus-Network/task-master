@@ -61,12 +61,11 @@ impl TaskRepository {
     }
 
     pub async fn update_task_status(&self, task_id: &str, status: TaskStatus) -> DbResult<()> {
-        let result =
-            sqlx::query("UPDATE tasks SET status = $1, updated_at = NOW() WHERE task_id = $2")
-                .bind(status.to_string())
-                .bind(task_id)
-                .execute(&self.pool)
-                .await?;
+        let result = sqlx::query("UPDATE tasks SET status = $1, updated_at = NOW() WHERE task_id = $2")
+            .bind(status.to_string())
+            .bind(task_id)
+            .execute(&self.pool)
+            .await?;
 
         if result.rows_affected() == 0 {
             return Err(DbError::TaskNotFound(task_id.to_string()));
@@ -106,11 +105,10 @@ impl TaskRepository {
     }
 
     pub async fn get_tasks_by_status(&self, status: TaskStatus) -> DbResult<Vec<Task>> {
-        let tasks =
-            sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE status = $1 ORDER BY created_at")
-                .bind(status.to_string())
-                .fetch_all(&self.pool)
-                .await?;
+        let tasks = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE status = $1 ORDER BY created_at")
+            .bind(status.to_string())
+            .fetch_all(&self.pool)
+            .await?;
         Ok(tasks)
     }
 
@@ -256,11 +254,7 @@ mod tests {
             .await
             .unwrap();
 
-        let fetched_task = task_repo
-            .get_task(&new_task.task_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let fetched_task = task_repo.get_task(&new_task.task_id).await.unwrap().unwrap();
         assert_eq!(fetched_task.status, TaskStatus::Completed);
     }
 
@@ -280,11 +274,7 @@ mod tests {
             .await
             .unwrap();
 
-        let updated_task = task_repo
-            .get_task(&new_task.task_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let updated_task = task_repo.get_task(&new_task.task_id).await.unwrap().unwrap();
         assert_eq!(updated_task.reversible_tx_id, Some(tx_id.to_string()));
         assert!(updated_task.send_time.is_some());
         assert!(updated_task.end_time.is_some());
@@ -294,7 +284,7 @@ mod tests {
     async fn test_get_tasks_by_status() {
         let (address_repo, task_repo) = setup_test_repositories().await;
         let address = create_persisted_address(&address_repo, "004").await;
-        
+
         let mut task1 = create_mock_task_object(&address.quan_address.0);
         task1.status = TaskStatus::Pending;
         task_repo.create(&task1).await.unwrap();
@@ -302,7 +292,7 @@ mod tests {
         let mut task2 = create_mock_task_object(&address.quan_address.0);
         task2.status = TaskStatus::Completed;
         task_repo.create(&task2).await.unwrap();
-        
+
         let pending_tasks = task_repo.get_tasks_by_status(TaskStatus::Pending).await.unwrap();
         assert_eq!(pending_tasks.len(), 1);
         assert_eq!(pending_tasks[0].task_id, task1.task_id);
@@ -317,13 +307,19 @@ mod tests {
         let task1 = create_mock_task_object(&address.quan_address.0);
         task_repo.create(&task1).await.unwrap();
         let end_time1 = Utc::now() + chrono::Duration::minutes(5);
-        task_repo.update_task_transaction(&task1.task_id, "tx1", Utc::now(), end_time1).await.unwrap();
-        
+        task_repo
+            .update_task_transaction(&task1.task_id, "tx1", Utc::now(), end_time1)
+            .await
+            .unwrap();
+
         // This task's end time is far in the future
         let task2 = create_mock_task_object(&address.quan_address.0);
         task_repo.create(&task2).await.unwrap();
         let end_time2 = Utc::now() + chrono::Duration::minutes(30);
-        task_repo.update_task_transaction(&task2.task_id, "tx2", Utc::now(), end_time2).await.unwrap();
+        task_repo
+            .update_task_transaction(&task2.task_id, "tx2", Utc::now(), end_time2)
+            .await
+            .unwrap();
 
         // Looking for tasks ending within the next 10 minutes
         let reversible_tasks = task_repo.get_tasks_ready_for_reversal(10).await.unwrap();
@@ -335,7 +331,7 @@ mod tests {
     async fn test_counts() {
         let (address_repo, task_repo) = setup_test_repositories().await;
         let address = create_persisted_address(&address_repo, "006").await;
-        
+
         let mut task1 = create_mock_task_object(&address.quan_address.0);
         task1.status = TaskStatus::Pending;
         task_repo.create(&task1).await.unwrap();
@@ -351,7 +347,7 @@ mod tests {
         // Test total count
         let total = task_repo.task_count().await.unwrap();
         assert_eq!(total, 3);
-        
+
         // Test status counts
         let counts = task_repo.status_counts().await.unwrap();
         assert_eq!(counts.get(&TaskStatus::Pending), Some(&2));

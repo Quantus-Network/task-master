@@ -39,23 +39,19 @@ impl OptInRepository {
     }
 
     pub async fn find_by_address(&self, quan_address: &str) -> DbResult<Option<OptIn>> {
-        let opt_in = sqlx::query_as::<_, OptIn>(
-            "SELECT * FROM opt_ins WHERE quan_address = $1",
-        )
-        .bind(quan_address)
-        .fetch_optional(&self.pool)
-        .await?;
+        let opt_in = sqlx::query_as::<_, OptIn>("SELECT * FROM opt_ins WHERE quan_address = $1")
+            .bind(quan_address)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(opt_in)
     }
 
     pub async fn get_all_ordered(&self, limit: i64) -> DbResult<Vec<OptIn>> {
-        let opt_ins = sqlx::query_as::<_, OptIn>(
-            "SELECT * FROM opt_ins ORDER BY created_at ASC LIMIT $1",
-        )
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
+        let opt_ins = sqlx::query_as::<_, OptIn>("SELECT * FROM opt_ins ORDER BY created_at ASC LIMIT $1")
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(opt_ins)
     }
@@ -78,9 +74,9 @@ mod tests {
     use crate::models::address::{Address, AddressInput};
     use crate::repositories::address::AddressRepository;
     use crate::utils::test_db::reset_database;
-    use sqlx::{PgPool, postgres::PgPoolOptions};
-    use tokio::time::sleep;
+    use sqlx::{postgres::PgPoolOptions, PgPool};
     use std::time::Duration;
+    use tokio::time::sleep;
 
     async fn setup_test_repository() -> (OptInRepository, AddressRepository, PgPool) {
         let config = Config::load_test_env().expect("Failed to load configuration for tests");
@@ -119,7 +115,11 @@ mod tests {
         assert_eq!(opt_in.quan_address.0, address.quan_address.0);
         assert_eq!(opt_in.opt_in_number, (count + 1) as i32);
 
-        let found = opt_in_repo.find_by_address(&address.quan_address.0).await.unwrap().unwrap();
+        let found = opt_in_repo
+            .find_by_address(&address.quan_address.0)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
         assert_eq!(found.opt_in_number, (count + 1) as i32);
     }
@@ -133,17 +133,25 @@ mod tests {
         let count_before = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&address.quan_address.0).await.unwrap();
 
-        assert!(opt_in_repo.find_by_address(&address.quan_address.0).await.unwrap().is_some());
+        assert!(opt_in_repo
+            .find_by_address(&address.quan_address.0)
+            .await
+            .unwrap()
+            .is_some());
 
         opt_in_repo.delete(&address.quan_address.0).await.unwrap();
 
-        assert!(opt_in_repo.find_by_address(&address.quan_address.0).await.unwrap().is_none());
+        assert!(opt_in_repo
+            .find_by_address(&address.quan_address.0)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
     async fn test_get_all_ordered() {
         let (opt_in_repo, address_repo, _pool) = setup_test_repository().await;
-        
+
         let addr1 = create_test_address("test_ordered_001");
         let addr2 = create_test_address("test_ordered_002");
         let addr3 = create_test_address("test_ordered_003");
@@ -155,11 +163,11 @@ mod tests {
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
-        
+
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
-        
+
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
 
@@ -173,7 +181,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_all_ordered_with_limit() {
         let (opt_in_repo, address_repo, _pool) = setup_test_repository().await;
-        
+
         let addr1 = create_test_address("test_limit_001");
         let addr2 = create_test_address("test_limit_002");
         let addr3 = create_test_address("test_limit_003");
@@ -185,11 +193,11 @@ mod tests {
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
-        
+
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
-        
+
         let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
 
@@ -202,7 +210,7 @@ mod tests {
     #[tokio::test]
     async fn test_count() {
         let (opt_in_repo, address_repo, _pool) = setup_test_repository().await;
-        
+
         assert_eq!(opt_in_repo.count().await.unwrap(), 0);
 
         let addr1 = create_test_address("test_count_001");
@@ -244,7 +252,7 @@ mod tests {
 
         let count = opt_in_repo.count().await.unwrap();
         let opt_in2 = opt_in_repo.create(&address.quan_address.0).await.unwrap();
-        
+
         assert_eq!(opt_in2.quan_address.0, address.quan_address.0);
         assert_eq!(opt_in2.opt_in_number, opt_in1.opt_in_number);
         assert_eq!(opt_in2.created_at, first_created_at);
@@ -253,7 +261,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_address_not_found() {
         let (opt_in_repo, _address_repo, _pool) = setup_test_repository().await;
-        
+
         let result = opt_in_repo.find_by_address("qz_nonexistent").await.unwrap();
         assert!(result.is_none());
     }
@@ -261,7 +269,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_nonexistent_no_error() {
         let (opt_in_repo, _address_repo, _pool) = setup_test_repository().await;
-        
+
         let result = opt_in_repo.delete("qz_nonexistent").await;
         assert!(result.is_ok());
     }
@@ -269,7 +277,7 @@ mod tests {
     #[tokio::test]
     async fn test_sequential_opt_in_numbering() {
         let (opt_in_repo, address_repo, _pool) = setup_test_repository().await;
-        
+
         let addr1 = create_test_address("test_seq_001");
         let addr2 = create_test_address("test_seq_002");
         let addr3 = create_test_address("test_seq_003");
@@ -313,4 +321,3 @@ mod tests {
         assert!(!opt_in.created_at.to_rfc3339().is_empty());
     }
 }
-

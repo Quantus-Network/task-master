@@ -10,8 +10,8 @@ use crate::{
     http_server::AppState,
     models::address::{
         Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
-        AssociateEthAddressResponse, OptedInPositionResponse, PaginatedAddressesResponse,
-        RewardProgramStatusPayload, SyncTransfersResponse,
+        AssociateEthAddressResponse, OptedInPositionResponse, PaginatedAddressesResponse, RewardProgramStatusPayload,
+        SyncTransfersResponse,
     },
     AppError,
 };
@@ -34,9 +34,7 @@ pub async fn handle_update_reward_program_status(
 ) -> Result<NoContent, AppError> {
     if user.quan_address.0 != id {
         return Err(AppError::Handler(HandlerError::Address(
-            AddressHandlerError::Unauthorized(
-                "You can only update your own reward program status".to_string(),
-            ),
+            AddressHandlerError::Unauthorized("You can only update your own reward program status".to_string()),
         )));
     }
     tracing::debug!("Updating address reward status to {}", payload.new_status);
@@ -86,15 +84,8 @@ pub async fn handle_aggregate_address_stats(
         )));
     }
 
-    let referrals = state
-        .db
-        .referrals
-        .find_all_by_referrer(user.quan_address.0)
-        .await?;
-    let referred_addresses: Vec<String> = referrals
-        .iter()
-        .map(|acc| acc.referee_address.0.clone())
-        .collect();
+    let referrals = state.db.referrals.find_all_by_referrer(user.quan_address.0).await?;
+    let referred_addresses: Vec<String> = referrals.iter().map(|acc| acc.referee_address.0.clone()).collect();
     let referral_events = state
         .graphql_client
         .get_addresses_events_count(referred_addresses)
@@ -209,9 +200,7 @@ pub async fn associate_eth_address(
     Ok(Json(response))
 }
 
-pub async fn sync_transfers(
-    State(state): State<AppState>,
-) -> Result<Json<SyncTransfersResponse>, AppError> {
+pub async fn sync_transfers(State(state): State<AppState>) -> Result<Json<SyncTransfersResponse>, AppError> {
     tracing::info!("Received request to sync transfers from GraphQL endpoint");
 
     match state.graphql_client.sync_transfers_and_addresses().await {
