@@ -1,3 +1,4 @@
+use rusx::config::OauthConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10,6 +11,7 @@ pub struct Config {
     pub data: DataConfig,
     pub logging: LoggingConfig,
     pub jwt: JwtConfig,
+    pub x_oauth: OauthConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +22,7 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockchainConfig {
+    pub website_url: String,
     pub node_url: String,
     pub wallet_name: String,
     pub wallet_password: String,
@@ -124,6 +127,7 @@ impl Default for Config {
                 port: 3000,
             },
             blockchain: BlockchainConfig {
+                website_url: "https://www.quantus.com".to_string(),
                 node_url: "ws://127.0.0.1:9944".to_string(),
                 wallet_name: "task_master_wallet".to_string(),
                 wallet_password: "secure_password_change_me".to_string(),
@@ -150,6 +154,11 @@ impl Default for Config {
             jwt: JwtConfig {
                 secret: "Change-in-production".to_string(),
                 exp_in_hours: 24,
+            },
+            x_oauth: OauthConfig {
+                callback_url: "example".to_string(),
+                client_id: "example".to_string(),
+                client_secret: "example".to_string(),
             },
         }
     }

@@ -7,10 +7,9 @@ use crate::{
     handlers::HandlerError,
     http_server::AppState,
     models::{
-        address::{Address, AddressInput},
+        address::Address,
         referrals::{Referral, ReferralData, ReferralInput},
     },
-    utils::generate_referral_code::generate_referral_code,
     AppError,
 };
 
@@ -96,28 +95,9 @@ mod tests {
     use axum::extract::Path;
 
     use super::*;
-    use crate::metrics::Metrics;
-    use crate::utils::test_db::reset_database;
-    use crate::GraphqlClient;
-    use crate::{config::Config, db_persistence::DbPersistence, repositories::address::AddressRepository};
-    use std::sync::Arc;
-
-    // Helper to set up a test AppState with a connection to a real test DB.
-    async fn setup_test_app_state() -> AppState {
-        let config = Config::load_test_env().expect("Failed to load test configuration");
-        let db = DbPersistence::new(config.get_database_url()).await.unwrap();
-        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
-
-        reset_database(&db.pool).await;
-
-        AppState {
-            db: Arc::new(db),
-            metrics: Arc::new(Metrics::new()),
-            graphql_client: Arc::new(graphql_client),
-            config: Arc::new(config),
-            challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
-        }
-    }
+    use crate::models::address::AddressInput;
+    use crate::repositories::address::AddressRepository;
+    use crate::utils::test_app_state::create_test_app_state;
 
     // Helper to create a persisted address for tests.
     async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
@@ -134,7 +114,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_referral_success() {
         // Arrange
-        let state = setup_test_app_state().await;
+        let state = create_test_app_state().await;
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let input = ReferralInput {
@@ -195,7 +175,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_referral_by_referee() {
         // Arrange
-        let state = setup_test_app_state().await;
+        let state = create_test_app_state().await;
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
@@ -221,7 +201,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_referral_invalid_referee_input() {
         // Arrange
-        let state = setup_test_app_state().await;
+        let state = create_test_app_state().await;
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
 
@@ -256,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_referral_duplicate() {
         // Arrange
-        let state = setup_test_app_state().await;
+        let state = create_test_app_state().await;
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
 

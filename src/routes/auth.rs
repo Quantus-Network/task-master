@@ -1,5 +1,5 @@
 use crate::{
-    handlers::auth::{auth_me, request_challenge, verify_login},
+    handlers::auth::{auth_me, handle_x_oauth, handle_x_oauth_callback, request_challenge, verify_login},
     http_server::AppState,
     middlewares::jwt_auth,
 };
@@ -18,4 +18,6 @@ pub fn auth_routes(state: AppState) -> Router<AppState> {
             "/auth/me",
             get(auth_me.layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth))),
         )
+        .route("/auth/x", get(handle_x_oauth))
+        .route("/auth/x/callback", get(handle_x_oauth_callback))
 }

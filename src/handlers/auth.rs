@@ -1,6 +1,13 @@
-use axum::{extract::State, http::StatusCode, response::Json, Extension};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::{Json, Redirect},
+    Extension,
+};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
+use rusx::{auth::TwitterCallbackParams, resources::user::User, TwitterClient};
+use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 use crate::{
@@ -20,6 +27,8 @@ use tracing::{debug, warn};
 pub enum AuthHandlerError {
     #[error("Not authorized: {0}")]
     Unauthrorized(String),
+    #[error("Oauth error: {0}")]
+    OAuth(String),
 }
 
 pub async fn request_challenge(
@@ -138,28 +147,76 @@ pub async fn auth_me(Extension(address): Extension<Address>) -> Result<Json<Succ
     Ok(SuccessResponse::new(address))
 }
 
+pub async fn handle_x_oauth(State(state): State<AppState>, cookies: Cookies) -> Redirect {
+    tracing::info!("Generating oauth url...");
+
+    let (auth_url, verifier) = state.x_oauth.generate_auth_url();
+    let session_id = uuid::Uuid::new_v4().to_string();
+
+    tracing::info!("Creating oauth session");
+    state
+        .oauth_sessions
+        .lock()
+        .unwrap()
+        .insert(session_id.clone(), verifier);
+    cookies.add(Cookie::new("oauth_session", session_id));
+
+    tracing::info!("Redirect to oauth url...");
+    Redirect::to(&auth_url)
+}
+
+pub async fn handle_x_oauth_callback(
+    State(state): State<AppState>,
+    cookies: Cookies,
+    Query(params): Query<TwitterCallbackParams>,
+) -> Result<Redirect, AppError> {
+    tracing::info!("Handling x oauth callback...");
+
+    let session_id = match cookies.get("oauth_session") {
+        Some(cookie) => cookie.value().to_string(),
+        None => {
+            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
+                "No session cookie found. Please try again.".to_string(),
+            ))))
+        }
+    };
+
+    let verifier = {
+        let Some(chal) = state.oauth_sessions.lock().unwrap().remove(&session_id) else {
+            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(format!(
+                "Session {} expired or invalid",
+                &session_id
+            )))));
+        };
+
+        chal
+    };
+
+    tracing::debug!("Exchanging code {} for access token...", params.code);
+    let token = state.x_oauth.exchange_code(params.code, verifier).await?;
+    let client = TwitterClient::new(token.access_token);
+
+    let user_resp = client.users().get_me().await?;
+    let x_handle = user_resp.data.username;
+
+    let redirect_url = format!(
+        "{}/oauth?platform=x&payload={}",
+        state.config.blockchain.website_url, x_handle
+    );
+
+    Ok(Redirect::to(&redirect_url))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{db_persistence::DbPersistence, metrics::Metrics, routes::auth::auth_routes, Config, GraphqlClient};
+    use crate::{routes::auth::auth_routes, utils::test_app_state::create_test_app_state};
     use axum::{body::Body, http};
     use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
     use sp_runtime::traits::IdentifyAccount;
-    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn test_app() -> axum::Router {
-        let config = Config::load_test_env().expect("Failed to load test configuration");
-        let db = DbPersistence::new_unmigrated(config.get_database_url()).await.unwrap();
-        let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
-
-        let state = AppState {
-            db: Arc::new(db),
-            metrics: Arc::new(Metrics::new()),
-            graphql_client: Arc::new(graphql_client),
-            config: Arc::new(config),
-            challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
-        };
+        let state = create_test_app_state().await;
         auth_routes(state.clone()).with_state(state)
     }
 

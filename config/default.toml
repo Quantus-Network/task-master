@@ -5,8 +5,10 @@ host = "127.0.0.1"
 port = 3000
 
 [blockchain]
+website_url = "https://www.quantus.com"
+
 # Quantus node WebSocket URL
-node_url = "wss://quantu.se"
+node_url = "wss://a1-dirac.quantus.cat"
 
 # Wallet configuration for transactions
 wallet_name = "test_seed_wallet3"
@@ -17,7 +19,7 @@ reversal_period_hours = 12
 
 [candidates]
 # GraphQL endpoint to fetch candidate addresses
-graphql_url = "https://quantu.se/graphql"
+graphql_url = "https://subsquid.quantus.com/graphql"
 # How often to refresh candidates (in minutes)
 refresh_interval_minutes = 30
 
@@ -44,3 +46,8 @@ level = "info"
 [jwt]
 secret = "this-should-be-overriden"
 exp_in_hours = 24
+
+[x_oauth]
+client_id = "client-id"
+client_secret = "client-secret"
+callback_url = "http://localhost:3000/api/auth/x/callback"

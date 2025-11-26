@@ -44,3 +44,8 @@ level = "info"
 [jwt]
 secret = "test-secret"
 exp_in_hours = 24
+
+[x_oauth]
+client_id = "test-id"
+client_secret = "test-secret"
+callback_url = "http://localhost:port/callback"
