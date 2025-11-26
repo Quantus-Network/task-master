@@ -15,7 +15,7 @@ path = "src/main.rs"
 quantus-cli = "0.3.0"
 qp-human-checkphrase = "0.1.2"
 qp-rusty-crystals-dilithium = "2.0.0"
-rusx = { path = "../rusx" }
+rusx = { git = "https://github.com/Quantus-Network/rusx", tag = "v0.1.0" }
 
 # Async runtime
 tokio = { version = "1.46", features = ["full", "test-util"] }

@@ -4910,6 +4910,7 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 [[package]]
 name = "rusx"
 version = "0.1.0"
+source = "git+https://github.com/Quantus-Network/rusx?tag=v0.1.0#e5a4d157b00d8d2616daff38ec474db4dd157faa"
 dependencies = [
  "config",
  "oauth2",
