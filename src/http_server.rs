@@ -92,18 +92,9 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
     let response = StatusResponse {
         status: "running".to_string(),
         total_tasks: total_tasks as usize,
-        pending_tasks: status_counts
-            .get(&TaskStatus::Pending)
-            .copied()
-            .unwrap_or(0),
-        completed_tasks: status_counts
-            .get(&TaskStatus::Completed)
-            .copied()
-            .unwrap_or(0),
-        reversed_tasks: status_counts
-            .get(&TaskStatus::Reversed)
-            .copied()
-            .unwrap_or(0),
+        pending_tasks: status_counts.get(&TaskStatus::Pending).copied().unwrap_or(0),
+        completed_tasks: status_counts.get(&TaskStatus::Completed).copied().unwrap_or(0),
+        reversed_tasks: status_counts.get(&TaskStatus::Reversed).copied().unwrap_or(0),
         failed_tasks: status_counts.get(&TaskStatus::Failed).copied().unwrap_or(0),
     };
 
@@ -140,9 +131,7 @@ mod tests {
 
     async fn test_app() -> axum::Router {
         let config = Config::load_test_env().expect("Failed to load test configuration");
-        let db = DbPersistence::new_unmigrated(config.get_database_url())
-            .await
-            .unwrap();
+        let db = DbPersistence::new_unmigrated(config.get_database_url()).await.unwrap();
         let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
         let metrics = Metrics::new();
 

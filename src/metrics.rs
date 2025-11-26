@@ -5,9 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use lazy_static::lazy_static;
-use prometheus::{
-    Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
-};
+use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -21,11 +19,7 @@ lazy_static! {
     )
     .unwrap();
     pub static ref HTTP_REQUEST_DURATION: HistogramVec = HistogramVec::new(
-        HistogramOpts::new(
-            "http_request_duration_seconds",
-            "HTTP request duration in seconds"
-        )
-        .buckets(vec![
+        HistogramOpts::new("http_request_duration_seconds", "HTTP request duration in seconds").buckets(vec![
             0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0
         ]),
         &["method", "endpoint"]
@@ -37,24 +31,14 @@ lazy_static! {
     )
     .unwrap();
     pub static ref HTTP_REQUEST_SIZE_BYTES: HistogramVec = HistogramVec::new(
-        HistogramOpts::new(
-            "http_request_size_bytes",
-            "Size of HTTP request bodies in bytes"
-        )
-        .buckets(vec![
-            100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0
-        ]),
+        HistogramOpts::new("http_request_size_bytes", "Size of HTTP request bodies in bytes")
+            .buckets(vec![100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0]),
         &["method", "endpoint"]
     )
     .unwrap();
     pub static ref HTTP_RESPONSE_SIZE_BYTES: HistogramVec = HistogramVec::new(
-        HistogramOpts::new(
-            "http_response_size_bytes",
-            "Size of HTTP response bodies in bytes"
-        )
-        .buckets(vec![
-            100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0
-        ]),
+        HistogramOpts::new("http_response_size_bytes", "Size of HTTP response bodies in bytes")
+            .buckets(vec![100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0]),
         &["method", "endpoint"]
     )
     .unwrap();
@@ -75,24 +59,12 @@ impl Metrics {
         let registry = Registry::new();
 
         // Register all metrics
-        registry
-            .register(Box::new(HTTP_REQUESTS_TOTAL.clone()))
-            .unwrap();
-        registry
-            .register(Box::new(HTTP_REQUEST_DURATION.clone()))
-            .unwrap();
-        registry
-            .register(Box::new(HTTP_REQUESTS_IN_FLIGHT.clone()))
-            .unwrap();
-        registry
-            .register(Box::new(HTTP_REQUEST_SIZE_BYTES.clone()))
-            .unwrap();
-        registry
-            .register(Box::new(HTTP_RESPONSE_SIZE_BYTES.clone()))
-            .unwrap();
-        registry
-            .register(Box::new(HTTP_ERRORS_TOTAL.clone()))
-            .unwrap();
+        registry.register(Box::new(HTTP_REQUESTS_TOTAL.clone())).unwrap();
+        registry.register(Box::new(HTTP_REQUEST_DURATION.clone())).unwrap();
+        registry.register(Box::new(HTTP_REQUESTS_IN_FLIGHT.clone())).unwrap();
+        registry.register(Box::new(HTTP_REQUEST_SIZE_BYTES.clone())).unwrap();
+        registry.register(Box::new(HTTP_RESPONSE_SIZE_BYTES.clone())).unwrap();
+        registry.register(Box::new(HTTP_ERRORS_TOTAL.clone())).unwrap();
 
         Self {
             registry: Arc::new(registry),

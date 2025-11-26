@@ -24,4 +24,3 @@ impl<'r> FromRow<'r, PgRow> for OptIn {
         })
     }
 }
-

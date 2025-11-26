@@ -9,8 +9,8 @@ use tracing::error;
 use crate::{
     db_persistence::DbError,
     handlers::{
-        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError,
-        task::TaskHandlerError, HandlerError,
+        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
+        HandlerError,
     },
     middlewares::jwt_auth::ErrorResponse,
     models::ModelError,
@@ -60,10 +60,14 @@ impl IntoResponse for AppError {
                 },
                 HandlerError::Address(err) => match err {
                     AddressHandlerError::InvalidQueryParams(err) => {
-                         return (StatusCode::BAD_REQUEST, Json(ErrorResponse {
-                            status: "fail",
-                            message: err,
-                        })).into_response()
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                status: "fail",
+                                message: err,
+                            }),
+                        )
+                            .into_response()
                     }
                     AddressHandlerError::Unauthorized(err) => {
                         return (
@@ -82,15 +86,9 @@ impl IntoResponse for AppError {
                     ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
                 },
                 HandlerError::Task(err) => match err {
-                    TaskHandlerError::TaskNotFound(err) => {
-                        return (StatusCode::NOT_FOUND, err).into_response()
-                    }
-                    TaskHandlerError::InvalidTaskUrl(err) => {
-                        return (StatusCode::BAD_REQUEST, err).into_response()
-                    }
-                    TaskHandlerError::StatusConflict(err) => {
-                        return (StatusCode::CONFLICT, err).into_response()
-                    }
+                    TaskHandlerError::TaskNotFound(err) => return (StatusCode::NOT_FOUND, err).into_response(),
+                    TaskHandlerError::InvalidTaskUrl(err) => return (StatusCode::BAD_REQUEST, err).into_response(),
+                    TaskHandlerError::StatusConflict(err) => return (StatusCode::CONFLICT, err).into_response(),
                 },
             },
 
@@ -98,9 +96,9 @@ impl IntoResponse for AppError {
                 error!("{}", err);
 
                 match err {
-                    DbError::RecordNotFound(err)
-                    | DbError::AddressNotFound(err)
-                    | DbError::TaskNotFound(err) => (StatusCode::NOT_FOUND, err),
+                    DbError::RecordNotFound(err) | DbError::AddressNotFound(err) | DbError::TaskNotFound(err) => {
+                        (StatusCode::NOT_FOUND, err)
+                    }
 
                     DbError::Database(_) | DbError::InvalidStatus(_) | DbError::Migration(_) => (
                         StatusCode::INTERNAL_SERVER_ERROR,

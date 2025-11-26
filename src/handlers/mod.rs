@@ -2,8 +2,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::{
-    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError,
-    task::TaskHandlerError,
+    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
 };
 
 pub mod address;

@@ -15,13 +15,7 @@ pub fn referral_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route(
             "/referrals",
-            post(
-                handle_add_referral
-                    .layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth)),
-            ),
+            post(handle_add_referral.layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth))),
         )
-        .route(
-            "/referrals/:referee_address",
-            get(handle_get_referral_by_referee),
-        )
+        .route("/referrals/:referee_address", get(handle_get_referral_by_referee))
 }

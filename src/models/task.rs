@@ -152,12 +152,9 @@ impl Task {
 impl<'r> FromRow<'r, PgRow> for Task {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         let status_str: String = row.try_get("status")?;
-        let status = status_str.parse::<TaskStatus>().map_err(|e| {
-            sqlx::Error::Decode(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                e,
-            )))
-        })?;
+        let status = status_str
+            .parse::<TaskStatus>()
+            .map_err(|e| sqlx::Error::Decode(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
 
         Ok(Task {
             id: row.try_get("id")?,
