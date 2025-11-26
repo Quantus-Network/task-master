@@ -162,9 +162,7 @@ impl GraphqlClient {
 
         if let Some(errors) = graphql_response.errors {
             let error_messages: Vec<String> = errors.into_iter().map(|e| e.message).collect();
-            return Err(GraphqlError::GraphqlResponseError(
-                error_messages.join(", "),
-            ));
+            return Err(GraphqlError::GraphqlResponseError(error_messages.join(", ")));
         }
 
         graphql_response
@@ -190,26 +188,17 @@ impl GraphqlClient {
             variables: None,
         };
 
-        info!(
-            "Fetching transfers from GraphQL endpoint: {}",
-            &self.graphql_url
-        );
+        info!("Fetching transfers from GraphQL endpoint: {}", &self.graphql_url);
 
         let transfer_data: TransferData = self.execute_query(payload).await?;
 
-        info!(
-            "Successfully fetched {} transfers",
-            transfer_data.transfers.len()
-        );
+        info!("Successfully fetched {} transfers", transfer_data.transfers.len());
         debug!("Transfer data: {:?}", transfer_data.transfers);
 
         Ok(transfer_data.transfers)
     }
 
-    pub async fn store_addresses_from_transfers(
-        &self,
-        transfers: &[Transfer],
-    ) -> GraphqlResult<u64> {
+    pub async fn store_addresses_from_transfers(&self, transfers: &[Transfer]) -> GraphqlResult<u64> {
         let mut unique_addresses = std::collections::HashSet::new();
 
         for transfer in transfers {
@@ -217,10 +206,7 @@ impl GraphqlClient {
             unique_addresses.insert(transfer.to.id.clone());
         }
 
-        info!(
-            "Found {} unique addresses in transfers",
-            unique_addresses.len()
-        );
+        info!("Found {} unique addresses in transfers", unique_addresses.len());
 
         let mut tasks = Vec::new();
 
@@ -261,10 +247,7 @@ impl GraphqlClient {
 
         match self.db.addresses.create_many(addresses_to_store).await {
             Ok(created_count) => {
-                info!(
-                    "Successfully stored {} addresses in database",
-                    created_count
-                );
+                info!("Successfully stored {} addresses in database", created_count);
                 Ok(created_count)
             }
             Err(err) => Err(GraphqlError::DatabaseError(err)),
@@ -293,10 +276,8 @@ impl GraphqlClient {
         // Note: This would require additional database queries to get counts
         // For now, we'll return basic stats from the current sync
         let transfers = self.fetch_transfers().await?;
-        let unique_addresses: std::collections::HashSet<&String> = transfers
-            .iter()
-            .flat_map(|t| [&t.from.id, &t.to.id])
-            .collect();
+        let unique_addresses: std::collections::HashSet<&String> =
+            transfers.iter().flat_map(|t| [&t.from.id, &t.to.id]).collect();
 
         Ok(SyncStats {
             total_transfers: transfers.len(),
@@ -338,10 +319,7 @@ impl GraphqlClient {
             variables: Some(variables),
         };
 
-        info!(
-            "Fetching transfers from GraphQL endpoint: {}",
-            &self.graphql_url
-        );
+        info!("Fetching transfers from GraphQL endpoint: {}", &self.graphql_url);
 
         let stats_data: StatsData = self.execute_query(payload).await?;
         let miner_stats = stats_data
@@ -403,19 +381,12 @@ impl GraphqlClient {
             variables: Some(variables),
         };
 
-        info!(
-            "Fetching transfers from GraphQL endpoint: {}",
-            &self.graphql_url
-        );
+        info!("Fetching transfers from GraphQL endpoint: {}", &self.graphql_url);
 
         let stats_data: StatsData = self.execute_query(payload).await?;
 
         // Aggregate miner stats from all addresses
-        let total_mined_blocks = stats_data
-            .miner_stats
-            .iter()
-            .map(|stat| stat.total_mined_blocks)
-            .sum();
+        let total_mined_blocks = stats_data.miner_stats.iter().map(|stat| stat.total_mined_blocks).sum();
 
         let total_rewards: u128 = stats_data
             .miner_stats
@@ -482,10 +453,7 @@ query GetEventCountByIds($ids: [String!]!) {
             variables: Some(variables),
         };
 
-        info!(
-            "Fetching event count from GraphQL endpoint: {}",
-            &self.graphql_url
-        );
+        info!("Fetching event count from GraphQL endpoint: {}", &self.graphql_url);
 
         let event_count_data: EventCountData = self.execute_query(payload).await?;
 
@@ -835,10 +803,7 @@ query GetEventCountByIds($ids: [String!]!) {
         let deserialized: GraphqlQuery = serde_json::from_str(&json).unwrap();
 
         assert_eq!(original.query, deserialized.query);
-        assert_eq!(
-            original.variables.is_none(),
-            deserialized.variables.is_none()
-        );
+        assert_eq!(original.variables.is_none(), deserialized.variables.is_none());
     }
 
     // ============================================================================
@@ -994,22 +959,14 @@ query GetEventCountByIds($ids: [String!]!) {
             Transfer {
                 id: "0x1".to_string(),
                 amount: "100".to_string(),
-                from: Account {
-                    id: "0xA".to_string(),
-                },
-                to: Account {
-                    id: "0xB".to_string(),
-                },
+                from: Account { id: "0xA".to_string() },
+                to: Account { id: "0xB".to_string() },
             },
             Transfer {
                 id: "0x2".to_string(),
                 amount: "200".to_string(),
-                from: Account {
-                    id: "0xA".to_string(),
-                }, // Duplicate
-                to: Account {
-                    id: "0xB".to_string(),
-                }, // Duplicate
+                from: Account { id: "0xA".to_string() }, // Duplicate
+                to: Account { id: "0xB".to_string() },   // Duplicate
             },
         ];
 
@@ -1196,12 +1153,8 @@ query GetEventCountByIds($ids: [String!]!) {
         let transfer = Transfer {
             id: "0x1".to_string(),
             amount: "999999999999999999999999999999".to_string(),
-            from: Account {
-                id: "0xa".to_string(),
-            },
-            to: Account {
-                id: "0xb".to_string(),
-            },
+            from: Account { id: "0xa".to_string() },
+            to: Account { id: "0xb".to_string() },
         };
 
         assert_eq!(transfer.amount, "999999999999999999999999999999");

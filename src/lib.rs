@@ -6,32 +6,32 @@
 //! HTTP API requests.
 
 pub mod config;
-pub mod repositories;
-pub mod errors;
-pub mod models;
 pub mod db_persistence;
-pub mod metrics;
-pub mod services;
-pub mod http_server;
-pub mod utils;
-pub mod routes;
+pub mod errors;
 pub mod handlers;
+pub mod http_server;
+pub mod metrics;
 pub mod middlewares;
+pub mod models;
+pub mod repositories;
+pub mod routes;
+pub mod services;
+pub mod utils;
 
 // Re-export commonly used types
-pub use errors::{AppError, AppResult};
 pub use config::Config;
+pub use errors::{AppError, AppResult};
+pub use http_server::AppState;
 pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
-pub use http_server::{AppState};
 pub use services::reverser::{ReversalStats, ReverserService};
 pub use services::task_generator::TaskGenerator;
 pub use services::transaction_manager::TransactionManager;
 
 // Re-export errors
 pub use db_persistence::DbError;
+pub use services::ethereum_service::EthAddressAssociation;
 pub use services::graphql_client::GraphqlError;
 pub use services::reverser::ReverserError;
-pub use services::ethereum_service::EthAddressAssociation;
 pub use services::task_generator::TaskGeneratorError;
 pub use services::transaction_manager::TransactionError;
 

@@ -23,9 +23,7 @@ pub enum TaskHandlerError {
     StatusConflict(Json<CompleteTaskResponse>),
 }
 
-pub async fn list_all_tasks(
-    State(state): State<AppState>,
-) -> Result<Json<SuccessResponse<Vec<Task>>>, AppError> {
+pub async fn list_all_tasks(State(state): State<AppState>) -> Result<Json<SuccessResponse<Vec<Task>>>, AppError> {
     let tasks = state.db.tasks.get_all_tasks().await?;
 
     Ok(SuccessResponse::new(tasks))
@@ -47,10 +45,7 @@ pub async fn complete_task(
     State(state): State<AppState>,
     Json(payload): Json<CompleteTaskRequest>,
 ) -> Result<Json<CompleteTaskResponse>, AppError> {
-    tracing::info!(
-        "Received task completion request for URL: {}",
-        payload.task_url
-    );
+    tracing::info!("Received task completion request for URL: {}", payload.task_url);
 
     // Validate task URL format (12 digits)
     if payload.task_url.len() != 12 || !payload.task_url.chars().all(|c| c.is_ascii_digit()) {
@@ -59,9 +54,9 @@ pub async fn complete_task(
             message: format!("Invalid task URL format: {}", payload.task_url),
             task_id: None,
         };
-        return Err(AppError::Handler(HandlerError::Task(
-            TaskHandlerError::InvalidTaskUrl(Json(response)),
-        )));
+        return Err(AppError::Handler(HandlerError::Task(TaskHandlerError::InvalidTaskUrl(
+            Json(response),
+        ))));
     }
 
     // Find task by URL
@@ -73,9 +68,9 @@ pub async fn complete_task(
                 message: format!("Task not found with URL: {}", payload.task_url),
                 task_id: None,
             };
-            return Err(AppError::Handler(HandlerError::Task(
-                TaskHandlerError::TaskNotFound(Json(response)),
-            )));
+            return Err(AppError::Handler(HandlerError::Task(TaskHandlerError::TaskNotFound(
+                Json(response),
+            ))));
         }
         Err(db_err) => {
             return Err(AppError::Database(db_err));
@@ -93,9 +88,9 @@ pub async fn complete_task(
                 message: "Task is already completed".to_string(),
                 task_id: Some(task.task_id.clone()),
             };
-            return Err(AppError::Handler(HandlerError::Task(
-                TaskHandlerError::StatusConflict(Json(response)),
-            )));
+            return Err(AppError::Handler(HandlerError::Task(TaskHandlerError::StatusConflict(
+                Json(response),
+            ))));
         }
         TaskStatus::Reversed => {
             let response = CompleteTaskResponse {
@@ -103,9 +98,9 @@ pub async fn complete_task(
                 message: "Task has already been reversed".to_string(),
                 task_id: Some(task.task_id.clone()),
             };
-            return Err(AppError::Handler(HandlerError::Task(
-                TaskHandlerError::StatusConflict(Json(response)),
-            )));
+            return Err(AppError::Handler(HandlerError::Task(TaskHandlerError::StatusConflict(
+                Json(response),
+            ))));
         }
         TaskStatus::Failed => {
             let response = CompleteTaskResponse {
@@ -113,9 +108,9 @@ pub async fn complete_task(
                 message: "Task has failed and cannot be completed".to_string(),
                 task_id: Some(task.task_id.clone()),
             };
-            return Err(AppError::Handler(HandlerError::Task(
-                TaskHandlerError::StatusConflict(Json(response)),
-            )));
+            return Err(AppError::Handler(HandlerError::Task(TaskHandlerError::StatusConflict(
+                Json(response),
+            ))));
         }
     }
 

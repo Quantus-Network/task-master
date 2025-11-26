@@ -59,15 +59,11 @@ impl TransactionManager {
                 }
                 Err(_) => {
                     tracing::info!("Creating new wallet: {}", wallet_name);
-                    let wallet_info = wallet_manager
-                        .create_wallet(wallet_name, Some(wallet_password))
-                        .await?;
+                    let wallet_info = wallet_manager.create_wallet(wallet_name, Some(wallet_password)).await?;
                     tracing::info!("Created wallet with address: {}", wallet_info.address);
 
                     // Load the newly created wallet
-                    wallet_manager
-                        .load_wallet(wallet_name, wallet_password)?
-                        .keypair
+                    wallet_manager.load_wallet(wallet_name, wallet_password)?.keypair
                 }
             }
         };
@@ -145,21 +141,13 @@ impl TransactionManager {
             .ok_or_else(|| TransactionError::TransactionNotFound(task_id.to_string()))?;
 
         let reversible_tx_id = task.reversible_tx_id.as_ref().ok_or_else(|| {
-            TransactionError::InvalidState(
-                "Task has no reversible transaction ID to reverse".to_string(),
-            )
+            TransactionError::InvalidState("Task has no reversible transaction ID to reverse".to_string())
         })?;
 
         // Remove "0x" prefix if present for the cancel call
-        let tx_hash_str = reversible_tx_id
-            .strip_prefix("0x")
-            .unwrap_or(reversible_tx_id);
+        let tx_hash_str = reversible_tx_id.strip_prefix("0x").unwrap_or(reversible_tx_id);
 
-        tracing::info!(
-            "Reversing transaction for task {} (tx: {})",
-            task_id,
-            reversible_tx_id
-        );
+        tracing::info!("Reversing transaction for task {} (tx: {})", task_id, reversible_tx_id);
 
         let client = self.client.read().await;
         let cancel_tx_hash = cancel_transaction(&*client, &self.keypair, tx_hash_str, false).await?;
@@ -167,15 +155,9 @@ impl TransactionManager {
         drop(client);
 
         // Update task status
-        self.db
-            .tasks
-            .update_task_status(task_id, TaskStatus::Reversed)
-            .await?;
+        self.db.tasks.update_task_status(task_id, TaskStatus::Reversed).await?;
 
-        tracing::info!(
-            "Transaction reversed successfully. Cancel tx: 0x{:x}",
-            cancel_tx_hash
-        );
+        tracing::info!("Transaction reversed successfully. Cancel tx: 0x{:x}", cancel_tx_hash);
 
         Ok(())
     }
@@ -189,11 +171,7 @@ impl TransactionManager {
             match self.send_reversible_transaction(&task.task_id).await {
                 Ok(tx_hash) => {
                     processed_tasks.push(task.task_id.clone());
-                    tracing::info!(
-                        "Successfully processed task: {} with tx: {}",
-                        task.task_id,
-                        tx_hash
-                    );
+                    tracing::info!("Successfully processed task: {} with tx: {}", task.task_id, tx_hash);
                 }
                 Err(e) => {
                     tracing::error!("Failed to process task {}: {}", task.task_id, e);
@@ -237,16 +215,12 @@ impl TransactionManager {
             .at_latest()
             .await
             .map_err(|e| {
-                TransactionError::QuantusClient(quantus_cli::error::QuantusError::NetworkError(
-                    e.to_string(),
-                ))
+                TransactionError::QuantusClient(quantus_cli::error::QuantusError::NetworkError(e.to_string()))
             })?
             .fetch_or_default(&storage_addr)
             .await
             .map_err(|e| {
-                TransactionError::QuantusClient(quantus_cli::error::QuantusError::NetworkError(
-                    e.to_string(),
-                ))
+                TransactionError::QuantusClient(quantus_cli::error::QuantusError::NetworkError(e.to_string()))
             })?;
 
         Ok(account_info.data.free)

@@ -32,28 +32,18 @@ pub async fn handle_add_referral(
 ) -> Result<Json<SuccessResponse<String>>, AppError> {
     tracing::debug!("Lookup referral code owner...");
     let submitted_code = referral_input.referral_code.to_lowercase();
-    let referrer = state
-        .db
-        .addresses
-        .find_by_referral_code(&submitted_code)
-        .await?;
+    let referrer = state.db.addresses.find_by_referral_code(&submitted_code).await?;
 
     let referee_address = &user.quan_address.0;
     if let Some(referrer) = referrer {
         if referrer.quan_address.0 == *referee_address {
             return Err(AppError::Handler(HandlerError::Referral(
-                ReferralHandlerError::InvalidReferral(String::from(
-                    "Self referral is not allowed!",
-                )),
+                ReferralHandlerError::InvalidReferral(String::from("Self referral is not allowed!")),
             )));
         };
 
         // Check if referral already exists
-        let existing_referral = state
-            .db
-            .referrals
-            .find_by_referee(referee_address.clone())
-            .await?;
+        let existing_referral = state.db.referrals.find_by_referee(referee_address.clone()).await?;
 
         if existing_referral.is_some() {
             return Err(AppError::Handler(HandlerError::Referral(
@@ -79,10 +69,7 @@ pub async fn handle_add_referral(
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
         return Err(AppError::Handler(HandlerError::Referral(
-            ReferralHandlerError::ReferralNotFound(format!(
-                "Referrer not found for code '{}'",
-                submitted_code
-            )),
+            ReferralHandlerError::ReferralNotFound(format!("Referrer not found for code '{}'", submitted_code)),
         )));
     }
 }
@@ -139,11 +126,9 @@ mod tests {
         let auth_user = Address::new(AddressInput {
             quan_address: referee_address.clone(),
             eth_address: None,
-            referral_code: crate::utils::generate_referral_code::generate_referral_code(
-                referee_address.clone(),
-            )
-            .await
-            .unwrap(),
+            referral_code: crate::utils::generate_referral_code::generate_referral_code(referee_address.clone())
+                .await
+                .unwrap(),
         })
         .unwrap();
 
@@ -151,12 +136,7 @@ mod tests {
         state.db.addresses.create(&auth_user).await.unwrap();
 
         // Act: Call the handler function directly.
-        let result = handle_add_referral(
-            State(state.clone()),
-            Extension(auth_user),
-            Json(input.clone()),
-        )
-        .await;
+        let result = handle_add_referral(State(state.clone()), Extension(auth_user), Json(input.clone())).await;
 
         print!("result: {:?}", result);
 
@@ -176,10 +156,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(
-            referrer.is_some(),
-            "Referrer address should have been created"
-        );
+        assert!(referrer.is_some(), "Referrer address should have been created");
 
         let referrals = state
             .db
@@ -190,17 +167,9 @@ mod tests {
         assert_eq!(referrals.len(), 1);
         assert_eq!(referrals[0].referee_address.0, referee_address);
 
-        let referee = state
-            .db
-            .addresses
-            .find_by_id(&referee_address)
-            .await
-            .unwrap();
+        let referee = state.db.addresses.find_by_id(&referee_address).await.unwrap();
 
-        assert!(
-            referee.is_some(),
-            "Referee address should exist in database"
-        );
+        assert!(referee.is_some(), "Referee address should exist in database");
     }
 
     #[tokio::test]
@@ -217,11 +186,8 @@ mod tests {
         let new_referral = Referral::new(referral_data.clone()).unwrap();
         state.db.referrals.create(&new_referral).await.unwrap();
 
-        let result = handle_get_referral_by_referee(
-            State(state.clone()),
-            Path(referral_data.referee_address.clone()),
-        )
-        .await;
+        let result =
+            handle_get_referral_by_referee(State(state.clone()), Path(referral_data.referee_address.clone())).await;
 
         // Assert: Check the handler's response.
         assert!(result.is_ok());
@@ -249,11 +215,9 @@ mod tests {
         let auth_user_result = Address::new(AddressInput {
             quan_address: invalid_address.clone(),
             eth_address: None,
-            referral_code: crate::utils::generate_referral_code::generate_referral_code(
-                invalid_address.clone(),
-            )
-            .await
-            .unwrap(),
+            referral_code: crate::utils::generate_referral_code::generate_referral_code(invalid_address.clone())
+                .await
+                .unwrap(),
         });
 
         // Assert - Address creation should fail due to invalid input
@@ -281,28 +245,20 @@ mod tests {
         };
 
         // Act: Call the handler function directly for the first time
-        let result1 = handle_add_referral(
-            State(state.clone()),
-            Extension(referee.clone()),
-            Json(input.clone()),
-        )
-        .await;
+        let result1 = handle_add_referral(State(state.clone()), Extension(referee.clone()), Json(input.clone())).await;
 
         // Assert: First call should succeed
         assert!(result1.is_ok());
 
         // Act: Call the handler function directly for the second time
-        let result2 =
-            handle_add_referral(State(state.clone()), Extension(referee), Json(input)).await;
+        let result2 = handle_add_referral(State(state.clone()), Extension(referee), Json(input)).await;
 
         // Assert: Second call should fail with duplicate referral error
         assert!(result2.is_err());
         let error = result2.unwrap_err();
         assert!(matches!(
             error,
-            AppError::Handler(HandlerError::Referral(
-                ReferralHandlerError::DuplicateReferral(_)
-            ))
+            AppError::Handler(HandlerError::Referral(ReferralHandlerError::DuplicateReferral(_)))
         ));
     }
 }

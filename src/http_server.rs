@@ -1,7 +1,10 @@
 use axum::{extract::State, http::StatusCode, middleware, response::Json, routing::get, Router};
 use rusx::{PkceCodeVerifier, TwitterAuth};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use tower::ServiceBuilder;
 use tower_cookies::CookieManagerLayer;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -97,18 +100,9 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
     let response = StatusResponse {
         status: "running".to_string(),
         total_tasks: total_tasks as usize,
-        pending_tasks: status_counts
-            .get(&TaskStatus::Pending)
-            .copied()
-            .unwrap_or(0),
-        completed_tasks: status_counts
-            .get(&TaskStatus::Completed)
-            .copied()
-            .unwrap_or(0),
-        reversed_tasks: status_counts
-            .get(&TaskStatus::Reversed)
-            .copied()
-            .unwrap_or(0),
+        pending_tasks: status_counts.get(&TaskStatus::Pending).copied().unwrap_or(0),
+        completed_tasks: status_counts.get(&TaskStatus::Completed).copied().unwrap_or(0),
+        reversed_tasks: status_counts.get(&TaskStatus::Reversed).copied().unwrap_or(0),
         failed_tasks: status_counts.get(&TaskStatus::Failed).copied().unwrap_or(0),
     };
 

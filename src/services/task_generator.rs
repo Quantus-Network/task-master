@@ -54,12 +54,7 @@ impl TaskGenerator {
                 } 
             }"});
 
-        let response = self
-            .http_client
-            .post(graphql_url)
-            .json(&query)
-            .send()
-            .await?;
+        let response = self.http_client.post(graphql_url).json(&query).send().await?;
 
         if !response.status().is_success() {
             tracing::error!("GraphQL request failed with status: {}", response.status());
@@ -113,10 +108,7 @@ impl TaskGenerator {
         }
 
         self.candidates = new_candidates;
-        tracing::info!(
-            "Refreshed {} candidates from database",
-            self.candidates.len()
-        );
+        tracing::info!("Refreshed {} candidates from database", self.candidates.len());
         Ok(())
     }
 
@@ -218,10 +210,7 @@ impl TaskGenerator {
         for task in tasks {
             // Keep checking if URL exists and regenerate if needed
             while let Some(_existing_task) = self.db.tasks.find_task_by_url(&task.task_url).await? {
-                tracing::warn!(
-                    "Task URL collision detected, regenerating: {}",
-                    task.task_url
-                );
+                tracing::warn!("Task URL collision detected, regenerating: {}", task.task_url);
                 task.task_url = self.generate_task_url();
             }
         }

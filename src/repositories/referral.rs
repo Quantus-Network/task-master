@@ -28,32 +28,28 @@ impl ReferralRepository {
     }
 
     pub async fn find_all_by_referrer(&self, quan_address: String) -> DbResult<Vec<Referral>> {
-        let referrals =
-            sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referrer_address = $1")
-                .bind(quan_address)
-                .fetch_all(&self.pool)
-                .await?;
+        let referrals = sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referrer_address = $1")
+            .bind(quan_address)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(referrals)
     }
 
     pub async fn count_by_referrer(&self, quan_address: String) -> DbResult<i64> {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM referrals WHERE referrer_address = $1",
-        )
-        .bind(quan_address)
-        .fetch_one(&self.pool)
-        .await?;
+        let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM referrals WHERE referrer_address = $1")
+            .bind(quan_address)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(count)
     }
 
     pub async fn find_by_referee(&self, quan_address: String) -> DbResult<Option<Referral>> {
-        let referral =
-            sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referee_address = $1")
-                .bind(quan_address.clone())
-                .fetch_optional(&self.pool)
-                .await?;
+        let referral = sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referee_address = $1")
+            .bind(quan_address.clone())
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(referral)
     }
@@ -83,10 +79,7 @@ mod tests {
 
         reset_database(&pool).await;
 
-        (
-            AddressRepository::new(&pool),
-            ReferralRepository::new(&pool),
-        )
+        (AddressRepository::new(&pool), ReferralRepository::new(&pool))
     }
 
     // Helper to create a persisted address for tests.
@@ -145,9 +138,7 @@ mod tests {
         let created_id = referral_repo.create(&new_referral).await.unwrap();
         assert!(created_id > 0);
 
-        let referral = referral_repo
-            .find_by_referee(referee.quan_address.0.clone())
-            .await;
+        let referral = referral_repo.find_by_referee(referee.quan_address.0.clone()).await;
 
         assert!(referral.is_ok());
         let referral = referral.unwrap().unwrap();
@@ -249,10 +240,7 @@ mod tests {
             .await
             .unwrap();
 
-        let count = referral_repo
-            .count_by_referrer(referrer.quan_address.0)
-            .await
-            .unwrap();
+        let count = referral_repo.count_by_referrer(referrer.quan_address.0).await.unwrap();
         assert_eq!(count, 2);
     }
 

@@ -19,8 +19,7 @@ impl AddressRepository {
         with_referral_code: Option<String>,
     ) {
         if let Some(code) = with_referral_code {
-            qb.push(" AND referral_code ILIKE ")
-                .push_bind(format!("{}%", code));
+            qb.push(" AND referral_code ILIKE ").push_bind(format!("{}%", code));
         }
     }
 
@@ -90,21 +89,19 @@ impl AddressRepository {
     }
 
     pub async fn find_by_id(&self, id: &str) -> DbResult<Option<Address>> {
-        let address =
-            sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE quan_address = $1")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+        let address = sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE quan_address = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(address)
     }
 
     pub async fn find_by_referral_code(&self, referral_code: &str) -> DbResult<Option<Address>> {
-        let address =
-            sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE referral_code = $1")
-                .bind(referral_code)
-                .fetch_optional(&self.pool)
-                .await?;
+        let address = sqlx::query_as::<_, Address>("SELECT * FROM addresses WHERE referral_code = $1")
+            .bind(referral_code)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(address)
     }
@@ -158,12 +155,10 @@ impl AddressRepository {
     }
 
     pub async fn update_address_last_selected(&self, quan_address: &str) -> DbResult<()> {
-        sqlx::query(
-            "UPDATE addresses SET last_selected_at = CURRENT_TIMESTAMP WHERE quan_address = $1",
-        )
-        .bind(quan_address)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE addresses SET last_selected_at = CURRENT_TIMESTAMP WHERE quan_address = $1")
+            .bind(quan_address)
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
@@ -228,11 +223,7 @@ mod tests {
         Address::new(input).unwrap()
     }
 
-    fn create_mock_address_with_referrals_count(
-        id: &str,
-        code: &str,
-        referrals_count: i32,
-    ) -> Address {
+    fn create_mock_address_with_referrals_count(id: &str, code: &str, referrals_count: i32) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_address_{}", id),
             eth_address: None,
@@ -286,10 +277,7 @@ mod tests {
             .await
             .unwrap();
 
-        let total_items = repo
-            .get_total_items(Some(String::from("REF003")))
-            .await
-            .unwrap();
+        let total_items = repo.get_total_items(Some(String::from("REF003"))).await.unwrap();
         assert_eq!(total_items, 1);
     }
 
@@ -309,10 +297,7 @@ mod tests {
         assert_eq!(addresses.len(), 1);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(
-            first_index_address.address.quan_address.0,
-            address2.quan_address.0
-        );
+        assert_eq!(first_index_address.address.quan_address.0, address2.quan_address.0);
     }
 
     #[tokio::test]
@@ -331,10 +316,7 @@ mod tests {
         assert_eq!(addresses.len(), 3);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(
-            first_index_address.address.quan_address.0,
-            address2.quan_address.0
-        );
+        assert_eq!(first_index_address.address.quan_address.0, address2.quan_address.0);
     }
 
     #[tokio::test]
@@ -346,15 +328,9 @@ mod tests {
         let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
         let address5 = create_mock_address_with_referrals_count("005", "REF005", 7);
 
-        repo.create_many(vec![
-            address1,
-            address2,
-            address3.clone(),
-            address4,
-            address5.clone(),
-        ])
-        .await
-        .unwrap();
+        repo.create_many(vec![address1, address2, address3.clone(), address4, address5.clone()])
+            .await
+            .unwrap();
 
         let addresses = repo
             .get_leaderboard_entries(4, 0, Some(String::from("REF005")))
@@ -363,10 +339,7 @@ mod tests {
         assert_eq!(addresses.len(), 1);
 
         let first_index_address = addresses.first().unwrap();
-        assert_eq!(
-            first_index_address.address.quan_address.0,
-            address5.quan_address.0
-        );
+        assert_eq!(first_index_address.address.quan_address.0, address5.quan_address.0);
 
         assert_eq!(first_index_address.rank, 3);
     }
@@ -421,12 +394,8 @@ mod tests {
         assert!(addresses.is_empty());
 
         // After creation
-        repo.create(&create_mock_address("101", "REF101"))
-            .await
-            .unwrap();
-        repo.create(&create_mock_address("102", "REF102"))
-            .await
-            .unwrap();
+        repo.create(&create_mock_address("101", "REF101")).await.unwrap();
+        repo.create(&create_mock_address("102", "REF102")).await.unwrap();
         let addresses = repo.find_all().await.unwrap();
         assert_eq!(addresses.len(), 2);
     }
@@ -449,9 +418,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_many_with_conflicts() {
         let repo = setup_test_repository().await;
-        repo.create(&create_mock_address("301", "REF301"))
-            .await
-            .unwrap();
+        repo.create(&create_mock_address("301", "REF301")).await.unwrap();
 
         let addresses = vec![
             create_mock_address("301", "REF301"), // Conflict
@@ -473,15 +440,9 @@ mod tests {
         repo.create(&address).await.unwrap();
 
         let new_eth = "0x1234567890123456789012345678901234567890";
-        repo.update_address_eth(&address.quan_address.0, new_eth)
-            .await
-            .unwrap();
+        repo.update_address_eth(&address.quan_address.0, new_eth).await.unwrap();
 
-        let updated = repo
-            .find_by_id(&address.quan_address.0)
-            .await
-            .unwrap()
-            .unwrap();
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
         assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
     }
 
@@ -491,23 +452,13 @@ mod tests {
         let address = create_mock_address("501", "REF501");
         repo.create(&address).await.unwrap();
 
-        let new_count = repo
-            .increment_referrals_count(&address.quan_address.0)
-            .await
-            .unwrap();
+        let new_count = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
         assert_eq!(new_count, 1);
 
-        let updated = repo
-            .find_by_id(&address.quan_address.0)
-            .await
-            .unwrap()
-            .unwrap();
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
         assert_eq!(updated.referrals_count, 1);
 
-        let new_count_2 = repo
-            .increment_referrals_count(&address.quan_address.0)
-            .await
-            .unwrap();
+        let new_count_2 = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
         assert_eq!(new_count_2, 2);
     }
 
@@ -517,22 +468,14 @@ mod tests {
         let address = create_mock_address("601", "REF601");
         repo.create(&address).await.unwrap();
 
-        let initial = repo
-            .find_by_id(&address.quan_address.0)
-            .await
-            .unwrap()
-            .unwrap();
+        let initial = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
         assert!(initial.last_selected_at.is_none());
 
         repo.update_address_last_selected(&address.quan_address.0)
             .await
             .unwrap();
 
-        let updated = repo
-            .find_by_id(&address.quan_address.0)
-            .await
-            .unwrap()
-            .unwrap();
+        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
         assert!(updated.last_selected_at.is_some());
     }
 }

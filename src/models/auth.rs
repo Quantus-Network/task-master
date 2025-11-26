@@ -7,12 +7,16 @@ pub struct TokenClaims {
     pub exp: usize,
 }
 
-
 #[derive(Debug, Deserialize)]
-pub struct RequestChallengeBody { pub address: Option<String> }
+pub struct RequestChallengeBody {
+    pub address: Option<String>,
+}
 
 #[derive(Debug, Serialize)]
-pub struct RequestChallengeResponse { pub temp_session_id: String, pub challenge: String }
+pub struct RequestChallengeResponse {
+    pub temp_session_id: String,
+    pub challenge: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct VerifyLoginBody {
@@ -23,4 +27,6 @@ pub struct VerifyLoginBody {
 }
 
 #[derive(Debug, Serialize)]
-pub struct VerifyLoginResponse { pub access_token: String }
+pub struct VerifyLoginResponse {
+    pub access_token: String,
+}
