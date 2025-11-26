@@ -61,16 +61,12 @@ impl IntoResponse for AppError {
                     tracing::error!("Rusx API error: {:?}", data);
 
                     (
-                        StatusCode::from_u16(status)
-                            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR),
+                        StatusCode::from_u16(status).unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR),
                         data.title,
                     )
                 }
 
-                SdkError::AuthConfiguration(_)
-                | SdkError::Http(_)
-                | SdkError::Json(_)
-                | SdkError::Unknown(_) => (
+                SdkError::AuthConfiguration(_) | SdkError::Http(_) | SdkError::Json(_) | SdkError::Unknown(_) => (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "An internal server error occurred".to_string(),
                 ),
