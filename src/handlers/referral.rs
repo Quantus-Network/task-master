@@ -97,12 +97,14 @@ mod tests {
     use super::*;
     use crate::models::address::AddressInput;
     use crate::utils::test_app_state::create_test_app_state;
-    use crate::utils::test_db::create_persisted_address;
+    use crate::utils::test_db::{create_persisted_address, reset_database};
 
     #[tokio::test]
     async fn test_add_referral_success() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let input = ReferralInput {
@@ -163,6 +165,8 @@ mod tests {
     async fn test_get_referral_by_referee() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
@@ -189,6 +193,8 @@ mod tests {
     async fn test_add_referral_invalid_referee_input() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
 
@@ -223,6 +229,8 @@ mod tests {
     async fn test_add_referral_duplicate() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
 
