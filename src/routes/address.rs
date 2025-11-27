@@ -7,9 +7,9 @@ use axum::{
 
 use crate::{
     handlers::address::{
-        associate_x_account, handle_aggregate_address_stats, handle_get_address_reward_status_by_id,
-        handle_get_address_stats, handle_get_leaderboard, handle_get_opted_in_position, handle_get_opted_in_users,
-        handle_update_reward_program_status, sync_transfers,
+        associate_eth_address, associate_x_account, handle_aggregate_address_stats,
+        handle_get_address_reward_status_by_id, handle_get_address_stats, handle_get_leaderboard,
+        handle_get_opted_in_position, handle_get_opted_in_users, handle_update_reward_program_status, sync_transfers,
     },
     http_server::AppState,
     middlewares::jwt_auth,
@@ -46,6 +46,11 @@ pub fn address_routes(state: AppState) -> Router<AppState> {
                     jwt_auth::jwt_auth,
                 )),
             ),
+        )
+           .route(
+            "/addresses/associations/eth",
+            put(associate_eth_address
+                .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth))),
         )
            .route(
             "/addresses/associations/x",

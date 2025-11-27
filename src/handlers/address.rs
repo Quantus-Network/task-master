@@ -13,6 +13,9 @@ use crate::{
             Address, AddressStatsResponse, AggregateStatsQueryParams, OptedInPositionResponse,
             PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
         },
+        eth_association::{
+            AssociateEthAddressRequest, AssociateEthAddressResponse, EthAssociation, EthAssociationInput,
+        },
         x_association::{AssociateXAccountRequest, AssociateXAccountResponse, XAssociation, XAssociationInput},
     },
     AppError,
@@ -166,6 +169,41 @@ pub async fn handle_get_address_reward_status_by_id(
     Ok(SuccessResponse::new(is_opted_in))
 }
 
+pub async fn associate_eth_address(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+    Json(payload): Json<AssociateEthAddressRequest>,
+) -> Result<Json<AssociateEthAddressResponse>, AppError> {
+    tracing::info!(
+        "Received ETH association request for quan_address: {} -> eth_addres: {}",
+        user.quan_address.0,
+        payload.eth_address,
+    );
+
+    let new_association = EthAssociation::new(EthAssociationInput {
+        quan_address: user.quan_address.0,
+        eth_address: payload.eth_address,
+    })?;
+
+    match state.db.eth_associations.create(&new_association).await {
+        Ok(_) => {
+            tracing::info!(
+                "Created association for quan_address {} with eth_address {}",
+                new_association.quan_address.0,
+                new_association.eth_address.0
+            );
+        }
+        Err(db_err) => return Err(AppError::Database(db_err)),
+    }
+
+    let response = AssociateEthAddressResponse {
+        success: true,
+        message: "ETH account associated successfully".to_string(),
+    };
+
+    Ok(Json(response))
+}
+
 pub async fn associate_x_account(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
@@ -182,10 +220,10 @@ pub async fn associate_x_account(
         username: payload.x_username,
     })?;
 
-    match state.db.x_assocations.create(&new_association).await {
+    match state.db.x_associations.create(&new_association).await {
         Ok(_) => {
             tracing::info!(
-                "Created association for quan_address {} with eth_address {}",
+                "Created association for quan_address {} with X username {}",
                 new_association.quan_address.0,
                 new_association.username
             );
@@ -326,7 +364,7 @@ mod tests {
         // E. Verification in DB
         let saved_assoc = state
             .db
-            .x_assocations
+            .x_associations
             .find_by_username("twitter_pro_101")
             .await
             .unwrap();
@@ -394,5 +432,116 @@ mod tests {
 
         // 422 Unprocessable Entity is Axum's default for Json<T> deserialization errors
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn test_associate_eth_address_success() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // A. Setup Data: Create user & Token
+        let user = create_persisted_address(&state.db.addresses, "101").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        // B. Setup Router: MUST include the jwt_auth middleware
+        let router = Router::new()
+            .route("/associate-eth", post(associate_eth_address))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state.clone());
+
+        // C. Perform Request
+        let payload = json!({ "eth_address": "0x00000000219ab540356cBB839Cbe05303d7705Fa" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-eth")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // D. Assertions
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+        assert_eq!(body_json["success"], true);
+        assert_eq!(body_json["message"], "ETH account associated successfully");
+
+        // E. Verification in DB
+        let saved_assoc = state
+            .db
+            .eth_associations
+            .find_by_quan_address(&user.quan_address)
+            .await
+            .unwrap();
+
+        assert!(saved_assoc.is_some());
+        assert_eq!(saved_assoc.unwrap().quan_address.0, user.quan_address.0);
+    }
+
+    #[tokio::test]
+    async fn test_associate_eth_address_fails_without_token() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let router = Router::new()
+            .route("/associate-eth", post(associate_eth_address))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state);
+
+        let payload = json!({ "eth_address": "0x00000000219ab540356cBB839Cbe05303d7705Fa" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-eth")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    // NO Authorization header
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_associate_eth_address_fails_invalid_payload() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let user = create_persisted_address(&state.db.addresses, "102").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        let router = Router::new()
+            .route("/associate-eth", post(associate_eth_address))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state);
+
+        let payload = json!({ "eth_address": "invalid_eth_address" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-eth")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }
