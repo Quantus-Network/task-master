@@ -8,10 +8,12 @@ use crate::{
     db_persistence::DbError,
     handlers::{HandlerError, PaginationMetadata, QueryParams},
     http_server::AppState,
-    models::address::{
-        Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressRequest,
-        AssociateEthAddressResponse, OptedInPositionResponse, PaginatedAddressesResponse, RewardProgramStatusPayload,
-        SyncTransfersResponse,
+    models::{
+        address::{
+            Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressResponse,
+            OptedInPositionResponse, PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
+        },
+        eth_association::AssociateEthAddressRequest,
     },
     AppError,
 };

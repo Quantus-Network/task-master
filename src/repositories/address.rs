@@ -38,7 +38,6 @@ impl AddressRepository {
         ",
         )
         .bind(new_address.quan_address.0.clone())
-        .bind(new_address.eth_address.0.clone())
         .bind(new_address.referral_code.clone())
         .bind(new_address.referrals_count)
         .fetch_optional(&self.pool)
@@ -60,13 +59,11 @@ impl AddressRepository {
         // Manually deconstruct the Vec<Address> into four separate vectors.
         // This is the fix for the `unzip` limitation.
         let mut quan_addresses = Vec::with_capacity(addresses.len());
-        let mut eth_addresses = Vec::with_capacity(addresses.len());
         let mut referral_codes = Vec::with_capacity(addresses.len());
         let mut referrals_counts = Vec::with_capacity(addresses.len());
 
         for address in addresses {
             quan_addresses.push(address.quan_address.0);
-            eth_addresses.push(address.eth_address.0);
             referral_codes.push(address.referral_code);
             referrals_counts.push(address.referrals_count);
         }
@@ -79,7 +76,6 @@ impl AddressRepository {
         "#,
         )
         .bind(&quan_addresses)
-        .bind(&eth_addresses)
         .bind(&referral_codes)
         .bind(&referrals_counts)
         .execute(&self.pool)
@@ -196,7 +192,6 @@ mod tests {
     use crate::config::Config;
     use crate::models::address::{Address, AddressInput};
     use crate::utils::test_db::reset_database;
-    use sp_runtime::print;
     use sqlx::PgPool;
 
     // Helper function to set up a test repository using the app's config loader.
@@ -217,7 +212,6 @@ mod tests {
     fn create_mock_address(id: &str, code: &str) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
             referral_code: code.to_string(),
         };
         Address::new(input).unwrap()
@@ -226,7 +220,6 @@ mod tests {
     fn create_mock_address_with_referrals_count(id: &str, code: &str, referrals_count: i32) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
             referral_code: code.to_string(),
         };
 
@@ -434,19 +427,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_address_eth() {
-        let repo = setup_test_repository().await;
-        let address = create_mock_address("401", "REF401");
-        repo.create(&address).await.unwrap();
-
-        let new_eth = "0x1234567890123456789012345678901234567890";
-        repo.update_address_eth(&address.quan_address.0, new_eth).await.unwrap();
-
-        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
-        assert_eq!(updated.eth_address.0, Some(new_eth.to_string()));
-    }
-
-    #[tokio::test]
     async fn test_increment_referrals_count() {
         let repo = setup_test_repository().await;
         let address = create_mock_address("501", "REF501");
@@ -460,22 +440,5 @@ mod tests {
 
         let new_count_2 = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
         assert_eq!(new_count_2, 2);
-    }
-
-    #[tokio::test]
-    async fn test_update_address_last_selected() {
-        let repo = setup_test_repository().await;
-        let address = create_mock_address("601", "REF601");
-        repo.create(&address).await.unwrap();
-
-        let initial = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
-        assert!(initial.last_selected_at.is_none());
-
-        repo.update_address_last_selected(&address.quan_address.0)
-            .await
-            .unwrap();
-
-        let updated = repo.find_by_id(&address.quan_address.0).await.unwrap().unwrap();
-        assert!(updated.last_selected_at.is_some());
     }
 }

@@ -6,7 +6,7 @@ use axum::{
 };
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
-use rusx::{auth::TwitterCallbackParams, resources::user::User, TwitterClient};
+use rusx::{auth::TwitterCallbackParams, TwitterClient};
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
@@ -112,7 +112,6 @@ pub async fn verify_login(
         tracing::debug!("Creating address struct...");
         let address = Address::new(AddressInput {
             quan_address: body.address.clone(),
-            eth_address: None,
             referral_code,
         })?;
 

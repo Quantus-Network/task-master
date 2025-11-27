@@ -97,7 +97,6 @@ mod tests {
     fn create_test_address(id: &str) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_{}", id),
-            eth_address: None,
             referral_code: format!("ref_{}", id),
         };
         Address::new(input).unwrap()

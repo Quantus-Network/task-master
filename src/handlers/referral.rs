@@ -103,7 +103,6 @@ mod tests {
     async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
             referral_code: format!("REF{}", id),
         };
         let address = Address::new(input).unwrap();
@@ -125,7 +124,6 @@ mod tests {
         let referee_address = "qz_a_valid_referee_address".to_string();
         let auth_user = Address::new(AddressInput {
             quan_address: referee_address.clone(),
-            eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(referee_address.clone())
                 .await
                 .unwrap(),
@@ -214,7 +212,6 @@ mod tests {
         let invalid_address = "qzshort".to_string();
         let auth_user_result = Address::new(AddressInput {
             quan_address: invalid_address.clone(),
-            eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(invalid_address.clone())
                 .await
                 .unwrap(),

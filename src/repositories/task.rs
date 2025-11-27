@@ -210,7 +210,6 @@ mod tests {
     async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
             referral_code: format!("REF{}", id),
         };
         let address = Address::new(input).unwrap();

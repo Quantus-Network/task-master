@@ -2,6 +2,9 @@ ALTER TABLE addresses
 DROP COLUMN IF EXISTS eth_address;
 
 ALTER TABLE addresses
+DROP COLUMN IF EXISTS last_selected_at;
+
+ALTER TABLE addresses
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 DROP TRIGGER IF EXISTS set_timestamp_addresses ON addresses;

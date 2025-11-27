@@ -10,6 +10,8 @@ pub type ModelResult<T> = Result<T, ModelError>;
 
 pub mod address;
 pub mod auth;
+pub mod eth_association;
 pub mod opt_in;
 pub mod referrals;
 pub mod task;
+pub mod x_association;
