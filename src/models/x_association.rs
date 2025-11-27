@@ -49,14 +49,3 @@ pub struct XAssociationInput {
     pub quan_address: String,
     pub username: String,
 }
-
-#[derive(Debug, Deserialize)]
-pub struct AssociateXAccountRequest {
-    pub x_username: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AssociateXAccountResponse {
-    pub success: bool,
-    pub message: String,
-}

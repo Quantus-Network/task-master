@@ -130,3 +130,9 @@ pub struct AddressWithRank {
     pub address: Address,
     pub rank: i64,
 }
+
+#[derive(Debug, Serialize)]
+pub struct AssociatedAccountsResponse {
+    pub eth_address: Option<String>,
+    pub x_username: Option<String>,
+}

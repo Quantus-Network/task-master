@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, middleware, response::Json, routing::get, Router};
-use rusx::{PkceCodeVerifier, TwitterAuth};
+use rusx::{PkceCodeVerifier, TwitterGateway};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -27,7 +27,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
-    pub x_oauth: Arc<TwitterAuth>,
+    pub twitter_gateway: Arc<dyn TwitterGateway>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse
 pub async fn start_server(
     db: Arc<DbPersistence>,
     graphql_client: Arc<GraphqlClient>,
-    x_oauth: Arc<TwitterAuth>,
+    twitter_gateway: Arc<dyn TwitterGateway>,
     bind_address: &str,
     config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -122,7 +122,7 @@ pub async fn start_server(
         metrics: Arc::new(Metrics::new()),
         graphql_client,
         config,
-        x_oauth,
+        twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),
         oauth_sessions: Arc::new(Mutex::new(HashMap::new())),
     };

@@ -52,11 +52,7 @@ impl EthAssociationRepository {
         Ok(association)
     }
 
-    pub async fn update_eth_address(
-        &self,
-        quan_address: &QuanAddress,
-        new_eth_address: &EthAddress,
-    ) -> DbResult<EthAssociation> {
+    pub async fn update_eth_address(&self, new_association: &EthAssociation) -> DbResult<EthAssociation> {
         let association = sqlx::query_as::<_, EthAssociation>(
             r#"
             UPDATE eth_associations 
@@ -65,8 +61,8 @@ impl EthAssociationRepository {
             RETURNING *
             "#,
         )
-        .bind(&quan_address.0)
-        .bind(&new_eth_address.0)
+        .bind(&new_association.quan_address.0)
+        .bind(&new_association.eth_address.0)
         .fetch_one(&self.pool)
         .await?;
 
@@ -168,21 +164,22 @@ mod tests {
         let address = create_persisted_address(&address_repo, "user_03").await;
 
         // Initial Create
-        let input = EthAssociationInput {
+        let initial_input = EthAssociationInput {
             quan_address: address.quan_address.0.clone(),
             eth_address: "0x00000000219ab540356cBB839Cbe05303d7705Fa".to_string(),
         };
-        let new_association = EthAssociation::new(input).unwrap();
-        eth_repo.create(&new_association).await.unwrap();
+        let initial_association = EthAssociation::new(initial_input).unwrap();
+        eth_repo.create(&initial_association).await.unwrap();
 
         // Update
-        let new_eth_address = EthAddress::from("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2").unwrap();
-        let updated = eth_repo
-            .update_eth_address(&address.quan_address, &new_eth_address)
-            .await
-            .unwrap();
+        let new_input = EthAssociationInput {
+            quan_address: address.quan_address.0.clone(),
+            eth_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+        };
+        let new_association = EthAssociation::new(new_input).unwrap();
+        let updated = eth_repo.update_eth_address(&new_association).await.unwrap();
 
-        assert_eq!(updated.eth_address.0, new_eth_address.0);
+        assert_eq!(updated.eth_address.0, new_association.eth_address.0);
 
         // Verify in DB
         let found = eth_repo
@@ -190,7 +187,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(found.eth_address.0, new_eth_address.0);
+        assert_eq!(found.eth_address.0, new_association.eth_address.0);
     }
 
     #[tokio::test]
