@@ -7,7 +7,7 @@ use axum::{
 
 use crate::{
     handlers::address::{
-        associate_eth_address, handle_aggregate_address_stats, handle_get_address_reward_status_by_id,
+        associate_x_account, handle_aggregate_address_stats, handle_get_address_reward_status_by_id,
         handle_get_address_stats, handle_get_leaderboard, handle_get_opted_in_position, handle_get_opted_in_users,
         handle_update_reward_program_status, sync_transfers,
     },
@@ -47,9 +47,9 @@ pub fn address_routes(state: AppState) -> Router<AppState> {
                 )),
             ),
         )
-        .route(
-            "/addresses/associate-eth",
-            put(associate_eth_address
+           .route(
+            "/addresses/associations/x",
+            put(associate_x_account
                 .layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth))),
         )
         .route("/addresses/sync-transfers", post(sync_transfers))

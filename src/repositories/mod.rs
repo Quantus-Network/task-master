@@ -6,3 +6,4 @@ pub mod address;
 pub mod opt_in;
 pub mod referral;
 pub mod task;
+pub mod x_assocation;

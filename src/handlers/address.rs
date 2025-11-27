@@ -10,10 +10,10 @@ use crate::{
     http_server::AppState,
     models::{
         address::{
-            Address, AddressStatsResponse, AggregateStatsQueryParams, AssociateEthAddressResponse,
-            OptedInPositionResponse, PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
+            Address, AddressStatsResponse, AggregateStatsQueryParams, OptedInPositionResponse,
+            PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
         },
-        eth_association::AssociateEthAddressRequest,
+        x_association::{AssociateXAccountRequest, AssociateXAccountResponse, XAssociation, XAssociationInput},
     },
     AppError,
 };
@@ -166,37 +166,36 @@ pub async fn handle_get_address_reward_status_by_id(
     Ok(SuccessResponse::new(is_opted_in))
 }
 
-pub async fn associate_eth_address(
+pub async fn associate_x_account(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
-    Json(payload): Json<AssociateEthAddressRequest>,
-) -> Result<Json<AssociateEthAddressResponse>, AppError> {
+    Json(payload): Json<AssociateXAccountRequest>,
+) -> Result<Json<AssociateXAccountResponse>, AppError> {
     tracing::info!(
-        "Received ETH address association request for quan_address: {} -> eth_address: {}",
+        "Received X association request for quan_address: {} -> X username: {}",
         user.quan_address.0,
-        payload.eth_address,
+        payload.x_username,
     );
 
-    // Update the user's ETH address
-    match state
-        .db
-        .addresses
-        .update_address_eth(&user.quan_address.0, &payload.eth_address)
-        .await
-    {
+    let new_association = XAssociation::new(XAssociationInput {
+        quan_address: user.quan_address.0,
+        username: payload.x_username,
+    })?;
+
+    match state.db.x_assocations.create(&new_association).await {
         Ok(_) => {
             tracing::info!(
-                "Updated quan_address {} with eth_address {}",
-                user.quan_address.0,
-                payload.eth_address
+                "Created association for quan_address {} with eth_address {}",
+                new_association.quan_address.0,
+                new_association.username
             );
         }
         Err(db_err) => return Err(AppError::Database(db_err)),
     }
 
-    let response = AssociateEthAddressResponse {
+    let response = AssociateXAccountResponse {
         success: true,
-        message: "Ethereum address associated successfully".to_string(),
+        message: "X account associated successfully".to_string(),
     };
 
     Ok(Json(response))
@@ -265,4 +264,135 @@ pub async fn handle_get_opted_in_position(
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use crate::{
+        middlewares::jwt_auth::jwt_auth,
+        utils::{
+            test_app_state::{create_test_app_state, generate_test_token},
+            test_db::{create_persisted_address, reset_database},
+        },
+    };
+    use axum::{
+        body::Body,
+        http::{self, Request, StatusCode},
+        middleware,
+        routing::post,
+        Router,
+    };
+    use serde_json::json;
+    use tower::ServiceExt; // Required for .oneshot()
+
+    #[tokio::test]
+    async fn test_associate_x_account_success() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // A. Setup Data: Create user & Token
+        let user = create_persisted_address(&state.db.addresses, "101").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        // B. Setup Router: MUST include the jwt_auth middleware
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_account))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state.clone());
+
+        // C. Perform Request
+        let payload = json!({ "x_username": "twitter_pro_101" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // D. Assertions
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+        assert_eq!(body_json["success"], true);
+        assert_eq!(body_json["message"], "X account associated successfully");
+
+        // E. Verification in DB
+        let saved_assoc = state
+            .db
+            .x_assocations
+            .find_by_username("twitter_pro_101")
+            .await
+            .unwrap();
+
+        assert!(saved_assoc.is_some());
+        assert_eq!(saved_assoc.unwrap().quan_address.0, user.quan_address.0);
+    }
+
+    #[tokio::test]
+    async fn test_associate_x_account_fails_without_token() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_account))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state);
+
+        let payload = json!({ "x_username": "im_a_hacker" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    // NO Authorization header
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_associate_x_account_fails_invalid_payload() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let user = create_persisted_address(&state.db.addresses, "102").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_account))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state);
+
+        // Invalid Payload (missing 'x_username')
+        let payload = json!({ "wrong_field": "oops" });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // 422 Unprocessable Entity is Axum's default for Json<T> deserialization errors
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+}

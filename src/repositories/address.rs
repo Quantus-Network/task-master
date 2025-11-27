@@ -30,8 +30,8 @@ impl AddressRepository {
     pub async fn create(&self, new_address: &Address) -> DbResult<String> {
         let created_id = sqlx::query_scalar::<_, String>(
             "
-        INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count) 
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO addresses (quan_address, referral_code, referrals_count) 
+        VALUES ($1, $2, $3)
         ON CONFLICT (quan_address) 
         DO UPDATE SET quan_address = EXCLUDED.quan_address
         RETURNING quan_address
@@ -70,8 +70,8 @@ impl AddressRepository {
 
         let result = sqlx::query(
             r#"
-        INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count)
-        SELECT * FROM UNNEST($1, $2, $3, $4)
+        INSERT INTO addresses (quan_address, referral_code, referrals_count)
+        SELECT * FROM UNNEST($1, $2, $3)
         ON CONFLICT (quan_address) DO NOTHING
         "#,
         )
@@ -148,25 +148,6 @@ impl AddressRepository {
         let addresses = query.fetch_all(&self.pool).await?;
 
         Ok(addresses)
-    }
-
-    pub async fn update_address_last_selected(&self, quan_address: &str) -> DbResult<()> {
-        sqlx::query("UPDATE addresses SET last_selected_at = CURRENT_TIMESTAMP WHERE quan_address = $1")
-            .bind(quan_address)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn update_address_eth(&self, quan_address: &str, eth_address: &str) -> DbResult<()> {
-        sqlx::query("UPDATE addresses SET eth_address = $1 WHERE quan_address = $2")
-            .bind(eth_address)
-            .bind(quan_address)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
     }
 
     pub async fn increment_referrals_count(&self, quan_address: &str) -> DbResult<i32> {

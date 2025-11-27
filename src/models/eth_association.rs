@@ -78,3 +78,9 @@ pub struct EthAssociationInput {
 pub struct AssociateEthAddressRequest {
     pub eth_address: String,
 }
+
+#[derive(Debug, Serialize)]
+pub struct AssociateEthAddressResponse {
+    pub success: bool,
+    pub message: String,
+}

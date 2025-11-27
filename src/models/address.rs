@@ -81,12 +81,6 @@ pub struct NewAddressPayload {
     pub quan_address: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct AssociateEthAddressResponse {
-    pub success: bool,
-    pub message: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SyncTransfersResponse {
     pub success: bool,

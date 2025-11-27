@@ -96,19 +96,8 @@ mod tests {
 
     use super::*;
     use crate::models::address::AddressInput;
-    use crate::repositories::address::AddressRepository;
     use crate::utils::test_app_state::create_test_app_state;
-
-    // Helper to create a persisted address for tests.
-    async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
-        let input = AddressInput {
-            quan_address: format!("qz_test_address_{}", id),
-            referral_code: format!("REF{}", id),
-        };
-        let address = Address::new(input).unwrap();
-        repo.create(&address).await.unwrap();
-        address
-    }
+    use crate::utils::test_db::create_persisted_address;
 
     #[tokio::test]
     async fn test_add_referral_success() {

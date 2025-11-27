@@ -1,5 +1,6 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
+use crate::repositories::x_assocation::XAssociationRepository;
 use crate::repositories::DbResult;
 use crate::repositories::{
     address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository, task::TaskRepository,
@@ -26,6 +27,7 @@ pub struct DbPersistence {
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
     pub opt_ins: OptInRepository,
+    pub x_assocations: XAssociationRepository,
 
     pub pool: PgPool,
 }
@@ -40,6 +42,7 @@ impl DbPersistence {
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
+        let x_assocations = XAssociationRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -47,6 +50,7 @@ impl DbPersistence {
             addresses,
             referrals,
             opt_ins,
+            x_assocations,
         })
     }
 
@@ -58,6 +62,7 @@ impl DbPersistence {
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
+        let x_assocations = XAssociationRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -65,6 +70,7 @@ impl DbPersistence {
             addresses,
             referrals,
             opt_ins,
+            x_assocations,
         })
     }
 }
