@@ -20,6 +20,8 @@ impl XAssociationRepository {
             r#"
             INSERT INTO x_associations (quan_address, username) 
             VALUES ($1, $2)
+            ON CONFLICT (quan_address) 
+            DO UPDATE SET username = EXCLUDED.username
             RETURNING quan_address, username, created_at
             "#,
         )
