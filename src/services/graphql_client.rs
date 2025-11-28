@@ -215,7 +215,6 @@ impl GraphqlClient {
                 if let Ok(referral_code) = generate_referral_code(addr.clone()).await {
                     let input = AddressInput {
                         quan_address: addr,
-                        eth_address: None,
                         referral_code,
                     };
                     Address::new(input).ok()

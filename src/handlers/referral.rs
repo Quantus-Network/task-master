@@ -96,25 +96,15 @@ mod tests {
 
     use super::*;
     use crate::models::address::AddressInput;
-    use crate::repositories::address::AddressRepository;
     use crate::utils::test_app_state::create_test_app_state;
-
-    // Helper to create a persisted address for tests.
-    async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
-        let input = AddressInput {
-            quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
-            referral_code: format!("REF{}", id),
-        };
-        let address = Address::new(input).unwrap();
-        repo.create(&address).await.unwrap();
-        address
-    }
+    use crate::utils::test_db::{create_persisted_address, reset_database};
 
     #[tokio::test]
     async fn test_add_referral_success() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let input = ReferralInput {
@@ -125,7 +115,6 @@ mod tests {
         let referee_address = "qz_a_valid_referee_address".to_string();
         let auth_user = Address::new(AddressInput {
             quan_address: referee_address.clone(),
-            eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(referee_address.clone())
                 .await
                 .unwrap(),
@@ -176,6 +165,8 @@ mod tests {
     async fn test_get_referral_by_referee() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
@@ -202,6 +193,8 @@ mod tests {
     async fn test_add_referral_invalid_referee_input() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         // Referrals require existing addresses, so we create them first.
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
 
@@ -214,7 +207,6 @@ mod tests {
         let invalid_address = "qzshort".to_string();
         let auth_user_result = Address::new(AddressInput {
             quan_address: invalid_address.clone(),
-            eth_address: None,
             referral_code: crate::utils::generate_referral_code::generate_referral_code(invalid_address.clone())
                 .await
                 .unwrap(),
@@ -237,6 +229,8 @@ mod tests {
     async fn test_add_referral_duplicate() {
         // Arrange
         let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
         let referrer = create_persisted_address(&state.db.addresses, "referrer_01").await;
         let referee = create_persisted_address(&state.db.addresses, "referee_01").await;
 

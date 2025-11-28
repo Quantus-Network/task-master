@@ -48,6 +48,6 @@ secret = "this-should-be-overriden"
 exp_in_hours = 24
 
 [x_oauth]
-client_id = "client-id"
-client_secret = "client-secret"
+client_id = "WlVrcm4xSEpXQ2l3TURFM3lLZnE6MTpjaQ"
+client_secret = "9xx6rNxYKG_dpuDE7VgGKnIqhV0AekJc571xJz5agVYkwCm_Ym"
 callback_url = "http://localhost:3000/api/auth/x/callback"

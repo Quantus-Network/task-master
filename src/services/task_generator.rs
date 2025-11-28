@@ -173,7 +173,6 @@ impl TaskGenerator {
             if let Ok(referral_code) = generate_referral_code(task.quan_address.0.clone()).await {
                 if let Ok(address) = Address::new(AddressInput {
                     quan_address: task.quan_address.0.clone(),
-                    eth_address: None,
                     referral_code,
                 }) {
                     // Ensure address exists in database
@@ -276,13 +275,11 @@ mod tests {
         // The dummy addresses must be > 10 characters to pass validation.
         let addr1 = Address::new(AddressInput {
             quan_address: "qz_a_valid_test_address_1".to_string(),
-            eth_address: None,
             referral_code: "REF1".to_string(),
         })
         .unwrap();
         let addr2 = Address::new(AddressInput {
             quan_address: "qz_a_valid_test_address_2".to_string(),
-            eth_address: None,
             referral_code: "REF2".to_string(),
         })
         .unwrap();

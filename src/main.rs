@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use clap::Parser;
-use rusx::TwitterAuth;
+use rusx::{RusxGateway, TwitterAuth};
 use sp_core::crypto::{self, Ss58AddressFormat};
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -313,12 +313,12 @@ async fn main() -> AppResult<()> {
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
-    let server_x_oauth = Arc::new(TwitterAuth::new(config.x_oauth.clone())?);
+    let server_twitter_gateway = Arc::new(RusxGateway::new(config.x_oauth.clone(), None)?);
     let server_task = tokio::spawn(async move {
         http_server::start_server(
             server_db,
             graphql_client,
-            server_x_oauth,
+            server_twitter_gateway,
             &server_addr_clone,
             server_config,
         )

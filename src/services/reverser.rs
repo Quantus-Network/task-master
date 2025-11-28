@@ -270,7 +270,6 @@ mod tests {
         let referral_code = generate_referral_code(quan_address.clone()).await.unwrap();
         let address = Address::new(AddressInput {
             quan_address,
-            eth_address: None,
             referral_code,
         })
         .unwrap();

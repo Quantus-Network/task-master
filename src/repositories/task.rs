@@ -190,7 +190,7 @@ mod tests {
             task::TaskInput,
         },
         repositories::address::AddressRepository,
-        utils::test_db::reset_database,
+        utils::test_db::{create_persisted_address, reset_database},
     };
     use uuid::Uuid;
 
@@ -204,18 +204,6 @@ mod tests {
         reset_database(&pool).await;
 
         (AddressRepository::new(&pool), TaskRepository::new(&pool))
-    }
-
-    // Helper to create a persisted address.
-    async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
-        let input = AddressInput {
-            quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
-            referral_code: format!("REF{}", id),
-        };
-        let address = Address::new(input).unwrap();
-        repo.create(&address).await.unwrap();
-        address
     }
 
     // Helper to create a mock Task object.

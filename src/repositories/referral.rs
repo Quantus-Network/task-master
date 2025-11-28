@@ -65,7 +65,7 @@ mod tests {
             referrals::{Referral, ReferralData},
         },
         repositories::address::AddressRepository,
-        utils::test_db::reset_database,
+        utils::test_db::{create_persisted_address, reset_database},
     };
     use sqlx::PgPool;
 
@@ -80,18 +80,6 @@ mod tests {
         reset_database(&pool).await;
 
         (AddressRepository::new(&pool), ReferralRepository::new(&pool))
-    }
-
-    // Helper to create a persisted address for tests.
-    async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
-        let input = AddressInput {
-            quan_address: format!("qz_test_address_{}", id),
-            eth_address: None,
-            referral_code: format!("REF{}", id),
-        };
-        let address = Address::new(input).unwrap();
-        repo.create(&address).await.unwrap();
-        address
     }
 
     #[tokio::test]

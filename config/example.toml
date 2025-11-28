@@ -7,6 +7,8 @@ host = "127.0.0.1"
 port = 3000
 
 [blockchain]
+website_url = "http://localhost:3080"
+
 # Quantus node WebSocket URL - change to your node's address
 node_url = "ws://127.0.0.1:9944"
 
@@ -52,13 +54,13 @@ database_url = "sqlite:taskmaster.db"
 level = "info"
 
 [jwt]
-secret = "example-secret"
 exp_in_hours = 24
+secret = "example-secret"
 
 [x_oauth]
+callback_url = "http://localhost:12345/example/callback"
 client_id = "example-id"
 client_secret = "example-secret"
-callback_url = "http://localhost:port/callback"
 
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"

@@ -1,9 +1,12 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
+use crate::repositories::eth_association::EthAssociationRepository;
+use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
 use crate::repositories::{
     address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository, task::TaskRepository,
 };
+
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("Database error: {0}")]
@@ -26,6 +29,8 @@ pub struct DbPersistence {
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
     pub opt_ins: OptInRepository,
+    pub x_associations: XAssociationRepository,
+    pub eth_associations: EthAssociationRepository,
 
     pub pool: PgPool,
 }
@@ -40,6 +45,8 @@ impl DbPersistence {
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
+        let x_associations = XAssociationRepository::new(&pool);
+        let eth_associations = EthAssociationRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -47,6 +54,8 @@ impl DbPersistence {
             addresses,
             referrals,
             opt_ins,
+            x_associations,
+            eth_associations,
         })
     }
 
@@ -58,6 +67,8 @@ impl DbPersistence {
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
+        let x_associations = XAssociationRepository::new(&pool);
+        let eth_associations = EthAssociationRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -65,6 +76,8 @@ impl DbPersistence {
             addresses,
             referrals,
             opt_ins,
+            x_associations,
+            eth_associations,
         })
     }
 }
