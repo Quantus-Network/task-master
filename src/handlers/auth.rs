@@ -5,7 +5,7 @@ use axum::{
     Extension,
 };
 use chrono::Utc;
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rusx::auth::TwitterCallbackParams;
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
@@ -15,7 +15,10 @@ use crate::{
     http_server::{AppState, Challenge},
     models::{
         address::{Address, AddressInput},
-        auth::{RequestChallengeBody, RequestChallengeResponse, TokenClaims, VerifyLoginBody, VerifyLoginResponse},
+        auth::{
+            OauthTokenQuery, RequestChallengeBody, RequestChallengeResponse, TokenClaims, TokenPurpose,
+            VerifyLoginBody, VerifyLoginResponse,
+        },
         x_association::{XAssociation, XAssociationInput},
     },
     services::signature_service::SignatureService,
@@ -130,6 +133,7 @@ pub async fn verify_login(
         sub: body.address,
         exp,
         iat,
+        purpose: TokenPurpose::Auth,
     };
 
     let access_token = encode(
@@ -150,12 +154,32 @@ pub async fn auth_me(Extension(address): Extension<Address>) -> Result<Json<Succ
 pub async fn handle_x_oauth(
     State(state): State<AppState>,
     cookies: Cookies,
-    Extension(user): Extension<Address>,
-) -> Redirect {
-    tracing::info!("Generating oauth url...");
+    Query(params): Query<OauthTokenQuery>,
+) -> Result<Redirect, AppError> {
+    tracing::info!("Handling x oauth request...");
+
+    let claims = decode::<TokenClaims>(
+        &params.token,
+        &DecodingKey::from_secret(state.config.jwt.secret.as_ref()),
+        &Validation::default(),
+    )
+    .map_err(|_| AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth("Invalid token".to_string()))))?
+    .claims;
+
+    if claims.purpose != TokenPurpose::Oauth {
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
+            "Invalid token purpose".to_string(),
+        ))));
+    }
+
+    let quan_address = &claims.sub;
+
+    tracing::info!("Quan address in claim token: {}", quan_address);
 
     let (auth_url, verifier) = state.twitter_gateway.generate_auth_url();
-    let session_id = format!("{}|{}", user.quan_address.0, uuid::Uuid::new_v4().to_string());
+    let session_id = format!("{}|{}", quan_address, uuid::Uuid::new_v4().to_string());
+
+    tracing::info!("Session id in cookies: {}", session_id);
 
     tracing::info!("Creating oauth session");
     state
@@ -165,8 +189,41 @@ pub async fn handle_x_oauth(
         .insert(session_id.clone(), verifier);
     cookies.add(Cookie::new("oauth_session", session_id));
 
-    tracing::info!("Redirect to oauth url...");
-    Redirect::to(&auth_url)
+    tracing::info!("Returning oauth url...");
+
+    Ok(Redirect::to(&auth_url))
+}
+
+pub async fn generate_x_oauth_link(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+) -> Result<String, AppError> {
+    tracing::info!("Generating oauth url...");
+
+    let now = chrono::Utc::now();
+    let iat = now.timestamp() as usize;
+    let exp = now
+        .checked_add_signed(state.config.get_oauth_claim_expiration())
+        .expect("valid timestamp")
+        .timestamp() as usize;
+    let claims: TokenClaims = TokenClaims {
+        sub: user.quan_address.0.clone(),
+        exp,
+        iat,
+        purpose: TokenPurpose::Oauth,
+    };
+
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.config.jwt.secret.as_ref()),
+    )
+    .unwrap();
+
+    tracing::info!("Returning oauth request url...");
+    let request_link = format!("{}/auth/x?token={}", state.config.get_base_api_url(), access_token);
+
+    Ok(request_link)
 }
 
 pub async fn handle_x_oauth_callback(
@@ -184,6 +241,8 @@ pub async fn handle_x_oauth_callback(
             ))))
         }
     };
+
+    tracing::info!("Session id found: {}", session_id);
 
     let verifier = {
         let Some(chal) = state.oauth_sessions.lock().unwrap().remove(&session_id) else {

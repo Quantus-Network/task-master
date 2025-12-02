@@ -1,6 +1,9 @@
 use crate::{
-    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims, Config,
-    GraphqlClient,
+    db_persistence::DbPersistence,
+    http_server::AppState,
+    metrics::Metrics,
+    models::auth::{TokenClaims, TokenPurpose},
+    Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;
@@ -27,7 +30,8 @@ pub fn generate_test_token(secret: &str, user_id: &str) -> String {
     let claims = TokenClaims {
         sub: user_id.to_string(),
         iat: 1,          // Just a valid past timestamp
-        exp: 9999999999, // Far future timestamp
+        exp: 9999999999, // Far future timestamp,
+        purpose: TokenPurpose::Auth,
     };
 
     encode(

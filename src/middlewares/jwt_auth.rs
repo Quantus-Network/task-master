@@ -9,7 +9,10 @@ use axum::{
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Serialize;
 
-use crate::{http_server::AppState, models::auth::TokenClaims};
+use crate::{
+    http_server::AppState,
+    models::auth::{TokenClaims, TokenPurpose},
+};
 
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
@@ -55,6 +58,15 @@ pub async fn jwt_auth(
         (StatusCode::UNAUTHORIZED, Json(json_error))
     })?
     .claims;
+
+    if claims.purpose != TokenPurpose::Auth {
+        let json_error = ErrorResponse {
+            status: "fail",
+            message: "Invalid token purpose".to_string(),
+        };
+
+        return Err((StatusCode::UNAUTHORIZED, Json(json_error)));
+    }
 
     let user_id = &claims.sub;
 
