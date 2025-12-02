@@ -6,13 +6,15 @@ use axum::{
 
 use crate::{
     db_persistence::DbError,
-    handlers::{HandlerError, PaginationMetadata, QueryParams},
+    handlers::{validate_pagination_query, HandlerError, PaginationMetadata, QueryParams},
     http_server::AppState,
     models::{
         address::{
-            Address, AddressStatsResponse, AggregateStatsQueryParams, AssociatedAccountsResponse,
-            OptedInPositionResponse, PaginatedAddressesResponse, RewardProgramStatusPayload, SyncTransfersResponse,
+            Address, AddressStatsResponse, AddressWithOptInAndAssociations, AddressWithRank, AggregateStatsQueryParams,
+            AssociatedAccountsResponse, OptedInPositionResponse, PaginatedResponse, RewardProgramStatusPayload,
+            SyncTransfersResponse,
         },
+        admin::Admin,
         eth_association::{
             AssociateEthAddressRequest, AssociateEthAddressResponse, EthAssociation, EthAssociationInput,
         },
@@ -28,6 +30,13 @@ pub enum AddressHandlerError {
     Unauthorized(String),
     #[error("{0}")]
     InvalidQueryParams(String),
+}
+
+fn get_pagination_details(params: &QueryParams, total_items: u32) -> (u32, u32) {
+    let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
+    let offset = (params.page - 1) * params.page_size;
+
+    (total_pages, offset)
 }
 
 pub async fn handle_update_reward_program_status(
@@ -114,24 +123,16 @@ pub async fn handle_aggregate_address_stats(
 pub async fn handle_get_leaderboard(
     State(state): State<AppState>,
     Query(params): Query<QueryParams>,
-) -> Result<Json<PaginatedAddressesResponse>, AppError> {
+) -> Result<Json<PaginatedResponse<AddressWithRank>>, AppError> {
     tracing::info!("Getting leadeboard data...");
 
-    if params.page < 1 {
-        return Err(AppError::Handler(HandlerError::QueryParams(
-            "Page query params must not be less than 1".to_string(),
-        )));
-    }
-
-    if params.page_size < 1 {
-        return Err(AppError::Handler(HandlerError::QueryParams(
-            "Page size query params must not be less than 1".to_string(),
-        )));
-    }
-
-    let total_items = state.db.addresses.get_total_items(params.referral_code.clone()).await? as u32;
-    let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
-    let offset = (params.page - 1) * params.page_size;
+    validate_pagination_query(&params)?;
+    let total_items = state
+        .db
+        .addresses
+        .get_leaderboard_total_items(params.referral_code.clone())
+        .await? as u32;
+    let (total_pages, offset) = get_pagination_details(&params, total_items);
 
     let addresses = state
         .db
@@ -139,7 +140,38 @@ pub async fn handle_get_leaderboard(
         .get_leaderboard_entries(params.page_size, offset, params.referral_code)
         .await?;
 
-    let response = PaginatedAddressesResponse {
+    let response = PaginatedResponse::<AddressWithRank> {
+        data: addresses,
+        meta: PaginationMetadata {
+            page: params.page,
+            page_size: params.page_size,
+            total_items,
+            total_pages,
+        },
+    };
+
+    Ok(Json(response))
+}
+
+pub async fn handle_get_addresses(
+    State(state): State<AppState>,
+    Extension(_): Extension<Admin>,
+    Query(params): Query<QueryParams>,
+) -> Result<Json<PaginatedResponse<AddressWithOptInAndAssociations>>, AppError> {
+    tracing::info!("Getting addresses data...");
+
+    validate_pagination_query(&params)?;
+
+    let total_items = state.db.addresses.get_total_items().await? as u32;
+    let (total_pages, offset) = get_pagination_details(&params, total_items);
+
+    let addresses = state
+        .db
+        .addresses
+        .find_all_with_optin_and_associations(params.page_size, offset)
+        .await?;
+
+    let response = PaginatedResponse::<AddressWithOptInAndAssociations> {
         data: addresses,
         meta: PaginationMetadata {
             page: params.page,
@@ -340,7 +372,7 @@ mod tests {
         models::x_association::{XAssociation, XAssociationInput},
         utils::{
             test_app_state::{create_test_app_state, generate_test_token},
-            test_db::{create_persisted_address, reset_database},
+            test_db::{create_persisted_address, create_persisted_eth_association, reset_database},
         },
     };
     use axum::{
@@ -351,7 +383,8 @@ mod tests {
         Router,
     };
     use serde_json::json;
-    use tower::ServiceExt; // Required for .oneshot()
+    use tower::ServiceExt;
+    use uuid::Uuid; // Required for .oneshot()
 
     #[tokio::test]
     async fn test_update_eth_address_success() {
@@ -737,5 +770,100 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_handle_get_addresses_success() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // 1. Setup Data
+        // Create 3 Addresses
+        let addr1 = create_persisted_address(&state.db.addresses, "A1").await;
+        let addr2 = create_persisted_address(&state.db.addresses, "A2").await;
+        let addr3 = create_persisted_address(&state.db.addresses, "A3").await;
+
+        // Setup Opt-In for Addr1 (using the repo method seen in your code)
+        state
+            .db
+            .opt_ins
+            .create(&addr1.quan_address.0)
+            .await
+            .expect("Failed to create opt-in");
+
+        // Setup Eth Association for Addr2
+        create_persisted_eth_association(
+            &state.db.eth_associations,
+            &addr2.quan_address.0,
+            "0x00000000219ab540356cBB839Cbe05303d7705Fa",
+        )
+        .await;
+
+        // 2. Mock Admin
+        // NOTE: Adjust this instantiation to match your Admin struct definition
+        let admin = Admin {
+            id: Uuid::new_v4(),
+            username: "new-user".to_string(),
+            password: "what-ever".to_string(),
+            updated_at: chrono::Utc::now(),
+            created_at: chrono::Utc::now(),
+        };
+
+        // 3. Setup Router
+        // We inject the Admin extension directly to bypass auth middleware logic for this unit test
+        let router = Router::new()
+            .route("/", get(handle_get_addresses))
+            .layer(Extension(admin))
+            .with_state(state);
+
+        // 4. Request
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/?page=1&page_size=10") // Test default pagination
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // 5. Assertions
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+        // Check Pagination Meta
+        let meta = &body_json["meta"];
+        assert_eq!(meta["total_items"], 3);
+        assert_eq!(meta["page"], 1);
+
+        // Check Data content
+        let data = body_json["data"].as_array().unwrap();
+        assert_eq!(data.len(), 3);
+
+        // Find Address 1 (Should be opted in)
+        let res_addr1 = data
+            .iter()
+            .find(|x| x["address"]["quan_address"] == addr1.quan_address.0)
+            .unwrap();
+        assert_eq!(res_addr1["is_opted_in"], true);
+        assert!(!res_addr1["opt_in_number"].is_null());
+
+        // Find Address 2 (Should have Eth Address)
+        let res_addr2 = data
+            .iter()
+            .find(|x| x["address"]["quan_address"] == addr2.quan_address.0)
+            .unwrap();
+        assert_eq!(res_addr2["eth_address"], "0x00000000219ab540356cBB839Cbe05303d7705Fa");
+
+        // Find Address 3 (Clean)
+        let res_addr3 = data
+            .iter()
+            .find(|x| x["address"]["quan_address"] == addr3.quan_address.0)
+            .unwrap();
+        assert_eq!(res_addr3["is_opted_in"], false);
+        assert!(res_addr3["eth_address"].is_null());
     }
 }

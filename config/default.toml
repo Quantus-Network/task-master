@@ -45,6 +45,7 @@ database_url = "postgres://postgres:postgres@127.0.0.1:55432/task_master"
 level = "info"
 
 [jwt]
+admin_secret = "this-should-be-overriden"
 exp_in_hours = 24
 secret = "this-should-be-overriden"
 

@@ -1,8 +1,11 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::handlers::{
-    address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
+use crate::{
+    handlers::{
+        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
+    },
+    AppError,
 };
 
 pub mod address;
@@ -36,6 +39,12 @@ impl<T> SuccessResponse<T> {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub status: &'static str,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct PaginationMetadata {
     pub page: u32,
     pub page_size: u32,
@@ -61,4 +70,20 @@ fn default_page() -> u32 {
 }
 fn default_page_size() -> u32 {
     25
+}
+
+pub fn validate_pagination_query(params: &QueryParams) -> Result<(), AppError> {
+    if params.page < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page query params must not be less than 1".to_string(),
+        )));
+    }
+
+    if params.page_size < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page size query params must not be less than 1".to_string(),
+        )));
+    }
+
+    Ok(())
 }

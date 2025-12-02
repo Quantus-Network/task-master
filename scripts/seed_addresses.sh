@@ -14,10 +14,9 @@ cat << 'EOF' > $SQL_FILE
 -- Optional: clean table first
 TRUNCATE TABLE addresses RESTART IDENTITY CASCADE;
 
-INSERT INTO addresses (quan_address, eth_address, referral_code, referrals_count)
+INSERT INTO addresses (quan_address, referral_code, referrals_count)
 SELECT
     'quan_' || g AS quan_address,
-    '0x' || lpad(to_hex(g), 40, '0') AS eth_address,
     'REF' || lpad(g::text, 4, '0') AS referral_code,
     (random() * 20)::int AS referrals_count
 FROM generate_series(1, 100) g;

@@ -11,9 +11,8 @@ use crate::{
     db_persistence::DbError,
     handlers::{
         address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
-        HandlerError,
+        ErrorResponse, HandlerError,
     },
-    middlewares::jwt_auth::ErrorResponse,
     models::ModelError,
     services::{
         graphql_client::GraphqlError, reverser::ReverserError, task_generator::TaskGeneratorError,

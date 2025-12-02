@@ -8,7 +8,7 @@ use axum::{
 use crate::{
     handlers::address::{
         associate_eth_address, dissociate_eth_address, dissociate_x_account, handle_aggregate_address_stats,
-        handle_get_address_reward_status_by_id, handle_get_address_stats, handle_get_leaderboard,
+        handle_get_address_reward_status_by_id, handle_get_address_stats, handle_get_addresses, handle_get_leaderboard,
         handle_get_opted_in_position, handle_get_opted_in_users, handle_update_reward_program_status,
         retrieve_associated_accounts, sync_transfers, update_eth_address,
     },
@@ -18,6 +18,7 @@ use crate::{
 
 pub fn address_routes(state: AppState) -> Router<AppState> {
     Router::new()
+        .route("/addresses", get(handle_get_addresses.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))))
         .route("/addresses/leaderboard", get(handle_get_leaderboard))
         .route("/addresses/opted-in", get(handle_get_opted_in_users))
         .route(

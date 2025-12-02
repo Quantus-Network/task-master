@@ -1,22 +1,23 @@
 use crate::{
+    args::Args,
     db_persistence::DbPersistence,
     errors::{AppError, AppResult},
     models::task::{Task, TaskInput},
     services::{
-        graphql_client::{self, GraphqlClient},
-        reverser::{self, start_reverser_service},
-        task_generator::{self, TaskGenerator},
-        transaction_manager::{self, TransactionManager},
+        graphql_client::GraphqlClient, reverser::start_reverser_service, task_generator::TaskGenerator,
+        transaction_manager::TransactionManager,
     },
 };
+
 use clap::Parser;
-use rusx::{RusxGateway, TwitterAuth};
+use rusx::RusxGateway;
 use sp_core::crypto::{self, Ss58AddressFormat};
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod args;
 mod config;
 mod db_persistence;
 mod errors;
@@ -31,51 +32,6 @@ mod services;
 mod utils;
 
 use config::Config;
-
-#[derive(Parser, Debug)]
-#[command(name = "task-master")]
-#[command(about = "Task management server with reversible blockchain transactions")]
-struct Args {
-    /// Configuration file path
-    #[arg(short, long, default_value = "config/default.toml")]
-    config: String,
-
-    /// Wallet name override
-    #[arg(long)]
-    wallet_name: Option<String>,
-
-    /// Wallet password override
-    #[arg(long)]
-    wallet_password: Option<String>,
-
-    /// Node URL override
-    #[arg(long)]
-    node_url: Option<String>,
-
-    /// Run once and exit (for testing)
-    #[arg(long)]
-    run_once: bool,
-
-    /// Sync transfers from GraphQL and store addresses
-    #[arg(long)]
-    sync_transfers: bool,
-
-    /// Test address selection from database
-    #[arg(long)]
-    test_selection: bool,
-
-    /// Test sending a reversible transaction
-    #[arg(long)]
-    test_transaction: bool,
-
-    /// Destination address for test transaction
-    #[arg(long, requires = "test_transaction")]
-    destination: Option<String>,
-
-    /// Amount for test transaction (in QUAN units)
-    #[arg(long, requires = "test_transaction")]
-    amount: Option<u64>,
-}
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
