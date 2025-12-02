@@ -124,7 +124,7 @@ impl Config {
     }
 
     pub fn get_oauth_claim_expiration(&self) -> chrono::Duration {
-        chrono::Duration::seconds(5)
+        chrono::Duration::seconds(60)
     }
 }
 
