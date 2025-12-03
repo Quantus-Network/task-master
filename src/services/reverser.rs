@@ -221,6 +221,7 @@ mod tests {
 
     // Helper to set up a full test environment with a DB, TransactionManager, and ReverserService.
     // NOTE: Requires a local Quantus node running.
+    #[cfg(feature = "chain")]
     async fn setup_test_reverser() -> (ReverserService, Arc<TransactionManager>, Arc<DbPersistence>) {
         let config = Config::load_test_env().expect("Failed to load test configuration");
         std::env::set_var("TASKMASTER_USE_DEV_ALICE", "1");
@@ -252,6 +253,7 @@ mod tests {
     }
 
     // Helper to create a task that is ready for reversal
+    #[cfg(feature = "chain")]
     async fn create_reversable_task(
         db: &DbPersistence,
         tm: &TransactionManager,
@@ -299,6 +301,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "chain")]
     async fn chain_test_check_and_reverse_tasks_success() {
         let (reverser, tm, db) = setup_test_reverser().await;
 
@@ -315,6 +318,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "chain")]
     async fn chain_test_check_and_reverse_does_nothing_if_no_tasks_ready() {
         let (reverser, tm, db) = setup_test_reverser().await;
 
@@ -337,6 +341,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "chain")]
     async fn chain_test_get_reversal_stats() {
         let (reverser, _tm, db) = setup_test_reverser().await;
 

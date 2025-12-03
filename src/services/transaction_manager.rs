@@ -263,6 +263,7 @@ mod tests {
     use crate::config::Config;
 
     #[tokio::test]
+    #[cfg(feature = "chain")]
     async fn test_new_manager_creates_and_loads_wallet() {
         // This test requires filesystem access to create a wallet.
         let config = Config::load_test_env().expect("Failed to load test configuration");
