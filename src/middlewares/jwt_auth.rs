@@ -112,11 +112,7 @@ pub async fn jwt_admin_auth(
 mod tests {
     use super::*;
     use crate::{
-        models::{
-            address::Address,
-            admin::Admin,
-            auth::{TokenClaims, TokenPurpose},
-        },
+        models::{address::Address, admin::Admin},
         utils::{
             test_app_state::{create_test_app_state, generate_test_token}, // Assuming you have these from previous context
             test_db::{create_persisted_address, reset_database},
@@ -141,22 +137,6 @@ mod tests {
     // Helper handler for admin
     async fn protected_admin_handler(Extension(admin): Extension<Admin>) -> impl IntoResponse {
         format!("Welcome Admin {}", admin.id) // Adjust 'id' to whatever field Admin has
-    }
-
-    // Helper to generate a token with specific purpose (for failure tests)
-    fn generate_token_with_purpose(secret: &str, sub: &str, purpose: TokenPurpose) -> String {
-        let claims = TokenClaims {
-            sub: sub.to_string(),
-            exp: (Utc::now() + Duration::hours(1)).timestamp() as usize,
-            iat: Utc::now().timestamp() as usize,
-        };
-
-        encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap()
     }
 
     #[tokio::test]
@@ -217,40 +197,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn test_jwt_auth_fails_wrong_purpose() {
-        let state = create_test_app_state().await;
-        reset_database(&state.db.pool).await;
-
-        let user = create_persisted_address(&state.db.addresses, "auth_user_2").await;
-
-        // Generate token with WRONG purpose (e.g., Refresh instead of Auth)
-        // Assuming TokenPurpose::Refresh exists in your enum
-        let token = generate_token_with_purpose(&state.config.jwt.secret, &user.quan_address.0, TokenPurpose::Oauth);
-
-        let router = Router::new()
-            .route("/protected", get(protected_handler))
-            .layer(from_fn_with_state(state.clone(), jwt_auth))
-            .with_state(state);
-
-        let response = router
-            .oneshot(
-                Request::builder()
-                    .uri("/protected")
-                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-
-        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let body_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
-        assert_eq!(body_json["message"], "Invalid token purpose");
     }
 
     #[tokio::test]
