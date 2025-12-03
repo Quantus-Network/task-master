@@ -9,6 +9,7 @@ pub enum ModelError {
 pub type ModelResult<T> = Result<T, ModelError>;
 
 pub mod address;
+pub mod admin;
 pub mod auth;
 pub mod eth_association;
 pub mod opt_in;

@@ -5,6 +5,7 @@
 //! for managing tasks, interacting with the blockchain, and handling
 //! HTTP API requests.
 
+pub mod args;
 pub mod config;
 pub mod db_persistence;
 pub mod errors;

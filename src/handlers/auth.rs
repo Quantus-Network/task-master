@@ -1,3 +1,4 @@
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -11,10 +12,12 @@ use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 use crate::{
+    db_persistence::DbError,
     handlers::{HandlerError, SuccessResponse},
     http_server::{AppState, Challenge},
     models::{
         address::{Address, AddressInput},
+        admin::{Admin, AdminAuthCheckResponse, AdminClaims, AdminLoginPayload, AdminLoginResponse},
         auth::{
             GenerateOAuthLinkResponse, OauthTokenQuery, RequestChallengeBody, RequestChallengeResponse, TokenClaims,
             VerifyLoginBody, VerifyLoginResponse,
@@ -22,7 +25,7 @@ use crate::{
         x_association::{XAssociation, XAssociationInput},
     },
     services::signature_service::SignatureService,
-    utils::generate_referral_code::generate_referral_code,
+    utils::{generate_referral_code::generate_referral_code, jwt::get_default_jwt_config},
     AppError,
 };
 use tracing::{debug, warn};
@@ -123,16 +126,11 @@ pub async fn verify_login(
         state.db.addresses.create(&address).await?;
     }
 
-    let now = chrono::Utc::now();
-    let iat = now.timestamp() as usize;
-    let exp = now
-        .checked_add_signed(state.config.get_jwt_expiration())
-        .expect("valid timestamp")
-        .timestamp() as usize;
+    let (iat, exp) = get_default_jwt_config(&state);
     let claims: TokenClaims = TokenClaims {
         sub: body.address,
-        exp,
         iat,
+        exp,
     };
 
     let access_token = encode(
@@ -275,6 +273,61 @@ pub async fn handle_x_oauth_callback(
     );
 
     Ok(Redirect::to(&redirect_url))
+}
+
+pub async fn handle_admin_login(
+    State(state): State<AppState>,
+    Json(body): Json<AdminLoginPayload>,
+) -> Result<Json<AdminLoginResponse>, AppError> {
+    tracing::info!("Handling admin login...");
+
+    let admin = state
+        .db
+        .admin
+        .find_by_username(&body.username)
+        .await?
+        .ok_or(AppError::Database(DbError::RecordNotFound(format!(
+            "Admin with username {} is not exist",
+            &body.username,
+        ))))?;
+
+    let parsed_hash =
+        PasswordHash::new(&admin.password).map_err(|_| AppError::Server("Failed generating token".to_string()))?;
+
+    Argon2::default()
+        .verify_password(body.password.as_bytes(), &parsed_hash)
+        .map_err(|_| {
+            HandlerError::Auth(AuthHandlerError::Unauthrorized(
+                "Invalid username or password".to_string(),
+            ))
+        })?;
+
+    let (iat, exp) = get_default_jwt_config(&state);
+    let claims: AdminClaims = AdminClaims {
+        sub: admin.id.to_string(),
+        iat,
+        exp,
+    };
+
+    tracing::info!("Generating admin token...");
+
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.config.jwt.admin_secret.as_ref()),
+    )
+    .unwrap();
+
+    Ok(Json(AdminLoginResponse { access_token }))
+}
+
+pub async fn auth_admin(
+    Extension(admin): Extension<Admin>,
+) -> Result<Json<SuccessResponse<AdminAuthCheckResponse>>, StatusCode> {
+    Ok(SuccessResponse::new(AdminAuthCheckResponse {
+        id: admin.id,
+        username: admin.username,
+    }))
 }
 
 #[cfg(test)]

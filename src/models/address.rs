@@ -106,8 +106,8 @@ pub struct AddressStatsResponse {
 
 // Response struct with pagination metadata
 #[derive(Debug, Serialize)]
-pub struct PaginatedAddressesResponse {
-    pub data: Vec<AddressWithRank>,
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
     pub meta: PaginationMetadata,
 }
 
@@ -133,6 +133,16 @@ pub struct AddressWithRank {
 
 #[derive(Debug, Serialize)]
 pub struct AssociatedAccountsResponse {
+    pub eth_address: Option<String>,
+    pub x_username: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AddressWithOptInAndAssociations {
+    #[sqlx(flatten)]
+    pub address: Address,
+    pub is_opted_in: bool,
+    pub opt_in_number: Option<i32>,
     pub eth_address: Option<String>,
     pub x_username: Option<String>,
 }

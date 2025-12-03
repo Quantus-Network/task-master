@@ -1,5 +1,6 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
+use crate::repositories::admin::AdminRepository;
 use crate::repositories::eth_association::EthAssociationRepository;
 use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
@@ -31,6 +32,7 @@ pub struct DbPersistence {
     pub opt_ins: OptInRepository,
     pub x_associations: XAssociationRepository,
     pub eth_associations: EthAssociationRepository,
+    pub admin: AdminRepository,
 
     pub pool: PgPool,
 }
@@ -47,6 +49,7 @@ impl DbPersistence {
         let opt_ins = OptInRepository::new(&pool);
         let x_associations = XAssociationRepository::new(&pool);
         let eth_associations = EthAssociationRepository::new(&pool);
+        let admin = AdminRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -56,6 +59,7 @@ impl DbPersistence {
             opt_ins,
             x_associations,
             eth_associations,
+            admin,
         })
     }
 
@@ -69,6 +73,7 @@ impl DbPersistence {
         let opt_ins = OptInRepository::new(&pool);
         let x_associations = XAssociationRepository::new(&pool);
         let eth_associations = EthAssociationRepository::new(&pool);
+        let admin = AdminRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -78,6 +83,7 @@ impl DbPersistence {
             opt_ins,
             x_associations,
             eth_associations,
+            admin,
         })
     }
 }

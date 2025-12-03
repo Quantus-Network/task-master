@@ -55,6 +55,7 @@ database_url = "sqlite:taskmaster.db"
 level = "info"
 
 [jwt]
+admin_secret = "example-secret"
 exp_in_hours = 24
 secret = "example-secret"
 

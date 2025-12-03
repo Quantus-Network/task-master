@@ -61,6 +61,7 @@ pub struct LoggingConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtConfig {
     pub secret: String,
+    pub admin_secret: String,
     pub exp_in_hours: i64,
 }
 
@@ -162,6 +163,7 @@ impl Default for Config {
                 level: "info".to_string(),
             },
             jwt: JwtConfig {
+                admin_secret: "Also-change-in-production".to_string(),
                 secret: "Change-in-production".to_string(),
                 exp_in_hours: 24,
             },

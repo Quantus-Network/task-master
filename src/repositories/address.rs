@@ -1,7 +1,7 @@
 use sqlx::{PgPool, QueryBuilder};
 
 use crate::{
-    models::address::{Address, AddressWithRank},
+    models::address::{Address, AddressWithOptInAndAssociations, AddressWithRank},
     repositories::DbResult,
 };
 
@@ -102,10 +102,18 @@ impl AddressRepository {
         Ok(address)
     }
 
-    pub async fn get_total_items(&self, with_referral_code: Option<String>) -> DbResult<i64> {
+    pub async fn get_leaderboard_total_items(&self, with_referral_code: Option<String>) -> DbResult<i64> {
         let mut qb = QueryBuilder::new("SELECT COUNT(*) ");
         AddressRepository::push_leaderboard_base_query(&mut qb);
         AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, with_referral_code);
+
+        let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
+
+        Ok(total_items)
+    }
+
+    pub async fn get_total_items(&self) -> DbResult<i64> {
+        let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM addresses");
 
         let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
 
@@ -165,6 +173,39 @@ impl AddressRepository {
 
         Ok(new_count)
     }
+
+    pub async fn find_all_with_optin_and_associations(
+        &self,
+        page_size: u32,
+        offset: u32,
+    ) -> DbResult<Vec<AddressWithOptInAndAssociations>> {
+        let addresses = sqlx::query_as::<_, AddressWithOptInAndAssociations>(
+            r#"
+            SELECT 
+                a.quan_address,
+                a.referral_code,
+                a.referrals_count,
+                a.updated_at,
+                a.created_at,
+                o.opt_in_number,
+                CASE WHEN o.quan_address IS NOT NULL THEN TRUE ELSE FALSE END AS is_opted_in,
+                e.eth_address,
+                x.username AS x_username
+            FROM addresses a
+            LEFT JOIN opt_ins o ON a.quan_address = o.quan_address
+            LEFT JOIN eth_associations e ON a.quan_address = e.quan_address
+            LEFT JOIN x_associations x ON a.quan_address = x.quan_address
+            ORDER BY a.created_at DESC
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(page_size as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(addresses)
+    }
 }
 
 #[cfg(test)]
@@ -172,7 +213,10 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::models::address::{Address, AddressInput};
-    use crate::utils::test_db::reset_database;
+    use crate::utils::test_app_state::create_test_app_state;
+    use crate::utils::test_db::{
+        create_persisted_address, create_persisted_eth_association, create_persisted_x_association, reset_database,
+    };
     use sqlx::PgPool;
 
     // Helper function to set up a test repository using the app's config loader.
@@ -235,7 +279,7 @@ mod tests {
             .await
             .unwrap();
 
-        let total_items = repo.get_total_items(None).await.unwrap();
+        let total_items = repo.get_leaderboard_total_items(None).await.unwrap();
         assert_eq!(total_items, 3);
     }
 
@@ -251,7 +295,10 @@ mod tests {
             .await
             .unwrap();
 
-        let total_items = repo.get_total_items(Some(String::from("REF003"))).await.unwrap();
+        let total_items = repo
+            .get_leaderboard_total_items(Some(String::from("REF003")))
+            .await
+            .unwrap();
         assert_eq!(total_items, 1);
     }
 
@@ -421,5 +468,71 @@ mod tests {
 
         let new_count_2 = repo.increment_referrals_count(&address.quan_address.0).await.unwrap();
         assert_eq!(new_count_2, 2);
+    }
+
+    #[tokio::test]
+    async fn test_find_all_with_optin_and_associations_data_integrity() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let address = create_persisted_address(&state.db.addresses, "REF501").await;
+        state.db.opt_ins.create(&address.quan_address.0).await.unwrap();
+        create_persisted_x_association(&state.db.x_associations, &address.quan_address.0, "address-1").await;
+        create_persisted_eth_association(
+            &state.db.eth_associations,
+            &address.quan_address.0,
+            "0x00000000219ab540356cBB839Cbe05303d7705Fa",
+        )
+        .await;
+
+        let address2 = create_persisted_address(&state.db.addresses, "REF502").await;
+        create_persisted_x_association(&state.db.x_associations, &address2.quan_address.0, "address-2").await;
+
+        let address3 = create_persisted_address(&state.db.addresses, "REF503").await;
+
+        let result = state
+            .db
+            .addresses
+            .find_all_with_optin_and_associations(10, 0)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 3);
+
+        // Check Address 1 (Full Associations)
+        let res_addr1 = result
+            .iter()
+            .find(|a| a.address.quan_address.0 == address.quan_address.0)
+            .expect("Address 1 not found in results");
+
+        assert!(res_addr1.is_opted_in);
+        assert_eq!(res_addr1.opt_in_number, Some(1));
+        assert_eq!(
+            res_addr1.eth_address.as_deref(),
+            Some("0x00000000219ab540356cBB839Cbe05303d7705Fa")
+        );
+        assert_eq!(res_addr1.x_username.as_deref(), Some("address-1"));
+
+        // Check Address 2 (Partial Associations)
+        let res_addr2 = result
+            .iter()
+            .find(|a| a.address.quan_address.0 == address2.quan_address.0)
+            .expect("Address 2 not found in results");
+
+        assert!(!res_addr2.is_opted_in);
+        assert_eq!(res_addr2.opt_in_number, None);
+        assert_eq!(res_addr2.eth_address, None);
+        assert_eq!(res_addr2.x_username.as_deref(), Some("address-2"));
+
+        // Check Address 3 (No Associations)
+        let res_addr3 = result
+            .iter()
+            .find(|a| a.address.quan_address.0 == address3.quan_address.0)
+            .expect("Address 3 not found in results");
+
+        assert!(!res_addr3.is_opted_in);
+        assert_eq!(res_addr2.opt_in_number, None);
+        assert_eq!(res_addr3.eth_address, None);
+        assert_eq!(res_addr3.x_username, None);
     }
 }
