@@ -12,10 +12,7 @@ use uuid::Uuid;
 use crate::{
     handlers::ErrorResponse,
     http_server::AppState,
-    models::{
-        admin::AdminClaims,
-        auth::{TokenClaims, TokenPurpose},
-    },
+    models::{admin::AdminClaims, auth::TokenClaims},
     utils::jwt::extract_jwt_token_from_request,
 };
 
@@ -39,15 +36,6 @@ pub async fn jwt_auth(
         (StatusCode::UNAUTHORIZED, Json(json_error))
     })?
     .claims;
-
-    if claims.purpose != TokenPurpose::Auth {
-        let json_error = ErrorResponse {
-            status: "fail",
-            message: "Invalid token purpose".to_string(),
-        };
-
-        return Err((StatusCode::UNAUTHORIZED, Json(json_error)));
-    }
 
     let user_id = &claims.sub;
 
@@ -159,7 +147,6 @@ mod tests {
     fn generate_token_with_purpose(secret: &str, sub: &str, purpose: TokenPurpose) -> String {
         let claims = TokenClaims {
             sub: sub.to_string(),
-            purpose,
             exp: (Utc::now() + Duration::hours(1)).timestamp() as usize,
             iat: Utc::now().timestamp() as usize,
         };
