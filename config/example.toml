@@ -3,6 +3,7 @@
 
 [server]
 # HTTP server configuration
+base_api_url = "http://127.0.0.1:3000/api"
 host = "127.0.0.1"
 port = 3000
 

@@ -30,3 +30,13 @@ pub struct VerifyLoginBody {
 pub struct VerifyLoginResponse {
     pub access_token: String,
 }
+
+#[derive(Deserialize)]
+pub struct OauthTokenQuery {
+    pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenerateOAuthLinkResponse {
+    pub url: String,
+}

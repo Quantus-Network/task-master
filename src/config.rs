@@ -18,6 +18,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    pub base_api_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +95,10 @@ impl Config {
         format!("{}:{}", self.server.host, self.server.port)
     }
 
+    pub fn get_base_api_url(&self) -> &str {
+        &self.server.base_api_url
+    }
+
     pub fn get_candidates_refresh_duration(&self) -> tokio::time::Duration {
         tokio::time::Duration::from_secs(self.candidates.refresh_interval_minutes * 60)
     }
@@ -117,6 +122,10 @@ impl Config {
     pub fn get_jwt_expiration(&self) -> chrono::Duration {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
+
+    pub fn get_oauth_claim_expiration(&self) -> chrono::Duration {
+        chrono::Duration::seconds(60)
+    }
 }
 
 impl Default for Config {
@@ -125,6 +134,7 @@ impl Default for Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 3000,
+                base_api_url: "http://127.0.0.1:3000/api".to_string(),
             },
             blockchain: BlockchainConfig {
                 website_url: "https://www.quantus.com".to_string(),

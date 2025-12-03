@@ -15,7 +15,10 @@ use crate::{
     http_server::{AppState, Challenge},
     models::{
         address::{Address, AddressInput},
-        auth::{RequestChallengeBody, RequestChallengeResponse, TokenClaims, VerifyLoginBody, VerifyLoginResponse},
+        auth::{
+            GenerateOAuthLinkResponse, OauthTokenQuery, RequestChallengeBody, RequestChallengeResponse, TokenClaims,
+            VerifyLoginBody, VerifyLoginResponse,
+        },
         x_association::{XAssociation, XAssociationInput},
     },
     services::signature_service::SignatureService,
@@ -150,12 +153,26 @@ pub async fn auth_me(Extension(address): Extension<Address>) -> Result<Json<Succ
 pub async fn handle_x_oauth(
     State(state): State<AppState>,
     cookies: Cookies,
-    Extension(user): Extension<Address>,
-) -> Redirect {
-    tracing::info!("Generating oauth url...");
+    Query(params): Query<OauthTokenQuery>,
+) -> Result<Redirect, AppError> {
+    tracing::info!("Handling x oauth request...");
+
+    let quan_address = {
+        let Some(address) = state.twitter_oauth_tokens.write().await.remove(&params.token) else {
+            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
+                "Invalid or expired token".to_string(),
+            ))));
+        };
+
+        address
+    };
+
+    tracing::info!("Quan address from token: {}", quan_address);
 
     let (auth_url, verifier) = state.twitter_gateway.generate_auth_url();
-    let session_id = format!("{}|{}", user.quan_address.0, uuid::Uuid::new_v4().to_string());
+    let session_id = format!("{}|{}", quan_address, uuid::Uuid::new_v4().to_string());
+
+    tracing::info!("Session id in cookies: {}", session_id);
 
     tracing::info!("Creating oauth session");
     state
@@ -165,8 +182,32 @@ pub async fn handle_x_oauth(
         .insert(session_id.clone(), verifier);
     cookies.add(Cookie::new("oauth_session", session_id));
 
-    tracing::info!("Redirect to oauth url...");
-    Redirect::to(&auth_url)
+    tracing::info!("Returning oauth url...");
+
+    Ok(Redirect::to(&auth_url))
+}
+
+pub async fn generate_x_oauth_link(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+) -> Result<Json<GenerateOAuthLinkResponse>, AppError> {
+    tracing::info!("Generating oauth url...");
+
+    let twitter_oauth_token = Uuid::new_v4().to_string();
+    state
+        .twitter_oauth_tokens
+        .write()
+        .await
+        .insert(twitter_oauth_token.clone(), user.quan_address.0.clone());
+
+    tracing::info!("Returning oauth request url...");
+    let request_link = format!(
+        "{}/auth/x?token={}",
+        state.config.get_base_api_url(),
+        twitter_oauth_token
+    );
+
+    Ok(Json(GenerateOAuthLinkResponse { url: request_link }))
 }
 
 pub async fn handle_x_oauth_callback(
@@ -184,6 +225,8 @@ pub async fn handle_x_oauth_callback(
             ))))
         }
     };
+
+    tracing::info!("Session id found: {}", session_id);
 
     let verifier = {
         let Some(chal) = state.oauth_sessions.lock().unwrap().remove(&session_id) else {
