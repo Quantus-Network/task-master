@@ -157,16 +157,14 @@ pub async fn handle_x_oauth(
 ) -> Result<Redirect, AppError> {
     tracing::info!("Handling x oauth request...");
 
-    // Verify token from internal storage instead of JWT decoding
     let quan_address = {
-        let mut tokens = state.twitter_oauth_tokens.write().await;
-        if let Some(address) = tokens.remove(&params.token) {
-            address
-        } else {
+        let Some(address) = state.twitter_oauth_tokens.write().await.remove(&params.token) else {
             return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
                 "Invalid or expired token".to_string(),
             ))));
-        }
+        };
+
+        address
     };
 
     tracing::info!("Quan address from token: {}", quan_address);
@@ -195,20 +193,12 @@ pub async fn generate_x_oauth_link(
 ) -> Result<Json<GenerateOAuthLinkResponse>, AppError> {
     tracing::info!("Generating oauth url...");
 
-    // Generate a random token
     let twitter_oauth_token = Uuid::new_v4().to_string();
-
-    // Store it in memory map with user's address
-    // In a production environment with multiple instances, this should be Redis
     state
         .twitter_oauth_tokens
         .write()
         .await
         .insert(twitter_oauth_token.clone(), user.quan_address.0.clone());
-
-    // Ideally we would have a cleanup task to remove old tokens,
-    // but for now they are single-use (removed on use) and we rely on server restart/memory limits for cleanup of unused ones
-    // or we could implement a background cleanup task
 
     tracing::info!("Returning oauth request url...");
     let request_link = format!(

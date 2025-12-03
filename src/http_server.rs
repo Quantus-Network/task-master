@@ -27,7 +27,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
-    pub twitter_oauth_tokens: Arc<RwLock<HashMap<String, String>>>, // token -> quan_address
+    pub twitter_oauth_tokens: Arc<RwLock<HashMap<String, String>>>,
     pub twitter_gateway: Arc<dyn TwitterGateway>,
 }
 
