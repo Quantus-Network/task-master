@@ -46,6 +46,12 @@ pub struct AdminLoginResponse {
     pub access_token: String,
 }
 
+#[derive(Serialize)]
+pub struct AdminAuthCheckResponse {
+    pub id: Uuid,
+    pub username: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AdminClaims {
     pub sub: String,

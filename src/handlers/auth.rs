@@ -17,7 +17,7 @@ use crate::{
     http_server::{AppState, Challenge},
     models::{
         address::{Address, AddressInput},
-        admin::{AdminClaims, AdminLoginPayload, AdminLoginResponse},
+        admin::{Admin, AdminAuthCheckResponse, AdminClaims, AdminLoginPayload, AdminLoginResponse},
         auth::{
             GenerateOAuthLinkResponse, OauthTokenQuery, RequestChallengeBody, RequestChallengeResponse, TokenClaims,
             VerifyLoginBody, VerifyLoginResponse,
@@ -319,6 +319,15 @@ pub async fn handle_admin_login(
     .unwrap();
 
     Ok(Json(AdminLoginResponse { access_token }))
+}
+
+pub async fn auth_admin(
+    Extension(admin): Extension<Admin>,
+) -> Result<Json<SuccessResponse<AdminAuthCheckResponse>>, StatusCode> {
+    Ok(SuccessResponse::new(AdminAuthCheckResponse {
+        id: admin.id,
+        username: admin.username,
+    }))
 }
 
 #[cfg(test)]
