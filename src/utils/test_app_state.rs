@@ -1,9 +1,6 @@
 use crate::{
-    db_persistence::DbPersistence,
-    http_server::AppState,
-    metrics::Metrics,
-    models::auth::{TokenClaims, TokenPurpose},
-    Config, GraphqlClient,
+    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims, Config,
+    GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;
@@ -22,6 +19,7 @@ pub async fn create_test_app_state() -> AppState {
         config: Arc::new(config),
         twitter_gateway: Arc::new(twitter_gateway),
         oauth_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        twitter_oauth_tokens: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
 }
@@ -31,7 +29,6 @@ pub fn generate_test_token(secret: &str, user_id: &str) -> String {
         sub: user_id.to_string(),
         iat: 1,          // Just a valid past timestamp
         exp: 9999999999, // Far future timestamp,
-        purpose: TokenPurpose::Auth,
     };
 
     encode(

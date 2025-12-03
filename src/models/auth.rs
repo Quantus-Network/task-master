@@ -1,23 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-fn default_purpose() -> TokenPurpose {
-    TokenPurpose::Auth
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum TokenPurpose {
-    Auth,
-    Oauth,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenClaims {
     pub sub: String,
     pub iat: usize,
     pub exp: usize,
-
-    #[serde(default = "default_purpose")]
-    pub purpose: TokenPurpose,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,4 +34,9 @@ pub struct VerifyLoginResponse {
 #[derive(Deserialize)]
 pub struct OauthTokenQuery {
     pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenerateOAuthLinkResponse {
+    pub url: String,
 }
