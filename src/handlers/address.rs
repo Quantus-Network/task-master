@@ -6,13 +6,16 @@ use axum::{
 
 use crate::{
     db_persistence::DbError,
-    handlers::{validate_pagination_query, HandlerError, PaginationMetadata, QueryParams},
+    handlers::{
+        validate_pagination_query, HandlerError, LeaderboardQueryParams, ListQueryParams, PaginatedResponse,
+        PaginationMetadata,
+    },
     http_server::AppState,
     models::{
         address::{
-            Address, AddressStatsResponse, AddressWithOptInAndAssociations, AddressWithRank, AggregateStatsQueryParams,
-            AssociatedAccountsResponse, OptedInPositionResponse, PaginatedResponse, RewardProgramStatusPayload,
-            SyncTransfersResponse,
+            Address, AddressFilter, AddressSortColumn, AddressStatsResponse, AddressWithOptInAndAssociations,
+            AddressWithRank, AggregateStatsQueryParams, AssociatedAccountsResponse, OptedInPositionResponse,
+            RewardProgramStatusPayload, SyncTransfersResponse,
         },
         admin::Admin,
         eth_association::{
@@ -32,11 +35,10 @@ pub enum AddressHandlerError {
     InvalidQueryParams(String),
 }
 
-fn get_pagination_details(params: &QueryParams, total_items: u32) -> (u32, u32) {
-    let total_pages = ((total_items as f64) / (params.page_size as f64)).ceil() as u32;
-    let offset = (params.page - 1) * params.page_size;
+fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
+    let total_pages = ((total_items as f64) / (page_size as f64)).ceil() as u32;
 
-    (total_pages, offset)
+    total_pages
 }
 
 pub async fn handle_update_reward_program_status(
@@ -122,7 +124,7 @@ pub async fn handle_aggregate_address_stats(
 
 pub async fn handle_get_leaderboard(
     State(state): State<AppState>,
-    Query(params): Query<QueryParams>,
+    Query(params): Query<LeaderboardQueryParams>,
 ) -> Result<Json<PaginatedResponse<AddressWithRank>>, AppError> {
     tracing::info!("Getting leadeboard data...");
 
@@ -132,13 +134,9 @@ pub async fn handle_get_leaderboard(
         .addresses
         .get_leaderboard_total_items(params.referral_code.clone())
         .await? as u32;
-    let (total_pages, offset) = get_pagination_details(&params, total_items);
+    let total_pages = calculate_total_pages(params.page_size, total_items);
 
-    let addresses = state
-        .db
-        .addresses
-        .get_leaderboard_entries(params.page_size, offset, params.referral_code)
-        .await?;
+    let addresses = state.db.addresses.get_leaderboard_entries(&params).await?;
 
     let response = PaginatedResponse::<AddressWithRank> {
         data: addresses,
@@ -156,19 +154,16 @@ pub async fn handle_get_leaderboard(
 pub async fn handle_get_addresses(
     State(state): State<AppState>,
     Extension(_): Extension<Admin>,
-    Query(params): Query<QueryParams>,
+    Query(params): Query<ListQueryParams<AddressSortColumn>>,
+    Query(filters): Query<AddressFilter>,
 ) -> Result<Json<PaginatedResponse<AddressWithOptInAndAssociations>>, AppError> {
-    tracing::info!("Getting addresses data...");
-
-    validate_pagination_query(&params)?;
-
-    let total_items = state.db.addresses.get_total_items().await? as u32;
-    let (total_pages, offset) = get_pagination_details(&params, total_items);
+    let total_items = state.db.addresses.count_filtered(&params, &filters).await? as u32;
+    let total_pages = calculate_total_pages(params.page_size, total_items);
 
     let addresses = state
         .db
         .addresses
-        .find_all_with_optin_and_associations(params.page_size, offset)
+        .find_all_with_optin_and_associations(&params, &filters)
         .await?;
 
     let response = PaginatedResponse::<AddressWithOptInAndAssociations> {

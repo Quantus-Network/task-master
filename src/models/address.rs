@@ -2,10 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-use crate::{
-    handlers::PaginationMetadata,
-    models::{ModelError, ModelResult},
-};
+use crate::models::{ModelError, ModelResult};
 
 #[derive(Debug, Deserialize, Serialize, Clone, sqlx::Type)]
 #[sqlx(transparent)]
@@ -69,6 +66,45 @@ impl<'r> FromRow<'r, PgRow> for Address {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AddressSortColumn {
+    CreatedAt,
+    ReferralsCount,
+    ReferralCode,
+    Address,
+    OptInNumber,
+    UpdatedAt,
+    EthAddress,
+    XUsername,
+    IsOptedIn,
+}
+
+impl AddressSortColumn {
+    // Helper to map enum to actual SQL column names
+    pub fn to_sql_column(&self) -> &'static str {
+        match self {
+            AddressSortColumn::CreatedAt => "a.created_at",
+            AddressSortColumn::ReferralsCount => "a.referrals_count",
+            AddressSortColumn::OptInNumber => "o.opt_in_number",
+            AddressSortColumn::UpdatedAt => "a.updated_at",
+            AddressSortColumn::EthAddress => "e.eth_address",
+            AddressSortColumn::XUsername => "x.username",
+            AddressSortColumn::IsOptedIn => "o.quan_address",
+            AddressSortColumn::ReferralCode => "a.referral_code",
+            AddressSortColumn::Address => "a.quan_address",
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddressFilter {
+    pub is_opted_in: Option<bool>,
+    pub min_referrals: Option<i32>,
+    pub has_eth_address: Option<bool>,
+    pub has_x_account: Option<bool>,
+}
+
 // An unvalidated version that we can deserialize directly from JSON
 #[derive(Debug, Deserialize)]
 pub struct AddressInput {
@@ -102,13 +138,6 @@ pub struct AddressStatsResponse {
     pub reversible_txs: u64,
     pub mining_events: u64,
     pub mining_rewards: String,
-}
-
-// Response struct with pagination metadata
-#[derive(Debug, Serialize)]
-pub struct PaginatedResponse<T> {
-    pub data: Vec<T>,
-    pub meta: PaginationMetadata,
 }
 
 #[derive(Debug, Clone, Deserialize)]
