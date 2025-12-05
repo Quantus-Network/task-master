@@ -109,6 +109,7 @@ impl TweetSynchronizerService {
             &self.config.tweet_sync.whitelist,
             Some(&self.config.tweet_sync.keywords),
         );
+        params.max_results = Some(100);
         params.sort_order = Some(SearchSortOrder::Relevancy);
         params.tweet_fields = Some(vec![
             TweetField::PublicMetrics,
