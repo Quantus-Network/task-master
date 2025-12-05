@@ -20,7 +20,8 @@ path = "src/bin/create_admin.rs"
 qp-human-checkphrase = "0.1.2"
 qp-rusty-crystals-dilithium = "2.0.0"
 quantus-cli = "0.3.0"
-rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.2.0"}
+# rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.2.0"}
+rusx = {path = "../rusx"}
 
 # Async runtime
 tokio = {version = "1.46", features = ["full", "test-util"]}
@@ -86,4 +87,5 @@ tiny-keccak = {version = "2.0.2", features = ["keccak"]}
 mockall = "0.13"
 wiremock = "0.5"
 # Enable the testing feature ONLY for tests
-rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.2.0", features = ["testing"]}
+# rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.2.0", features = ["testing"]}
+rusx = {path = "../rusx", features = ["testing"]}

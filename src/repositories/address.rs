@@ -4,7 +4,7 @@ use crate::{
     db_persistence::DbError,
     handlers::{LeaderboardQueryParams, ListQueryParams},
     models::address::{Address, AddressFilter, AddressSortColumn, AddressWithOptInAndAssociations, AddressWithRank},
-    repositories::{calculate_page_offset, DbResult},
+    repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
 #[derive(Clone, Debug)]
@@ -44,59 +44,38 @@ impl AddressRepository {
             }
         }
 
-        // Helper macro or closure to append "AND" or "WHERE"
-        macro_rules! append_condition {
-            ($sql:expr) => {
-                if where_started {
-                    query_builder.push(" AND ");
-                } else {
-                    query_builder.push(" WHERE ");
-                    where_started = true;
-                }
-                query_builder.push($sql);
-            };
-        }
-
         // Filter: Opted In Status
         if let Some(is_opted) = filters.is_opted_in {
             if is_opted {
-                append_condition!(" o.opt_in_number IS NOT NULL ");
+                query_builder.push_condition(" o.opt_in_number IS NOT NULL ", &mut where_started);
             } else {
-                append_condition!(" o.opt_in_number IS NULL ");
+                query_builder.push_condition(" o.opt_in_number IS NULL ", &mut where_started);
             }
         }
 
         // Filter: Minimum Referrals
         if let Some(min_refs) = filters.min_referrals {
-            append_condition!(" a.referrals_count >= ");
+            query_builder.push_condition(" a.referrals_count >= ", &mut where_started);
             query_builder.push_bind(min_refs);
         }
 
         // Filter: Has ETH Address
         if let Some(has_eth) = filters.has_eth_address {
             if has_eth {
-                append_condition!(" e.eth_address IS NOT NULL ");
+                query_builder.push_condition(" e.eth_address IS NOT NULL ", &mut where_started);
             } else {
-                append_condition!(" e.eth_address IS NULL ");
+                query_builder.push_condition(" e.eth_address IS NULL ", &mut where_started);
             }
         }
 
         // Filter: Has X Account
         if let Some(has_x) = filters.has_x_account {
             if has_x {
-                append_condition!(" x.username IS NOT NULL ");
+                query_builder.push_condition(" x.username IS NOT NULL ", &mut where_started);
             } else {
-                append_condition!(" x.username IS NULL ");
+                query_builder.push_condition(" x.username IS NULL ", &mut where_started);
             }
         }
-
-        // This variable read is added because there will be warning if we don't.
-        // Last filter runs and triggers the else block (adding WHERE), it sets where_started = true.
-        // But since the function ends immediately after,
-        // that true value is never read, making the assignment technically "useless."
-        //
-        // But we need that assignment in case we add more filters later
-        let _ = where_started;
     }
 
     fn push_leaderboard_base_query<'a>(qb: &mut QueryBuilder<'a, sqlx::Postgres>) {
