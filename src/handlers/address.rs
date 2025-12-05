@@ -7,7 +7,7 @@ use axum::{
 use crate::{
     db_persistence::DbError,
     handlers::{
-        validate_pagination_query, HandlerError, LeaderboardQueryParams, ListQueryParams, PaginatedResponse,
+        calculate_total_pages, HandlerError, LeaderboardQueryParams, ListQueryParams, PaginatedResponse,
         PaginationMetadata,
     },
     http_server::AppState,
@@ -35,10 +35,20 @@ pub enum AddressHandlerError {
     InvalidQueryParams(String),
 }
 
-fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
-    let total_pages = ((total_items as f64) / (page_size as f64)).ceil() as u32;
+pub fn validate_leaderboard_pagination_query(params: &LeaderboardQueryParams) -> Result<(), AppError> {
+    if params.page < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page query params must not be less than 1".to_string(),
+        )));
+    }
 
-    total_pages
+    if params.page_size < 1 {
+        return Err(AppError::Handler(HandlerError::QueryParams(
+            "Page size query params must not be less than 1".to_string(),
+        )));
+    }
+
+    Ok(())
 }
 
 pub async fn handle_update_reward_program_status(
@@ -128,7 +138,7 @@ pub async fn handle_get_leaderboard(
 ) -> Result<Json<PaginatedResponse<AddressWithRank>>, AppError> {
     tracing::info!("Getting leadeboard data...");
 
-    validate_pagination_query(&params)?;
+    validate_leaderboard_pagination_query(&params)?;
     let total_items = state
         .db
         .addresses
