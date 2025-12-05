@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use rusx::resources::user::{User as TwitterUser, UserPublicMetrics};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
@@ -76,4 +77,31 @@ pub struct NewAuthorPayload {
     pub listed_count: i32,
     pub like_count: i32,
     pub media_count: i32,
+}
+
+impl NewAuthorPayload {
+    pub fn new(author: TwitterUser) -> Self {
+        let public_metrics = author
+            .public_metrics
+            .ok_or_else(|| UserPublicMetrics {
+                media_count: Some(0),
+                like_count: Some(0),
+                ..Default::default()
+            })
+            .unwrap();
+
+        let new_author = NewAuthorPayload {
+            id: author.id,
+            name: author.name,
+            username: author.username,
+            followers_count: public_metrics.followers_count as i32,
+            following_count: public_metrics.following_count as i32,
+            tweet_count: public_metrics.tweet_count as i32,
+            listed_count: public_metrics.listed_count as i32,
+            media_count: public_metrics.media_count.unwrap() as i32,
+            like_count: public_metrics.like_count.unwrap() as i32,
+        };
+
+        new_author
+    }
 }

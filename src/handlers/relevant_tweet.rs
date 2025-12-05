@@ -10,7 +10,7 @@ use crate::{
         SuccessResponse,
     },
     http_server::AppState,
-    models::revelant_tweet::{NewTweetPayload, RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
+    models::revelant_tweet::{RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
     AppError,
 };
 
@@ -59,17 +59,4 @@ pub async fn handle_get_relevant_tweet_by_id(
     })?;
 
     Ok(SuccessResponse::new(tweet))
-}
-
-/// POST /relevant-tweets/sync
-/// Batch upsert tweets (useful for background workers syncing from X API)
-pub async fn handle_sync_relevant_tweets(
-    State(state): State<AppState>,
-    Json(payload): Json<Vec<NewTweetPayload>>,
-) -> Result<Json<SuccessResponse<String>>, AppError> {
-    tracing::info!("Syncing {} relevant tweets", payload.len());
-
-    let count = state.db.relevant_tweets.upsert_many(payload).await?;
-
-    Ok(SuccessResponse::new(format!("Successfully synced {} tweets", count)))
 }

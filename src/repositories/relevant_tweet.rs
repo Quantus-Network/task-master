@@ -1,4 +1,4 @@
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 
 use crate::{
     db_persistence::DbError,
@@ -86,6 +86,14 @@ impl RelevantTweetRepository {
             .map_err(|e| DbError::Database(e))?;
 
         Ok(count)
+    }
+
+    pub async fn get_newest_tweet_id(&self) -> Result<Option<String>, DbError> {
+        let row = sqlx::query("SELECT id FROM relevant_tweets ORDER BY created_at DESC LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(row.map(|r| r.get("id")))
     }
 
     /// Find all tweets with author details joined

@@ -242,7 +242,14 @@ pub async fn handle_x_oauth_callback(
     let authenticated_gateway = state.twitter_gateway.with_token(token.access_token)?;
 
     let user_resp = authenticated_gateway.users().get_me().await?;
-    let x_handle = user_resp.data.username;
+    let x_handle = user_resp
+        .data
+        .ok_or_else(|| {
+            HandlerError::Auth(AuthHandlerError::OAuth(
+                "Failed getting username from twitter API".to_string(),
+            ))
+        })?
+        .username;
 
     tracing::debug!("Do X association...");
     let quan_address = {
@@ -432,12 +439,12 @@ mod tests {
         let mut mock_user_api = MockUserApi::new();
         mock_user_api.expect_get_me().times(1).returning(move || {
             Ok(TwitterApiResponse::<User> {
-                data: User {
+                data: Some(User {
                     id: "101".to_string(),
                     name: "Quantus Network".to_string(),
                     username: expected_username.to_string(),
                     public_metrics: Default::default(),
-                },
+                }),
                 includes: Default::default(),
                 meta: Default::default(),
             })

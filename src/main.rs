@@ -5,7 +5,7 @@ use crate::{
     models::task::{Task, TaskInput},
     services::{
         graphql_client::GraphqlClient, reverser::start_reverser_service, task_generator::TaskGenerator,
-        transaction_manager::TransactionManager,
+        transaction_manager::TransactionManager, tweet_synchronizer_service::TweetSynchronizerService,
     },
 };
 
@@ -265,11 +265,12 @@ async fn main() -> AppResult<()> {
     let server_address = config.get_server_address();
     info!("Starting HTTP server on {}", server_address);
 
+    let twitter_gateway = Arc::new(RusxGateway::new(config.x_oauth.clone(), None)?);
     let server_db = db.clone();
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
-    let server_twitter_gateway = Arc::new(RusxGateway::new(config.x_oauth.clone(), None)?);
+    let server_twitter_gateway = twitter_gateway.clone();
     let server_task = tokio::spawn(async move {
         http_server::start_server(
             server_db,
@@ -294,6 +295,9 @@ async fn main() -> AppResult<()> {
     );
     info!("Reversal period: {} hours", config.blockchain.reversal_period_hours);
 
+    // Initialize tweet sync service
+    let tweet_synchronizer = TweetSynchronizerService::new(db.clone(), twitter_gateway, Arc::new(config.clone()));
+
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {
         result = server_task => {
@@ -307,6 +311,10 @@ async fn main() -> AppResult<()> {
         ) => {
             error!("Candidates refresh task exited: {:?}", result);
             result.await??;
+        }
+        result = tweet_synchronizer.spawn_tweet_synchronizer() => {
+            error!("Tweet synchronizer exited: {:?}", result);
+            result??;
         }
         // result = start_task_generation_task(
         //     task_generator.clone(),

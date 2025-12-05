@@ -53,3 +53,8 @@ secret = "test-secret"
 callback_url = "http://localhost:12345/api/auth/x/callback"
 client_id = "test-id"
 client_secret = "test-secret"
+
+[tweet_sync]
+interval_in_hours = 24
+keywords = "test"
+whitelist = ["test-username"]

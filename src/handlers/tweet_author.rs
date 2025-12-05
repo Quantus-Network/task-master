@@ -9,7 +9,7 @@ use crate::{
     http_server::AppState,
     models::{
         admin::Admin,
-        tweet_author::{AuthorFilter, AuthorSortColumn, NewAuthorPayload, TweetAuthor},
+        tweet_author::{AuthorFilter, AuthorSortColumn, TweetAuthor},
     },
     AppError,
 };
@@ -56,36 +56,4 @@ pub async fn handle_get_tweet_author_by_id(
         .ok_or_else(|| AppError::Database(DbError::RecordNotFound(format!("Tweet Author {} not found", id))))?;
 
     Ok(SuccessResponse::new(author))
-}
-
-/// GET /tweet-authors/username/:username
-/// Gets a single author by their X Username (e.g. "elonmusk")
-pub async fn handle_get_tweet_author_by_username(
-    State(state): State<AppState>,
-    extract::Path(username): extract::Path<String>,
-) -> Result<Json<SuccessResponse<TweetAuthor>>, AppError> {
-    tracing::info!("Getting tweet author by username {}", username);
-
-    let author = state
-        .db
-        .tweet_authors
-        .find_by_username(&username)
-        .await?
-        .ok_or_else(|| AppError::Database(DbError::RecordNotFound(format!("Tweet Author @{} not found", username))))?;
-
-    Ok(SuccessResponse::new(author))
-}
-
-/// POST /tweet-authors/sync
-/// Bulk upsert authors (Useful for webhooks or scheduled jobs updating from X API)
-/// Returns the number of authors created or updated.
-pub async fn handle_sync_tweet_authors(
-    State(state): State<AppState>,
-    Json(payload): Json<Vec<NewAuthorPayload>>,
-) -> Result<Json<SuccessResponse<String>>, AppError> {
-    tracing::info!("Syncing {} tweet authors", payload.len());
-
-    let count = state.db.tweet_authors.upsert_many(payload).await?;
-
-    Ok(SuccessResponse::new(format!("Successfully synced {} authors", count)))
 }
