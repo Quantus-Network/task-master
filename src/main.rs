@@ -265,7 +265,10 @@ async fn main() -> AppResult<()> {
     let server_address = config.get_server_address();
     info!("Starting HTTP server on {}", server_address);
 
-    let twitter_gateway = Arc::new(RusxGateway::new(config.x_oauth.clone(), None)?);
+    let twitter_gateway = Arc::new(RusxGateway::new(
+        config.x_oauth.clone(),
+        Some(config.tweet_sync.api_key.clone()),
+    )?);
     let server_db = db.clone();
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();

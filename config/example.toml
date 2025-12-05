@@ -65,6 +65,7 @@ client_id = "example-id"
 client_secret = "example-secret"
 
 [tweet_sync]
+api_key = "some-key"
 interval_in_hours = 24
 keywords = "example"
 whitelist = ["example-username"]

@@ -72,6 +72,7 @@ pub struct TweetSyncConfig {
     pub whitelist: Vec<String>,
     pub interval_in_hours: u64,
     pub keywords: String,
+    pub api_key: String,
 }
 
 impl Config {
@@ -133,10 +134,6 @@ impl Config {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
 
-    pub fn get_oauth_claim_expiration(&self) -> chrono::Duration {
-        chrono::Duration::seconds(60)
-    }
-
     pub fn get_tweet_sync_interval(&self) -> time::Duration {
         time::Duration::from_hours(self.tweet_sync.interval_in_hours)
     }
@@ -189,6 +186,7 @@ impl Default for Config {
                 whitelist: vec![],
                 interval_in_hours: 24,
                 keywords: "hello".to_string(),
+                api_key: "key".to_string(),
             },
         }
     }
