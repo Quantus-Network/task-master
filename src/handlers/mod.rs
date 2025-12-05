@@ -1,5 +1,6 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 use crate::{
     handlers::{
@@ -52,8 +53,47 @@ pub struct PaginationMetadata {
     pub total_pages: u32,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub meta: PaginationMetadata,
+}
+
 #[derive(Debug, Deserialize)]
-pub struct QueryParams {
+#[serde(rename_all = "lowercase")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+impl Display for SortDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SortDirection::Asc => write!(f, "ASC"),
+            SortDirection::Desc => write!(f, "DESC"),
+        }
+    }
+}
+
+// T is the Enum defining valid sort columns for a specific resource
+#[derive(Debug, Deserialize)]
+pub struct ListQueryParams<T> {
+    #[serde(default = "default_page")]
+    pub page: u32,
+
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
+
+    pub search: Option<String>,
+
+    pub sort_by: Option<T>,
+
+    #[serde(default = "default_sort_direction")]
+    pub order: SortDirection,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LeaderboardQueryParams {
     // Pagination
     #[serde(default = "default_page")]
     pub page: u32,
@@ -64,15 +104,17 @@ pub struct QueryParams {
     pub referral_code: Option<String>,
 }
 
-// Default values for query params
 fn default_page() -> u32 {
     1
 }
 fn default_page_size() -> u32 {
     25
 }
+fn default_sort_direction() -> SortDirection {
+    SortDirection::Desc
+}
 
-pub fn validate_pagination_query(params: &QueryParams) -> Result<(), AppError> {
+pub fn validate_pagination_query(params: &LeaderboardQueryParams) -> Result<(), AppError> {
     if params.page < 1 {
         return Err(AppError::Handler(HandlerError::QueryParams(
             "Page query params must not be less than 1".to_string(),

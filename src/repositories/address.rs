@@ -1,8 +1,10 @@
-use sqlx::{PgPool, QueryBuilder};
+use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
-    models::address::{Address, AddressWithOptInAndAssociations, AddressWithRank},
-    repositories::DbResult,
+    db_persistence::DbError,
+    handlers::{LeaderboardQueryParams, ListQueryParams},
+    models::address::{Address, AddressFilter, AddressSortColumn, AddressWithOptInAndAssociations, AddressWithRank},
+    repositories::{calculate_page_offset, DbResult},
 };
 
 #[derive(Clone, Debug)]
@@ -10,6 +12,93 @@ pub struct AddressRepository {
     pool: PgPool,
 }
 impl AddressRepository {
+    fn build_base_query_with_optin_and_associations<'a>(
+        &self,
+        query_builder: &mut QueryBuilder<'a, Postgres>,
+        search: &Option<String>,
+        filters: &AddressFilter,
+    ) {
+        query_builder.push(" FROM addresses a ");
+        query_builder.push(" LEFT JOIN opt_ins o ON a.quan_address = o.quan_address ");
+        query_builder.push(" LEFT JOIN eth_associations e ON a.quan_address = e.quan_address ");
+        query_builder.push(" LEFT JOIN x_associations x ON a.quan_address = x.quan_address ");
+
+        // We use a helper to track if we've started the 'WHERE' clause yet
+        let mut where_started = false;
+
+        // Handle Global Text Search
+        if let Some(s) = search {
+            if !s.is_empty() {
+                query_builder.push(" WHERE ");
+                where_started = true;
+
+                query_builder.push(" (a.quan_address ILIKE ");
+                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push(" OR e.eth_address ILIKE ");
+                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push(" OR x.username ILIKE ");
+                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push(" OR a.referral_code ILIKE ");
+                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push(") ");
+            }
+        }
+
+        // Helper macro or closure to append "AND" or "WHERE"
+        macro_rules! append_condition {
+            ($sql:expr) => {
+                if where_started {
+                    query_builder.push(" AND ");
+                } else {
+                    query_builder.push(" WHERE ");
+                    where_started = true;
+                }
+                query_builder.push($sql);
+            };
+        }
+
+        // Filter: Opted In Status
+        if let Some(is_opted) = filters.is_opted_in {
+            if is_opted {
+                append_condition!(" o.opt_in_number IS NOT NULL ");
+            } else {
+                append_condition!(" o.opt_in_number IS NULL ");
+            }
+        }
+
+        // Filter: Minimum Referrals
+        if let Some(min_refs) = filters.min_referrals {
+            append_condition!(" a.referrals_count >= ");
+            query_builder.push_bind(min_refs);
+        }
+
+        // Filter: Has ETH Address
+        if let Some(has_eth) = filters.has_eth_address {
+            if has_eth {
+                append_condition!(" e.eth_address IS NOT NULL ");
+            } else {
+                append_condition!(" e.eth_address IS NULL ");
+            }
+        }
+
+        // Filter: Has X Account
+        if let Some(has_x) = filters.has_x_account {
+            if has_x {
+                append_condition!(" x.username IS NOT NULL ");
+            } else {
+                append_condition!(" x.username IS NULL ");
+            }
+        }
+
+        // This variable read is added because there will be warning if we don't.
+        // Last filter runs and triggers the else block (adding WHERE), it sets where_started = true.
+        // But since the function ends immediately after,
+        // that true value is never read, making the assignment technically "useless."
+        //
+        // But we need that assignment in case we add more filters later
+        let _ = where_started;
+    }
+
     fn push_leaderboard_base_query<'a>(qb: &mut QueryBuilder<'a, sqlx::Postgres>) {
         qb.push(" FROM addresses WHERE referrals_count > 0");
     }
@@ -25,6 +114,26 @@ impl AddressRepository {
 
     pub fn new(pool: &PgPool) -> Self {
         Self { pool: pool.clone() }
+    }
+
+    // Update count_filtered to pass the filters
+    pub async fn count_filtered(
+        &self,
+        params: &ListQueryParams<AddressSortColumn>,
+        filters: &AddressFilter,
+    ) -> Result<i64, DbError> {
+        let mut query_builder = QueryBuilder::new("SELECT COUNT(a.quan_address)");
+
+        // Pass the filters here
+        self.build_base_query_with_optin_and_associations(&mut query_builder, &params.search, filters);
+
+        let count = query_builder
+            .build_query_scalar()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| DbError::Database(e))?;
+
+        Ok(count)
     }
 
     pub async fn create(&self, new_address: &Address) -> DbResult<String> {
@@ -112,14 +221,6 @@ impl AddressRepository {
         Ok(total_items)
     }
 
-    pub async fn get_total_items(&self) -> DbResult<i64> {
-        let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM addresses");
-
-        let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
-
-        Ok(total_items)
-    }
-
     pub async fn find_all(&self) -> DbResult<Vec<Address>> {
         let addresses = sqlx::query_as::<_, Address>("SELECT * FROM addresses")
             .fetch_all(&self.pool)
@@ -128,12 +229,7 @@ impl AddressRepository {
         Ok(addresses)
     }
 
-    pub async fn get_leaderboard_entries(
-        &self,
-        page_size: u32,
-        offset: u32,
-        with_referral_code: Option<String>,
-    ) -> DbResult<Vec<AddressWithRank>> {
+    pub async fn get_leaderboard_entries(&self, params: &LeaderboardQueryParams) -> DbResult<Vec<AddressWithRank>> {
         let mut qb = QueryBuilder::new(
             "WITH ranked_addresses AS (
             SELECT 
@@ -145,9 +241,11 @@ impl AddressRepository {
         AddressRepository::push_leaderboard_base_query(&mut qb);
         qb.push(") SELECT * FROM ranked_addresses WHERE 1=1");
 
-        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, with_referral_code);
+        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, params.referral_code.clone());
+
+        let offset = calculate_page_offset(params.page, params.page_size);
         qb.push(" ORDER BY rank LIMIT ")
-            .push_bind(page_size as i64)
+            .push_bind(params.page_size as i64)
             .push(" OFFSET ")
             .push_bind(offset as i64);
 
@@ -176,33 +274,44 @@ impl AddressRepository {
 
     pub async fn find_all_with_optin_and_associations(
         &self,
-        page_size: u32,
-        offset: u32,
-    ) -> DbResult<Vec<AddressWithOptInAndAssociations>> {
-        let addresses = sqlx::query_as::<_, AddressWithOptInAndAssociations>(
+        params: &ListQueryParams<AddressSortColumn>,
+        filters: &AddressFilter,
+    ) -> Result<Vec<AddressWithOptInAndAssociations>, DbError> {
+        let mut query_builder = QueryBuilder::new(
             r#"
             SELECT 
-                a.quan_address,
-                a.referral_code,
-                a.referrals_count,
+                a.quan_address, 
+                a.referral_code, 
+                a.referrals_count, 
+                a.created_at, 
                 a.updated_at,
-                a.created_at,
-                o.opt_in_number,
                 CASE WHEN o.quan_address IS NOT NULL THEN TRUE ELSE FALSE END AS is_opted_in,
+                o.opt_in_number,
                 e.eth_address,
-                x.username AS x_username
-            FROM addresses a
-            LEFT JOIN opt_ins o ON a.quan_address = o.quan_address
-            LEFT JOIN eth_associations e ON a.quan_address = e.quan_address
-            LEFT JOIN x_associations x ON a.quan_address = x.quan_address
-            ORDER BY a.created_at DESC
-            LIMIT $1 OFFSET $2
+                x.username as x_username
             "#,
-        )
-        .bind(page_size as i64)
-        .bind(offset as i64)
-        .fetch_all(&self.pool)
-        .await?;
+        );
+
+        self.build_base_query_with_optin_and_associations(&mut query_builder, &params.search, filters);
+
+        query_builder.push(" ORDER BY ");
+        let sort_col = params.sort_by.as_ref().unwrap_or(&AddressSortColumn::CreatedAt);
+        query_builder.push(sort_col.to_sql_column());
+        query_builder.push(" ");
+        query_builder.push(params.order.to_string());
+        query_builder.push(", a.quan_address ASC");
+
+        let offset = calculate_page_offset(params.page, params.page_size);
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(params.page_size as i64);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset as i64);
+
+        let addresses = query_builder
+            .build_query_as::<AddressWithOptInAndAssociations>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| DbError::Database(e))?;
 
         Ok(addresses)
     }
@@ -212,6 +321,7 @@ impl AddressRepository {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::handlers::SortDirection;
     use crate::models::address::{Address, AddressInput};
     use crate::utils::test_app_state::create_test_app_state;
     use crate::utils::test_db::{
@@ -314,7 +424,14 @@ mod tests {
             .await
             .unwrap();
 
-        let addresses = repo.get_leaderboard_entries(1, 0, None).await.unwrap();
+        let addresses = repo
+            .get_leaderboard_entries(&LeaderboardQueryParams {
+                page: 1,
+                page_size: 1,
+                referral_code: None,
+            })
+            .await
+            .unwrap();
         assert_eq!(addresses.len(), 1);
 
         let first_index_address = addresses.first().unwrap();
@@ -333,7 +450,14 @@ mod tests {
             .await
             .unwrap();
 
-        let addresses = repo.get_leaderboard_entries(4, 0, None).await.unwrap();
+        let addresses = repo
+            .get_leaderboard_entries(&LeaderboardQueryParams {
+                page: 1,
+                page_size: 4,
+                referral_code: None,
+            })
+            .await
+            .unwrap();
         assert_eq!(addresses.len(), 3);
 
         let first_index_address = addresses.first().unwrap();
@@ -354,7 +478,11 @@ mod tests {
             .unwrap();
 
         let addresses = repo
-            .get_leaderboard_entries(4, 0, Some(String::from("REF005")))
+            .get_leaderboard_entries(&LeaderboardQueryParams {
+                page: 1,
+                page_size: 4,
+                referral_code: Some(String::from("REF005")),
+            })
             .await
             .unwrap();
         assert_eq!(addresses.len(), 1);
@@ -493,7 +621,21 @@ mod tests {
         let result = state
             .db
             .addresses
-            .find_all_with_optin_and_associations(10, 0)
+            .find_all_with_optin_and_associations(
+                &ListQueryParams {
+                    page: 1,
+                    page_size: 10,
+                    search: None,
+                    sort_by: None,
+                    order: SortDirection::Desc,
+                },
+                &AddressFilter {
+                    is_opted_in: None,
+                    min_referrals: None,
+                    has_eth_address: None,
+                    has_x_account: None,
+                },
+            )
             .await
             .unwrap();
 
