@@ -1,10 +1,7 @@
 use axum::{handler::Handler, middleware, routing::get, Router};
 
 use crate::{
-    handlers::{
-        relevant_tweet::handle_get_relevant_tweet_by_id,
-        tweet_author::{handle_get_tweet_author_by_id, handle_get_tweet_authors},
-    },
+    handlers::tweet_author::{handle_get_tweet_author_by_id, handle_get_tweet_authors},
     http_server::AppState,
     middlewares::jwt_auth,
 };
