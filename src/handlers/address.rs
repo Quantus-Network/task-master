@@ -7,8 +7,8 @@ use axum::{
 use crate::{
     db_persistence::DbError,
     handlers::{
-        calculate_total_pages, HandlerError, LeaderboardQueryParams, ListQueryParams, PaginatedResponse,
-        PaginationMetadata,
+        calculate_total_pages, validate_pagination_query, HandlerError, LeaderboardQueryParams, ListQueryParams,
+        PaginatedResponse, PaginationMetadata,
     },
     http_server::AppState,
     models::{
@@ -33,22 +33,6 @@ pub enum AddressHandlerError {
     Unauthorized(String),
     #[error("{0}")]
     InvalidQueryParams(String),
-}
-
-pub fn validate_leaderboard_pagination_query(params: &LeaderboardQueryParams) -> Result<(), AppError> {
-    if params.page < 1 {
-        return Err(AppError::Handler(HandlerError::QueryParams(
-            "Page query params must not be less than 1".to_string(),
-        )));
-    }
-
-    if params.page_size < 1 {
-        return Err(AppError::Handler(HandlerError::QueryParams(
-            "Page size query params must not be less than 1".to_string(),
-        )));
-    }
-
-    Ok(())
 }
 
 pub async fn handle_update_reward_program_status(
@@ -138,7 +122,7 @@ pub async fn handle_get_leaderboard(
 ) -> Result<Json<PaginatedResponse<AddressWithRank>>, AppError> {
     tracing::info!("Getting leadeboard data...");
 
-    validate_leaderboard_pagination_query(&params)?;
+    validate_pagination_query(params.page, params.page_size)?;
     let total_items = state
         .db
         .addresses
@@ -167,6 +151,8 @@ pub async fn handle_get_addresses(
     Query(params): Query<ListQueryParams<AddressSortColumn>>,
     Query(filters): Query<AddressFilter>,
 ) -> Result<Json<PaginatedResponse<AddressWithOptInAndAssociations>>, AppError> {
+    validate_pagination_query(params.page, params.page_size)?;
+
     let total_items = state.db.addresses.count_filtered(&params, &filters).await? as u32;
     let total_pages = calculate_total_pages(params.page_size, total_items);
 
