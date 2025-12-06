@@ -2,6 +2,8 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::repositories::admin::AdminRepository;
 use crate::repositories::eth_association::EthAssociationRepository;
+use crate::repositories::relevant_tweet::RelevantTweetRepository;
+use crate::repositories::tweet_author::TweetAuthorRepository;
 use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
 use crate::repositories::{
@@ -33,6 +35,8 @@ pub struct DbPersistence {
     pub x_associations: XAssociationRepository,
     pub eth_associations: EthAssociationRepository,
     pub admin: AdminRepository,
+    pub relevant_tweets: RelevantTweetRepository,
+    pub tweet_authors: TweetAuthorRepository,
 
     pub pool: PgPool,
 }
@@ -50,6 +54,8 @@ impl DbPersistence {
         let x_associations = XAssociationRepository::new(&pool);
         let eth_associations = EthAssociationRepository::new(&pool);
         let admin = AdminRepository::new(&pool);
+        let relevant_tweets = RelevantTweetRepository::new(&pool);
+        let tweet_authors = TweetAuthorRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -60,6 +66,8 @@ impl DbPersistence {
             x_associations,
             eth_associations,
             admin,
+            relevant_tweets,
+            tweet_authors,
         })
     }
 
@@ -74,6 +82,8 @@ impl DbPersistence {
         let x_associations = XAssociationRepository::new(&pool);
         let eth_associations = EthAssociationRepository::new(&pool);
         let admin = AdminRepository::new(&pool);
+        let relevant_tweets = RelevantTweetRepository::new(&pool);
+        let tweet_authors = TweetAuthorRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -84,6 +94,8 @@ impl DbPersistence {
             x_associations,
             eth_associations,
             admin,
+            relevant_tweets,
+            tweet_authors,
         })
     }
 }

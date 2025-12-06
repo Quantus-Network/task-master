@@ -81,7 +81,6 @@ pub enum AddressSortColumn {
 }
 
 impl AddressSortColumn {
-    // Helper to map enum to actual SQL column names
     pub fn to_sql_column(&self) -> &'static str {
         match self {
             AddressSortColumn::CreatedAt => "a.created_at",

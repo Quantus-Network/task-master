@@ -64,6 +64,12 @@ callback_url = "http://localhost:12345/example/callback"
 client_id = "example-id"
 client_secret = "example-secret"
 
+[tweet_sync]
+api_key = "some-key"
+interval_in_hours = 24
+keywords = "example"
+whitelist = ["example-username"]
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"

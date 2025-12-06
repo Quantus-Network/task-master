@@ -12,7 +12,9 @@ use crate::{
 pub mod address;
 pub mod auth;
 pub mod referral;
+pub mod relevant_tweet;
 pub mod task;
+pub mod tweet_author;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandlerError {
@@ -94,7 +96,6 @@ pub struct ListQueryParams<T> {
 
 #[derive(Debug, Deserialize)]
 pub struct LeaderboardQueryParams {
-    // Pagination
     #[serde(default = "default_page")]
     pub page: u32,
 
@@ -114,18 +115,24 @@ fn default_sort_direction() -> SortDirection {
     SortDirection::Desc
 }
 
-pub fn validate_pagination_query(params: &LeaderboardQueryParams) -> Result<(), AppError> {
-    if params.page < 1 {
+pub fn validate_pagination_query(page: u32, page_size: u32) -> Result<(), AppError> {
+    if page < 1 {
         return Err(AppError::Handler(HandlerError::QueryParams(
             "Page query params must not be less than 1".to_string(),
         )));
     }
 
-    if params.page_size < 1 {
+    if page_size < 1 {
         return Err(AppError::Handler(HandlerError::QueryParams(
             "Page size query params must not be less than 1".to_string(),
         )));
     }
 
     Ok(())
+}
+
+fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
+    let total_pages = ((total_items as f64) / (page_size as f64)).ceil() as u32;
+
+    total_pages
 }
