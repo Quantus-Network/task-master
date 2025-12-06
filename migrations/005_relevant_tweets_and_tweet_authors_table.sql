@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS relevant_tweets (
     id VARCHAR(255) PRIMARY KEY,
     author_id VARCHAR(255) NOT NULL REFERENCES tweet_authors(id) ON DELETE NO ACTION,
     text TEXT NOT NULL,
+    text_fts tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
     impression_count INTEGER DEFAULT 0,
     reply_count INTEGER DEFAULT 0,
     retweet_count INTEGER DEFAULT 0,
@@ -32,3 +33,5 @@ CREATE TABLE IF NOT EXISTS relevant_tweets (
 CREATE INDEX IF NOT EXISTS idx_relevant_tweets_created_at ON relevant_tweets(created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_relevant_tweets_impressions ON relevant_tweets(impression_count DESC);
+
+CREATE INDEX IF NOT EXISTS idx_relevant_tweets_fts ON relevant_tweets USING GIN(text_fts);

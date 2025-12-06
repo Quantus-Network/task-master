@@ -31,11 +31,13 @@ impl RelevantTweetRepository {
         // Global Text Search ---
         if let Some(s) = search {
             if !s.is_empty() {
-                query_builder.push(" WHERE ");
+                query_builder.push(" WHERE (");
                 where_started = true;
 
-                query_builder.push(" (rt.text ILIKE ");
-                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push("text_fts @@ websearch_to_tsquery('english', ");
+                query_builder.push_bind(s.clone());
+                query_builder.push(")");
+
                 // Allow searching by author username as well
                 query_builder.push(" OR ta.username ILIKE ");
                 query_builder.push_bind(format!("%{}%", s));
