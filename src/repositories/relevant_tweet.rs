@@ -44,9 +44,9 @@ impl RelevantTweetRepository {
         }
 
         // Filter: Specific Author
-        if let Some(author_id) = filters.author_id.clone() {
-            query_builder.push_condition(" rt.author_id = ", &mut where_started);
-            query_builder.push_bind(author_id);
+        if let Some(author_username) = filters.author_username.clone() {
+            query_builder.push_condition(" ta.username = ", &mut where_started);
+            query_builder.push_bind(author_username);
         }
 
         // Filter: Minimum Likes

@@ -55,15 +55,15 @@ impl TweetSortColumn {
             TweetSortColumn::RetweetCount => "rt.retweet_count",
             TweetSortColumn::LikeCount => "rt.like_count",
             TweetSortColumn::AuthorId => "rt.author_id",
-            TweetSortColumn::AuthorUsername => "ta.author_username",
-            TweetSortColumn::AuthorName => "ta.author_name",
+            TweetSortColumn::AuthorUsername => "ta.username",
+            TweetSortColumn::AuthorName => "ta.name",
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TweetFilter {
-    pub author_id: Option<String>,
+    pub author_username: Option<String>,
     pub min_likes: Option<i32>,
     pub min_impressions: Option<i32>,
     pub created_after: Option<DateTime<Utc>>,
