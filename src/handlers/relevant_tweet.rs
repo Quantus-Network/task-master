@@ -10,7 +10,7 @@ use crate::{
         SuccessResponse,
     },
     http_server::AppState,
-    models::revelant_tweet::{RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
+    models::relevant_tweet::{RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
     AppError,
 };
 

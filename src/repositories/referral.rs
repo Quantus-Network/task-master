@@ -60,10 +60,7 @@ mod tests {
     use super::*;
     use crate::{
         config::Config,
-        models::{
-            address::{Address, AddressInput},
-            referrals::{Referral, ReferralData},
-        },
+        models::referrals::{Referral, ReferralData},
         repositories::address::AddressRepository,
         utils::test_db::{create_persisted_address, reset_database},
     };

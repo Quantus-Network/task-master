@@ -12,7 +12,7 @@ use rusx::{
 
 use crate::{
     db_persistence::DbPersistence,
-    models::{revelant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
+    models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
     AppError, AppResult, Config,
 };
 

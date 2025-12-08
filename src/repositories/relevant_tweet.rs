@@ -3,7 +3,7 @@ use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 use crate::{
     db_persistence::DbError,
     handlers::ListQueryParams,
-    models::revelant_tweet::{NewTweetPayload, RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
+    models::relevant_tweet::{NewTweetPayload, RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
     repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
@@ -142,40 +142,6 @@ impl RelevantTweetRepository {
             .map_err(|e| DbError::Database(e))?;
 
         Ok(tweets)
-    }
-
-    /// Single Upsert (Create or Update)
-    pub async fn upsert(&self, payload: NewTweetPayload) -> DbResult<String> {
-        let id = sqlx::query_scalar::<_, String>(
-            r#"
-            INSERT INTO relevant_tweets (
-                id, author_id, text, impression_count, reply_count, 
-                retweet_count, like_count, created_at, fetched_at
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            ON CONFLICT (id) 
-            DO UPDATE SET 
-                text = EXCLUDED.text,
-                impression_count = EXCLUDED.impression_count,
-                reply_count = EXCLUDED.reply_count,
-                retweet_count = EXCLUDED.retweet_count,
-                like_count = EXCLUDED.like_count,
-                fetched_at = NOW()
-            RETURNING id
-            "#,
-        )
-        .bind(payload.id)
-        .bind(payload.author_id)
-        .bind(payload.text)
-        .bind(payload.impression_count)
-        .bind(payload.reply_count)
-        .bind(payload.retweet_count)
-        .bind(payload.like_count)
-        .bind(payload.created_at)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(id)
     }
 
     /// Batch Upsert

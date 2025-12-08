@@ -188,13 +188,4 @@ impl TweetAuthorRepository {
 
         Ok(author)
     }
-
-    pub async fn find_by_username(&self, username: &str) -> DbResult<Option<TweetAuthor>> {
-        let author = sqlx::query_as::<_, TweetAuthor>("SELECT * FROM tweet_authors WHERE username = $1")
-            .bind(username)
-            .fetch_optional(&self.pool)
-            .await?;
-
-        Ok(author)
-    }
 }

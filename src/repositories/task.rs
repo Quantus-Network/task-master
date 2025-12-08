@@ -185,10 +185,7 @@ mod tests {
     use super::*;
     use crate::{
         config::Config,
-        models::{
-            address::{Address, AddressInput},
-            task::TaskInput,
-        },
+        models::task::TaskInput,
         repositories::address::AddressRepository,
         utils::test_db::{create_persisted_address, reset_database},
     };
