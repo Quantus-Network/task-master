@@ -135,7 +135,7 @@ impl Config {
     }
 
     pub fn get_tweet_sync_interval(&self) -> time::Duration {
-        time::Duration::from_hours(self.tweet_sync.interval_in_hours)
+        time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
 }
 
