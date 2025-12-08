@@ -4,3 +4,4 @@ pub mod reverser;
 pub mod signature_service;
 pub mod task_generator;
 pub mod transaction_manager;
+pub mod tweet_synchronizer_service;

@@ -5000,11 +5000,10 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "rusx"
-version = "0.2.0"
-source = "git+https://github.com/Quantus-Network/rusx?tag=v0.2.0#073ce7f06a8364b6eac4a9c1fcbd1e1dbacca505"
+version = "0.3.0"
+source = "git+https://github.com/Quantus-Network/rusx?tag=v0.3.0#1d488c4bd88e658d4a8611330dae0f8939816cdd"
 dependencies = [
  "async-trait",
- "config",
  "mockall 0.12.1",
  "oauth2",
  "reqwest 0.11.27",
@@ -5012,7 +5011,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
- "url",
+ "urlencoding",
 ]
 
 [[package]]

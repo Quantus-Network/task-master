@@ -242,7 +242,14 @@ pub async fn handle_x_oauth_callback(
     let authenticated_gateway = state.twitter_gateway.with_token(token.access_token)?;
 
     let user_resp = authenticated_gateway.users().get_me().await?;
-    let x_handle = user_resp.data.username;
+    let x_handle = user_resp
+        .data
+        .ok_or_else(|| {
+            HandlerError::Auth(AuthHandlerError::OAuth(
+                "Failed getting username from twitter API".to_string(),
+            ))
+        })?
+        .username;
 
     tracing::debug!("Do X association...");
     let quan_address = {
@@ -346,7 +353,10 @@ mod tests {
     use axum::{body::Body, http, routing::get};
     use rusx::{
         auth::TwitterToken,
-        resources::user::{User, UserApi, UserResponse},
+        resources::{
+            user::{User, UserApi},
+            TwitterApiResponse,
+        },
         MockTwitterGateway, MockUserApi, PkceCodeVerifier, TwitterGateway,
     };
     use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
@@ -428,12 +438,15 @@ mod tests {
         // A. Mock the User API
         let mut mock_user_api = MockUserApi::new();
         mock_user_api.expect_get_me().times(1).returning(move || {
-            Ok(UserResponse {
-                data: User {
+            Ok(TwitterApiResponse::<User> {
+                data: Some(User {
                     id: "101".to_string(),
                     name: "Quantus Network".to_string(),
                     username: expected_username.to_string(),
-                },
+                    public_metrics: Default::default(),
+                }),
+                includes: Default::default(),
+                meta: Default::default(),
             })
         });
 

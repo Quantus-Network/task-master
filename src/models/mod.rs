@@ -14,5 +14,7 @@ pub mod auth;
 pub mod eth_association;
 pub mod opt_in;
 pub mod referrals;
+pub mod relevant_tweet;
 pub mod task;
+pub mod tweet_author;
 pub mod x_association;

@@ -1,5 +1,6 @@
 use rusx::config::OauthConfig;
 use serde::{Deserialize, Serialize};
+use tokio::time;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -12,6 +13,7 @@ pub struct Config {
     pub logging: LoggingConfig,
     pub jwt: JwtConfig,
     pub x_oauth: OauthConfig,
+    pub tweet_sync: TweetSyncConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +65,14 @@ pub struct JwtConfig {
     pub secret: String,
     pub admin_secret: String,
     pub exp_in_hours: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TweetSyncConfig {
+    pub whitelist: Vec<String>,
+    pub interval_in_hours: u64,
+    pub keywords: String,
+    pub api_key: String,
 }
 
 impl Config {
@@ -124,8 +134,8 @@ impl Config {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
 
-    pub fn get_oauth_claim_expiration(&self) -> chrono::Duration {
-        chrono::Duration::seconds(60)
+    pub fn get_tweet_sync_interval(&self) -> time::Duration {
+        time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
 }
 
@@ -171,6 +181,12 @@ impl Default for Config {
                 callback_url: "example".to_string(),
                 client_id: "example".to_string(),
                 client_secret: "example".to_string(),
+            },
+            tweet_sync: TweetSyncConfig {
+                whitelist: vec![],
+                interval_in_hours: 24,
+                keywords: "hello".to_string(),
+                api_key: "key".to_string(),
             },
         }
     }
