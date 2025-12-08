@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use rusx::{
-    error::SdkError,
     resources::{
         search::{SearchParams, SearchSortOrder},
         tweet::Tweet,
@@ -25,11 +24,16 @@ pub struct TweetSynchronizerService {
 
 impl TweetSynchronizerService {
     async fn process_tweet_authors(&self, response: TwitterApiResponse<Vec<Tweet>>) -> Result<(), AppError> {
-        let authors = response
-            .includes
-            .ok_or_else(|| SdkError::Unknown("Tweet authors not found".to_string()))?
-            .users
-            .ok_or_else(|| SdkError::Unknown("Tweet authors not found".to_string()))?;
+        let Some(includes) = response.includes else {
+            tracing::info!("No authors found. Returning early...");
+
+            return Ok(());
+        };
+        let Some(authors) = includes.users else {
+            tracing::info!("No authors found. Returning early...");
+
+            return Ok(());
+        };
         let authors_found_count = authors.len();
 
         tracing::info!("Found {} new authors. Saving...", authors_found_count);
