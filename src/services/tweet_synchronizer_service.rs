@@ -47,9 +47,11 @@ impl TweetSynchronizerService {
     }
 
     async fn process_relevant_tweets(&self, response: TwitterApiResponse<Vec<Tweet>>) -> Result<(), AppError> {
-        let tweets = response
-            .data
-            .ok_or_else(|| SdkError::Unknown("Tweet authors not found".to_string()))?;
+        let Some(tweets) = response.data else {
+            tracing::info!("No new relevant tweets found. Returning early...");
+
+            return Ok(());
+        };
         let tweets_found_count = tweets.len();
 
         tracing::info!("Found {} new relevant tweets. Saving...", tweets_found_count);
