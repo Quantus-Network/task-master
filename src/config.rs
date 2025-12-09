@@ -137,6 +137,10 @@ impl Config {
     pub fn get_tweet_sync_interval(&self) -> time::Duration {
         time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
+
+    pub fn get_app_callback_scheme(&self) -> &str {
+        "quantusapp://"
+    }
 }
 
 impl Default for Config {

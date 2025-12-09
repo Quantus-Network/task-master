@@ -275,8 +275,9 @@ pub async fn handle_x_oauth_callback(
     );
 
     let redirect_url = format!(
-        "{}/oauth?platform=x&payload={}",
-        state.config.blockchain.website_url, new_association.username
+        "{}oauth?platform=x&payload={}",
+        state.config.get_app_callback_scheme(),
+        new_association.username
     );
 
     Ok(Redirect::to(&redirect_url))
