@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_raid_submissions_fts ON raid_submissions USING GI
 
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_created_at ON raid_submissions(created_at DESC);
 
-CREATE MATERIALIZED VIEW raid_leaderboard_snapshot AS
+CREATE MATERIALIZED VIEW raid_leaderboard AS
 SELECT
     raid_id,
     raider_id,
@@ -66,6 +66,6 @@ GROUP BY
     raid_id,
     raider_id;
 
-CREATE UNIQUE INDEX idx_mv_raid_raider_unique ON raid_leaderboard_snapshot(raid_id, raider_id);
+CREATE UNIQUE INDEX idx_mv_raid_raider_unique ON raid_leaderboard(raid_id, raider_id);
 
-CREATE INDEX idx_mv_rank_impressions ON raid_leaderboard_snapshot(raid_id, total_impressions DESC);
+CREATE INDEX idx_mv_rank_impressions ON raid_leaderboard(raid_id, total_impressions DESC);
