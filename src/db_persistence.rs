@@ -2,6 +2,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::repositories::admin::AdminRepository;
 use crate::repositories::eth_association::EthAssociationRepository;
+use crate::repositories::raid_quest::RaidQuestRepository;
 use crate::repositories::relevant_tweet::RelevantTweetRepository;
 use crate::repositories::tweet_author::TweetAuthorRepository;
 use crate::repositories::x_association::XAssociationRepository;
@@ -24,6 +25,8 @@ pub enum DbError {
     InvalidStatus(String),
     #[error("Record not found: {0}")]
     RecordNotFound(String),
+    #[error("Conflict error: {0}")]
+    UniqueViolation(String),
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +40,7 @@ pub struct DbPersistence {
     pub admin: AdminRepository,
     pub relevant_tweets: RelevantTweetRepository,
     pub tweet_authors: TweetAuthorRepository,
+    pub raid_quests: RaidQuestRepository,
 
     pub pool: PgPool,
 }
@@ -56,6 +60,7 @@ impl DbPersistence {
         let admin = AdminRepository::new(&pool);
         let relevant_tweets = RelevantTweetRepository::new(&pool);
         let tweet_authors = TweetAuthorRepository::new(&pool);
+        let raid_quests = RaidQuestRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -68,6 +73,7 @@ impl DbPersistence {
             admin,
             relevant_tweets,
             tweet_authors,
+            raid_quests,
         })
     }
 
@@ -84,6 +90,7 @@ impl DbPersistence {
         let admin = AdminRepository::new(&pool);
         let relevant_tweets = RelevantTweetRepository::new(&pool);
         let tweet_authors = TweetAuthorRepository::new(&pool);
+        let raid_quests = RaidQuestRepository::new(&pool);
 
         Ok(Self {
             pool,
@@ -96,6 +103,7 @@ impl DbPersistence {
             admin,
             relevant_tweets,
             tweet_authors,
+            raid_quests,
         })
     }
 }

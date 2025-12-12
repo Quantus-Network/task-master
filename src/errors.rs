@@ -124,6 +124,8 @@ impl IntoResponse for AppError {
                 error!("{}", err);
 
                 match err {
+                    DbError::UniqueViolation(err) => (StatusCode::CONFLICT, err),
+
                     DbError::RecordNotFound(err) | DbError::AddressNotFound(err) | DbError::TaskNotFound(err) => {
                         (StatusCode::NOT_FOUND, err)
                     }
