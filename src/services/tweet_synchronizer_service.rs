@@ -111,36 +111,40 @@ impl TweetSynchronizerService {
     pub async fn sync_relevant_tweets(&self) -> Result<(), AppError> {
         let last_id = self.db.relevant_tweets.get_newest_tweet_id().await?;
 
-        let mut params = SearchParams::build_whitelist_query(
+        let whitelist_queries = SearchParams::build_batched_whitelist_queries(
             &self.config.tweet_sync.whitelist,
             Some(&self.config.tweet_sync.keywords),
         );
-        params.max_results = Some(100);
-        params.sort_order = Some(SearchSortOrder::Relevancy);
-        params.tweet_fields = Some(vec![
-            TweetField::PublicMetrics,
-            TweetField::CreatedAt,
-            TweetField::AuthorId,
-        ]);
-        params.user_fields = Some(vec![
-            UserField::Username,
-            UserField::Name,
-            UserField::Id,
-            UserField::PublicMetrics,
-        ]);
-        params.expansions = Some(vec![TweetExpansion::AuthorId]);
 
-        // CRITICAL: Only ask X for tweets newer than what we have
-        if let Some(id) = last_id {
-            params.since_id = Some(id.clone());
-            tracing::info!("Syncing tweets since ID: {}", id);
-        } else {
-            tracing::info!("No history found, performing full 7-day fetch.");
+        for query in whitelist_queries {
+            let mut params = SearchParams::new(query);
+            params.max_results = Some(100);
+            params.sort_order = Some(SearchSortOrder::Relevancy);
+            params.tweet_fields = Some(vec![
+                TweetField::PublicMetrics,
+                TweetField::CreatedAt,
+                TweetField::AuthorId,
+            ]);
+            params.user_fields = Some(vec![
+                UserField::Username,
+                UserField::Name,
+                UserField::Id,
+                UserField::PublicMetrics,
+            ]);
+            params.expansions = Some(vec![TweetExpansion::AuthorId]);
+
+            // CRITICAL: Only ask X for tweets newer than what we have
+            if let Some(id) = last_id.clone() {
+                params.since_id = Some(id.clone());
+                tracing::info!("Syncing tweets since ID: {}", id);
+            } else {
+                tracing::info!("No history found, performing full 7-day fetch.");
+            }
+
+            let response = self.twitter_gateway.search().recent(params).await?;
+            self.process_tweet_authors(response.clone()).await?;
+            self.process_relevant_tweets(response).await?;
         }
-
-        let response = self.twitter_gateway.search().recent(params).await?;
-        self.process_tweet_authors(response.clone()).await?;
-        self.process_relevant_tweets(response).await?;
 
         Ok(())
     }
