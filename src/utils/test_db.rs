@@ -16,6 +16,13 @@ pub async fn reset_database(pool: &PgPool) {
         .execute(pool)
         .await
         .expect("Failed to truncate tables for tests");
+
+    // Refresh the materialized view to clear the stale snapshot
+    // Since the source tables are now empty, this will result in an empty view.
+    sqlx::query("REFRESH MATERIALIZED VIEW raid_leaderboards")
+        .execute(pool)
+        .await
+        .expect("Failed to refresh materialized view for tests");
 }
 
 pub async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {

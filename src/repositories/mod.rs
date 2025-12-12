@@ -8,6 +8,7 @@ pub mod address;
 pub mod admin;
 pub mod eth_association;
 pub mod opt_in;
+pub mod raid_leaderboard;
 pub mod raid_quest;
 pub mod raid_submission;
 pub mod referral;
