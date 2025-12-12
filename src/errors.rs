@@ -46,6 +46,8 @@ pub enum AppError {
     Http(#[from] axum::http::Error),
     #[error("Rusx error: {0}")]
     Rusx(#[from] SdkError),
+    #[error("Telegram API error: {1}")]
+    Telegram(u16, String),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -53,6 +55,13 @@ pub type AppResult<T> = Result<T, AppError>;
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
+            AppError::Telegram(status_code_in_u16, err) => {
+                let status_code =
+                    StatusCode::from_u16(status_code_in_u16).unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR);
+
+                (status_code, err)
+            }
+
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
             AppError::Rusx(err) => match err {
