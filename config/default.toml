@@ -59,3 +59,7 @@ api_key = "some-key"
 interval_in_hours = 24
 keywords = "quantum"
 whitelist = ["username"]
+
+[tg_bot]
+chat_id = '-1'
+token = "token"

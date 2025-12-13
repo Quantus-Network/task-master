@@ -14,6 +14,7 @@ pub struct Config {
     pub jwt: JwtConfig,
     pub x_oauth: OauthConfig,
     pub tweet_sync: TweetSyncConfig,
+    pub tg_bot: TelegramBotConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +74,12 @@ pub struct TweetSyncConfig {
     pub interval_in_hours: u64,
     pub keywords: String,
     pub api_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramBotConfig {
+    pub token: String,
+    pub chat_id: String,
 }
 
 impl Config {
@@ -187,6 +194,10 @@ impl Default for Config {
                 interval_in_hours: 24,
                 keywords: "hello".to_string(),
                 api_key: "key".to_string(),
+            },
+            tg_bot: TelegramBotConfig {
+                chat_id: "-0".to_string(),
+                token: "token".to_string(),
             },
         }
     }

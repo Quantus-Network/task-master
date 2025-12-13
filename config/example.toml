@@ -70,6 +70,10 @@ interval_in_hours = 24
 keywords = "example"
 whitelist = ["example-username"]
 
+[tg_bot]
+chat_id = '-1'
+token = "token"
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
