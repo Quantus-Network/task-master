@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc}; // Optional: Makes multiline strings much cleaner
 
 use rusx::{
     resources::{
@@ -12,6 +12,7 @@ use rusx::{
 use crate::{
     db_persistence::DbPersistence,
     models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
+    services::telegram_service::TelegramService,
     AppError, AppResult, Config,
 };
 
@@ -19,63 +20,131 @@ use crate::{
 pub struct TweetSynchronizerService {
     db: Arc<DbPersistence>,
     twitter_gateway: Arc<dyn TwitterGateway>,
+    telegram_service: Arc<TelegramService>,
     config: Arc<Config>,
 }
 
 impl TweetSynchronizerService {
-    async fn process_tweet_authors(&self, response: TwitterApiResponse<Vec<Tweet>>) -> Result<(), AppError> {
-        let Some(includes) = response.includes else {
-            tracing::info!("No authors found. Returning early...");
-
-            return Ok(());
+    async fn process_tweet_authors(
+        &self,
+        response: &TwitterApiResponse<Vec<Tweet>>,
+    ) -> Result<Vec<NewAuthorPayload>, AppError> {
+        let Some(includes) = &response.includes else {
+            tracing::info!("No authors found in includes.");
+            return Ok(Default::default());
         };
-        let Some(authors) = includes.users else {
-            tracing::info!("No authors found. Returning early...");
-
-            return Ok(());
+        let Some(authors) = &includes.users else {
+            tracing::info!("No users found in includes.");
+            return Ok(Default::default());
         };
+
         let authors_found_count = authors.len();
-
         tracing::info!("Found {} new authors. Saving...", authors_found_count);
-        let mut new_authors: Vec<NewAuthorPayload> = vec![];
 
-        for author in authors {
-            let new_author = NewAuthorPayload::new(author);
-            new_authors.push(new_author);
+        let new_authors: Vec<NewAuthorPayload> = authors
+            .iter()
+            .map(|author| NewAuthorPayload::new(author.clone()))
+            .collect();
+
+        if !new_authors.is_empty() {
+            self.db.tweet_authors.upsert_many(&new_authors).await?;
+            tracing::info!("Success saving {} new authors.", authors_found_count);
         }
 
-        self.db.tweet_authors.upsert_many(new_authors).await?;
-        tracing::info!("Success saving {} new authors.", authors_found_count);
-
-        Ok(())
+        Ok(new_authors)
     }
 
-    async fn process_relevant_tweets(&self, response: TwitterApiResponse<Vec<Tweet>>) -> Result<(), AppError> {
-        let Some(tweets) = response.data else {
-            tracing::info!("No new relevant tweets found. Returning early...");
-
-            return Ok(());
+    async fn process_relevant_tweets(
+        &self,
+        response: &TwitterApiResponse<Vec<Tweet>>,
+    ) -> Result<Vec<NewTweetPayload>, AppError> {
+        let Some(tweets) = &response.data else {
+            tracing::info!("No new relevant tweets found.");
+            return Ok(Default::default());
         };
+
         let tweets_found_count = tweets.len();
-
         tracing::info!("Found {} new relevant tweets. Saving...", tweets_found_count);
-        let mut new_relevant_tweets: Vec<NewTweetPayload> = vec![];
 
-        for tweet in tweets {
-            let new_tweet = NewTweetPayload::new(tweet);
-            new_relevant_tweets.push(new_tweet);
+        let new_relevant_tweets: Vec<NewTweetPayload> =
+            tweets.iter().map(|tweet| NewTweetPayload::new(tweet.clone())).collect();
+
+        if !new_relevant_tweets.is_empty() {
+            self.db.relevant_tweets.upsert_many(&new_relevant_tweets).await?;
+            tracing::info!("Success saving {} new relevant tweets.", tweets_found_count);
         }
 
-        self.db.relevant_tweets.upsert_many(new_relevant_tweets).await?;
-        tracing::info!("Success saving {} new relevant tweets.", tweets_found_count);
+        Ok(new_relevant_tweets)
+    }
+
+    async fn process_sending_raid_targets(
+        &self,
+        tweet_authors: &[NewAuthorPayload],
+        relevant_tweets: &[NewTweetPayload],
+    ) -> Result<(), AppError> {
+        if relevant_tweets.is_empty() {
+            return Ok(());
+        }
+
+        let active_raid = self.db.raid_quests.find_active().await?;
+
+        if active_raid.is_some() {
+            tracing::info!("Active raid quests found, sending raid targets...");
+
+            let author_lookup: HashMap<&String, &String> = tweet_authors.iter().map(|a| (&a.id, &a.username)).collect();
+            let telegram_service = self.telegram_service.clone();
+            let tweets_to_process = relevant_tweets.to_vec();
+            let mut messages: Vec<String> = Vec::with_capacity(tweets_to_process.len());
+
+            for tweet in &tweets_to_process {
+                let author_name = match author_lookup.get(&tweet.author_id) {
+                    Some(name) => name,
+                    None => {
+                        tracing::warn!(
+                            "Author ID {} not found in lookup. Skipping notification.",
+                            tweet.author_id
+                        );
+                        "Unknown"
+                    }
+                };
+
+                let link = format!("https://x.com/{}/status/{}", author_name, &tweet.id);
+
+                let tg_message = format!(
+                    "Raid Target Found!\n\nLink: {}\nAuthor: {}\nText: {}\nImpressions: {}\nPosted At: {}",
+                    link, author_name, tweet.text, tweet.impression_count, tweet.created_at
+                );
+                messages.push(tg_message);
+            }
+
+            tokio::spawn(async move {
+                // Telegram Limit: ~30 messages per second.
+                // We set interval to 50ms (~20 msgs/sec) to be safe.
+                let mut rate_limiter = tokio::time::interval(tokio::time::Duration::from_millis(50));
+
+                for msg in messages {
+                    rate_limiter.tick().await;
+
+                    if let Err(e) = telegram_service.send_message(&msg).await {
+                        tracing::error!("Failed to send raid notification: {:?}", e);
+                    }
+                }
+            });
+        }
 
         Ok(())
     }
 
-    pub fn new(db: Arc<DbPersistence>, twitter_gateway: Arc<dyn TwitterGateway>, config: Arc<Config>) -> Self {
+    pub fn new(
+        db: Arc<DbPersistence>,
+        twitter_gateway: Arc<dyn TwitterGateway>,
+        telegram_service: Arc<TelegramService>,
+        config: Arc<Config>,
+    ) -> Self {
         Self {
             db,
             twitter_gateway,
+            telegram_service,
             config,
         }
     }
@@ -87,22 +156,12 @@ impl TweetSynchronizerService {
             let mut interval = tokio::time::interval(service.config.get_tweet_sync_interval());
 
             loop {
-                // Wait for the next tick
-                // Note: The first tick completes immediately, so it runs on startup.
-                // If you want to wait first, call interval.reset() or skip the first tick.
                 interval.tick().await;
-
                 tracing::info!("🔄 Background Worker: Starting Twitter Sync...");
 
-                // Perform the Sync
-                // We use match to handle errors without crashing the thread
                 match service.sync_relevant_tweets().await {
-                    Ok(_) => {
-                        tracing::info!("✅ Sync Complete.");
-                    }
-                    Err(e) => {
-                        tracing::info!("❌ Sync Failed: {:?}", e);
-                    }
+                    Ok(_) => tracing::info!("✅ Sync Complete."),
+                    Err(e) => tracing::error!("❌ Sync Failed: {:?}", e),
                 }
             }
         })
@@ -119,7 +178,9 @@ impl TweetSynchronizerService {
         for query in whitelist_queries {
             let mut params = SearchParams::new(query);
             params.max_results = Some(100);
-            params.sort_order = Some(SearchSortOrder::Relevancy);
+
+            params.sort_order = Some(SearchSortOrder::Recency);
+
             params.tweet_fields = Some(vec![
                 TweetField::PublicMetrics,
                 TweetField::CreatedAt,
@@ -133,7 +194,6 @@ impl TweetSynchronizerService {
             ]);
             params.expansions = Some(vec![TweetExpansion::AuthorId]);
 
-            // CRITICAL: Only ask X for tweets newer than what we have
             if let Some(id) = last_id.clone() {
                 params.since_id = Some(id.clone());
                 tracing::info!("Syncing tweets since ID: {}", id);
@@ -142,8 +202,12 @@ impl TweetSynchronizerService {
             }
 
             let response = self.twitter_gateway.search().recent(params).await?;
-            self.process_tweet_authors(response.clone()).await?;
-            self.process_relevant_tweets(response).await?;
+
+            let tweet_authors = self.process_tweet_authors(&response).await?;
+            let relevant_tweets = self.process_relevant_tweets(&response).await?;
+
+            self.process_sending_raid_targets(&tweet_authors, &relevant_tweets)
+                .await?;
         }
 
         Ok(())

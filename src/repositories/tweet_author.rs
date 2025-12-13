@@ -108,7 +108,7 @@ impl TweetAuthorRepository {
     }
 
     /// Batch Upsert for Authors
-    pub async fn upsert_many(&self, authors: Vec<NewAuthorPayload>) -> DbResult<u64> {
+    pub async fn upsert_many(&self, authors: &Vec<NewAuthorPayload>) -> DbResult<u64> {
         if authors.is_empty() {
             return Ok(0);
         }
@@ -124,9 +124,9 @@ impl TweetAuthorRepository {
         let mut media_counts = Vec::with_capacity(authors.len());
 
         for a in authors {
-            ids.push(a.id);
-            names.push(a.name);
-            usernames.push(a.username);
+            ids.push(a.id.clone());
+            names.push(a.name.clone());
+            usernames.push(a.username.clone());
             followers_counts.push(a.followers_count);
             following_counts.push(a.following_count);
             tweet_counts.push(a.tweet_count);

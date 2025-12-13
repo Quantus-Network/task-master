@@ -145,7 +145,7 @@ impl RelevantTweetRepository {
     }
 
     /// Batch Upsert
-    pub async fn upsert_many(&self, tweets: Vec<NewTweetPayload>) -> DbResult<u64> {
+    pub async fn upsert_many(&self, tweets: &Vec<NewTweetPayload>) -> DbResult<u64> {
         if tweets.is_empty() {
             return Ok(0);
         }
@@ -161,9 +161,9 @@ impl RelevantTweetRepository {
         let mut created_ats = Vec::with_capacity(tweets.len());
 
         for t in tweets {
-            ids.push(t.id);
-            author_ids.push(t.author_id);
-            texts.push(t.text);
+            ids.push(t.id.clone());
+            author_ids.push(t.author_id.clone());
+            texts.push(t.text.clone());
             impression_counts.push(t.impression_count);
             reply_counts.push(t.reply_count);
             retweet_counts.push(t.retweet_count);
