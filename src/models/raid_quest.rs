@@ -32,7 +32,37 @@ impl<'r> FromRow<'r, PgRow> for RaidQuest {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RaidQuestSortColumn {
+    CreatedAt,
+    StartDate,
+    EndDate,
+    Name,
+}
+
+impl RaidQuestSortColumn {
+    pub fn to_sql_column(&self) -> &'static str {
+        match self {
+            RaidQuestSortColumn::CreatedAt => "rq.created_at",
+            RaidQuestSortColumn::StartDate => "rq.start_date",
+            RaidQuestSortColumn::EndDate => "rq.end_date",
+            RaidQuestSortColumn::Name => "rq.name",
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RaidQuestFilter {
+    pub is_active: Option<bool>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateRaidQuest {
     pub name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdateRaidQuestStatus {
+    pub make_active: bool,
 }

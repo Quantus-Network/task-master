@@ -11,6 +11,7 @@ use crate::{
 
 pub mod address;
 pub mod auth;
+pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
 pub mod task;

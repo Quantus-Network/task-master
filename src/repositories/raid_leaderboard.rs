@@ -87,6 +87,14 @@ impl RaidLeaderboardRepository {
 
         Ok(entry)
     }
+
+    pub async fn get_total_items(&self, raid_id: i32) -> DbResult<i64> {
+        let query = "SELECT COUNT(*) FROM raid_leaderboards WHERE raid_id = $1";
+
+        let total_items = sqlx::query_scalar(query).bind(raid_id).fetch_one(&self.pool).await?;
+
+        Ok(total_items)
+    }
 }
 
 #[cfg(test)]

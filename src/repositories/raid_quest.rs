@@ -3,8 +3,9 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
-    models::raid_quest::{CreateRaidQuest, RaidQuest},
-    repositories::DbResult,
+    handlers::ListQueryParams,
+    models::raid_quest::{CreateRaidQuest, RaidQuest, RaidQuestFilter, RaidQuestSortColumn},
+    repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
 #[derive(Clone, Debug)]
@@ -17,8 +18,83 @@ impl RaidQuestRepository {
         QueryBuilder::new("SELECT * FROM raid_quests")
     }
 
+    fn create_pagination_base_query<'a>(
+        &self,
+        query_builder: &mut QueryBuilder<'a, Postgres>,
+        search: &Option<String>,
+        filters: &RaidQuestFilter,
+    ) {
+        query_builder.push(" FROM raid_quests rq ");
+
+        let mut where_started = false;
+
+        // Global Text Search ---
+        if let Some(s) = search {
+            if !s.is_empty() {
+                query_builder.push(" WHERE (");
+                where_started = true;
+
+                query_builder.push(" rq.name ILIKE ");
+                query_builder.push_bind(format!("%{}%", s));
+                query_builder.push(") ");
+            }
+        }
+
+        // Filter: Active status
+        if let Some(is_active) = filters.is_active {
+            if is_active {
+                query_builder.push_condition(" rq.end_date IS NOT NULL ", &mut where_started);
+            } else {
+                query_builder.push_condition(" rq.end_date IS NULL ", &mut where_started);
+            }
+        }
+    }
+
     pub fn new(pool: &PgPool) -> Self {
         Self { pool: pool.clone() }
+    }
+
+    pub async fn find_all(
+        &self,
+        params: &ListQueryParams<RaidQuestSortColumn>,
+        filters: &RaidQuestFilter,
+    ) -> Result<Vec<RaidQuest>, DbError> {
+        // Select all tweet columns + author name/username
+        // We use aliases that match the TweetWithAuthor struct expectations
+        let mut query_builder = QueryBuilder::new(
+            r#"
+            SELECT 
+                rq.*
+            "#,
+        );
+
+        self.create_pagination_base_query(&mut query_builder, &params.search, filters);
+
+        // Sorting
+        query_builder.push(" ORDER BY ");
+        let sort_col = params.sort_by.as_ref().unwrap_or(&RaidQuestSortColumn::CreatedAt);
+        query_builder.push(sort_col.to_sql_column());
+
+        query_builder.push(" ");
+        query_builder.push(params.order.to_string());
+
+        // Secondary sort for stability
+        query_builder.push(", rq.id ASC");
+
+        // Pagination
+        let offset = calculate_page_offset(params.page, params.page_size);
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(params.page_size as i64);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset as i64);
+
+        let tweets = query_builder
+            .build_query_as::<RaidQuest>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| DbError::Database(e))?;
+
+        Ok(tweets)
     }
 
     pub async fn create(&self, new_quest: &CreateRaidQuest) -> DbResult<i32> {
@@ -53,6 +129,16 @@ impl RaidQuestRepository {
             }
             Err(e) => Err(DbError::Database(e)),
         }
+    }
+
+    pub async fn delete_by_id(&self, id: i32) -> DbResult<Option<RaidQuest>> {
+        let mut qb = QueryBuilder::new("DELETE FROM raid_quests");
+        qb.push(" WHERE id = ");
+        qb.push_bind(id);
+
+        let quest = qb.build_query_as().fetch_optional(&self.pool).await?;
+
+        Ok(quest)
     }
 
     pub async fn find_by_id(&self, id: i32) -> DbResult<Option<RaidQuest>> {
@@ -99,6 +185,37 @@ impl RaidQuestRepository {
         }
 
         Ok(())
+    }
+
+    pub async fn make_active(&self, id: i32) -> DbResult<()> {
+        let result = sqlx::query("UPDATE raid_quests SET end_date = NULL WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(DbError::RecordNotFound(format!("Raid Quest {} not found", id)));
+        }
+
+        Ok(())
+    }
+
+    pub async fn count_filtered(
+        &self,
+        params: &ListQueryParams<RaidQuestSortColumn>,
+        filters: &RaidQuestFilter,
+    ) -> Result<i64, DbError> {
+        let mut query_builder = QueryBuilder::new("SELECT COUNT(rq.id)");
+
+        self.create_pagination_base_query(&mut query_builder, &params.search, filters);
+
+        let count = query_builder
+            .build_query_scalar()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| DbError::Database(e))?;
+
+        Ok(count)
     }
 }
 
