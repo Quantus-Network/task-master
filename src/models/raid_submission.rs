@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use rusx::resources::tweet::{Tweet as TwitterTweet, TweetPublicMetrics};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
@@ -58,4 +59,31 @@ pub struct CreateRaidSubmission {
     pub reply_count: i32,
     pub retweet_count: i32,
     pub like_count: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateRaidSubmissionStats {
+    pub id: String,
+    pub impression_count: i32,
+    pub reply_count: i32,
+    pub retweet_count: i32,
+    pub like_count: i32,
+}
+
+impl From<TwitterTweet> for UpdateRaidSubmissionStats {
+    fn from(tweet: TwitterTweet) -> Self {
+        let public_metrics = tweet
+            .public_metrics
+            .unwrap_or_else(|| TweetPublicMetrics { ..Default::default() });
+
+        let update_payload = UpdateRaidSubmissionStats {
+            id: tweet.id,
+            impression_count: public_metrics.impression_count as i32,
+            like_count: public_metrics.like_count as i32,
+            retweet_count: public_metrics.retweet_count as i32,
+            reply_count: public_metrics.reply_count as i32,
+        };
+
+        update_payload
+    }
 }

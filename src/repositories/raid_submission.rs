@@ -2,7 +2,7 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
-    models::raid_submission::{CreateRaidSubmission, RaidSubmission},
+    models::raid_submission::{CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats},
     repositories::DbResult,
 };
 
@@ -71,38 +71,55 @@ impl RaidSubmissionRepository {
         Ok(submissions)
     }
 
-    pub async fn update_stats(
-        &self,
-        id: &str,
-        impression_count: i32,
-        reply_count: i32,
-        retweet_count: i32,
-        like_count: i32,
-    ) -> DbResult<()> {
-        let result = sqlx::query(
-            "
-            UPDATE raid_submissions 
-            SET impression_count = $1, 
-                reply_count = $2, 
-                retweet_count = $3, 
-                like_count = $4,
-                updated_at = NOW()
-            WHERE id = $5
-            ",
-        )
-        .bind(impression_count)
-        .bind(reply_count)
-        .bind(retweet_count)
-        .bind(like_count)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
-
-        if result.rows_affected() == 0 {
-            return Err(DbError::RecordNotFound(format!("Submission {} not found", id)));
+    pub async fn update_stats_many(&self, updates: &[UpdateRaidSubmissionStats]) -> DbResult<u64> {
+        if updates.is_empty() {
+            return Ok(0);
         }
 
-        Ok(())
+        let mut ids = Vec::with_capacity(updates.len());
+        let mut impressions = Vec::with_capacity(updates.len());
+        let mut replies = Vec::with_capacity(updates.len());
+        let mut retweets = Vec::with_capacity(updates.len());
+        let mut likes = Vec::with_capacity(updates.len());
+
+        for u in updates {
+            ids.push(u.id.clone());
+            impressions.push(u.impression_count);
+            replies.push(u.reply_count);
+            retweets.push(u.retweet_count);
+            likes.push(u.like_count);
+        }
+
+        let query = "
+            UPDATE raid_submissions AS rs
+            SET 
+                impression_count = data.impression_count,
+                reply_count = data.reply_count,
+                retweet_count = data.retweet_count,
+                like_count = data.like_count,
+                updated_at = NOW()
+            FROM (
+                SELECT * FROM UNNEST(
+                    $1::varchar[], 
+                    $2::int[], 
+                    $3::int[], 
+                    $4::int[], 
+                    $5::int[]
+                ) AS t(id, impression_count, reply_count, retweet_count, like_count)
+            ) AS data
+            WHERE rs.id = data.id
+        ";
+
+        let result = sqlx::query(query)
+            .bind(&ids)
+            .bind(&impressions)
+            .bind(&replies)
+            .bind(&retweets)
+            .bind(&likes)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(result.rows_affected())
     }
 }
 
@@ -268,17 +285,21 @@ mod tests {
 
         repo.create(&input).await.unwrap();
 
-        // 1. Update Stats
-        repo.update_stats(
-            &input.id, 100, // New Impressions
-            5,   // New Replies
-            10,  // New Retweets
-            50,  // New Likes
-        )
-        .await
-        .expect("Failed to update stats");
+        // 1. Prepare the Update Payload
+        let updates = vec![UpdateRaidSubmissionStats {
+            id: input.id.clone(),
+            impression_count: 100,
+            reply_count: 5,
+            retweet_count: 10,
+            like_count: 50,
+        }];
 
-        // 2. Verify Update
+        // 2. Execute Bulk Update
+        let rows_affected = repo.update_stats_many(&updates).await.expect("Failed to update stats");
+
+        assert_eq!(rows_affected, 1, "Should have updated exactly 1 record");
+
+        // 3. Verify Update in DB
         let updated = repo.find_by_id(&input.id).await.unwrap().unwrap();
 
         assert_eq!(updated.impression_count, 100);
@@ -286,8 +307,7 @@ mod tests {
         assert_eq!(updated.retweet_count, 10);
         assert_eq!(updated.like_count, 50);
 
-        // 3. Verify `updated_at` trigger worked
-        // The updated_at timestamp should be strictly greater than created_at
+        // 4. Verify `updated_at` trigger worked
         assert!(
             updated.updated_at > updated.created_at,
             "updated_at timestamp was not refreshed"
@@ -299,13 +319,20 @@ mod tests {
         let repo = setup_test_repository().await;
 
         // Try to update a random ID that doesn't exist
-        let result = repo.update_stats("non-existent-id", 0, 0, 0, 0).await;
+        let updates = vec![UpdateRaidSubmissionStats {
+            id: "non-existent-id".to_string(),
+            impression_count: 10,
+            reply_count: 0,
+            retweet_count: 0,
+            like_count: 0,
+        }];
 
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            DbError::RecordNotFound(_) => {} // Expected
-            err => panic!("Expected RecordNotFound, got {:?}", err),
-        }
+        // In bulk operations, a missing ID usually results in 0 rows affected,
+        // rather than an Error, because it's a set-based operation.
+        let result = repo.update_stats_many(&updates).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0, "Should return 0 affected rows for non-existent ID");
     }
 
     #[tokio::test]

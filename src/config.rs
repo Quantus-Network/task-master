@@ -15,6 +15,7 @@ pub struct Config {
     pub x_oauth: OauthConfig,
     pub tweet_sync: TweetSyncConfig,
     pub tg_bot: TelegramBotConfig,
+    pub raid_leaderboard: RaidLeaderboardConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +84,12 @@ pub struct TelegramBotConfig {
     pub chat_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RaidLeaderboardConfig {
+    pub sync_interval_in_hours: u64,
+    pub tweets_req_interval_in_secs: u64,
+}
+
 impl Config {
     pub fn load(config_path: &str) -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
@@ -145,6 +152,14 @@ impl Config {
     pub fn get_tweet_sync_interval(&self) -> time::Duration {
         time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
+
+    pub fn get_raid_leaderboard_sync_interval(&self) -> time::Duration {
+        time::Duration::from_secs(self.raid_leaderboard.sync_interval_in_hours * 3600)
+    }
+
+    pub fn get_raid_leaderboard_tweets_req_interval(&self) -> time::Duration {
+        time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
+    }
 }
 
 impl Default for Config {
@@ -200,6 +215,10 @@ impl Default for Config {
                 base_url: "https://api.telegram.org".to_string(),
                 chat_id: "-0".to_string(),
                 token: "token".to_string(),
+            },
+            raid_leaderboard: RaidLeaderboardConfig {
+                sync_interval_in_hours: 24,
+                tweets_req_interval_in_secs: 60,
             },
         }
     }
