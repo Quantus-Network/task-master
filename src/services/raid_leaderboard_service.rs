@@ -220,8 +220,6 @@ mod tests {
         db.raid_quests
             .create(&CreateRaidQuest {
                 name: "Active Raid".to_string(),
-                start_date: None,
-                end_date: None,
             })
             .await
             .unwrap();
@@ -245,8 +243,6 @@ mod tests {
             .raid_quests
             .create(&CreateRaidQuest {
                 name: "Active Raid".to_string(),
-                start_date: None,
-                end_date: None,
             })
             .await
             .unwrap();
@@ -300,8 +296,6 @@ mod tests {
             .raid_quests
             .create(&CreateRaidQuest {
                 name: "Big Raid".to_string(),
-                start_date: None,
-                end_date: None,
             })
             .await
             .unwrap();

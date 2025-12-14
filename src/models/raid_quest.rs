@@ -35,6 +35,4 @@ impl<'r> FromRow<'r, PgRow> for RaidQuest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateRaidQuest {
     pub name: String,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
 }

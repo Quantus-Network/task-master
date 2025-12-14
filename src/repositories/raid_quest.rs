@@ -22,7 +22,7 @@ impl RaidQuestRepository {
     }
 
     pub async fn create(&self, new_quest: &CreateRaidQuest) -> DbResult<i32> {
-        let start_date = new_quest.start_date.unwrap_or_else(|| Utc::now());
+        let start_date = Utc::now();
 
         let result = sqlx::query_scalar::<_, i32>(
             "
@@ -33,7 +33,6 @@ impl RaidQuestRepository {
         )
         .bind(&new_quest.name)
         .bind(start_date)
-        .bind(new_quest.end_date)
         .fetch_optional(&self.pool)
         .await;
 
@@ -127,11 +126,7 @@ mod tests {
     }
 
     fn create_mock_quest_input(name: &str) -> CreateRaidQuest {
-        CreateRaidQuest {
-            name: name.to_string(),
-            start_date: None, // Will default to NOW()
-            end_date: None,
-        }
+        CreateRaidQuest { name: name.to_string() }
     }
 
     // -------------------------------------------------------------------------

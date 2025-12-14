@@ -350,8 +350,6 @@ mod tests {
         db.raid_quests
             .create(&CreateRaidQuest {
                 name: "Test Raid".to_string(),
-                start_date: None,
-                end_date: None,
             })
             .await
             .unwrap();
