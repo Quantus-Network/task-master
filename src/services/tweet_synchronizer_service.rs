@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc}; // Optional: Makes multiline strings much cleaner
+use std::{collections::HashMap, sync::Arc};
 
 use rusx::{
     resources::{
@@ -211,5 +211,253 @@ impl TweetSynchronizerService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::models::raid_quest::CreateRaidQuest;
+    use crate::utils::test_db::reset_database;
+    use mockall::predicate::*;
+    use rusx::{
+        resources::{
+            search::SearchApi,
+            tweet::{Tweet, TweetPublicMetrics},
+            user::{User, UserPublicMetrics},
+            Includes, TwitterApiResponse,
+        },
+        MockSearchApi, MockTwitterGateway,
+    };
+    use sqlx::PgPool;
+    use std::sync::Arc;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // -------------------------------------------------------------------------
+    // Test Helpers
+    // -------------------------------------------------------------------------
+
+    async fn setup_deps() -> (Arc<DbPersistence>, MockServer, Arc<TelegramService>, Arc<Config>) {
+        // A. Setup DB
+        let config = Config::load_test_env().expect("Failed to load test config");
+        let pool = PgPool::connect(config.get_database_url()).await.unwrap();
+        reset_database(&pool).await;
+        let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
+
+        // B. Setup Telegram Mock Server
+        let mock_server = MockServer::start().await;
+        let telegram_service = Arc::new(TelegramService::new(
+            &mock_server.uri(),
+            "123456",
+            &config.tg_bot.chat_id,
+        ));
+
+        // C. Config
+        let app_config = Arc::new(config);
+
+        (db, mock_server, telegram_service, app_config)
+    }
+
+    fn create_mock_tweet(id: &str, author_id: &str) -> Tweet {
+        Tweet {
+            id: id.to_string(),
+            text: "Hello World".to_string(),
+            author_id: Some(author_id.to_string()),
+            created_at: Some(chrono::Utc::now().to_rfc3339()),
+            public_metrics: Some(TweetPublicMetrics {
+                impression_count: 100,
+                like_count: 10,
+                reply_count: 5,
+                retweet_count: 2,
+                ..Default::default()
+            }),
+        }
+    }
+
+    fn create_mock_user(id: &str, username: &str) -> User {
+        User {
+            id: id.to_string(),
+            name: "Test User".to_string(),
+            username: username.to_string(),
+            public_metrics: Some(UserPublicMetrics {
+                followers_count: 1000,
+                following_count: 100,
+                tweet_count: 50,
+                listed_count: 5,
+                media_count: Some(0),
+                like_count: Some(0),
+            }),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_sync_saves_data_no_raid_notification() {
+        let (db, _mock_tg, telegram_service, config) = setup_deps().await;
+
+        // --- Setup Mocks ---
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_search = MockSearchApi::new();
+
+        // Expect search().recent() to be called
+        mock_search
+            .expect_recent()
+            .times(1) // Expect 1 batch (based on whitelist loop)
+            .returning(|_| {
+                Ok(TwitterApiResponse::<Vec<Tweet>> {
+                    data: Some(vec![create_mock_tweet("t1", "u1")]),
+                    includes: Some(Includes {
+                        users: Some(vec![create_mock_user("u1", "user_one")]),
+                        tweets: None,
+                    }),
+                    meta: None,
+                })
+            });
+
+        let search_api_arc: Arc<dyn SearchApi> = Arc::new(mock_search);
+
+        mock_gateway.expect_search().times(1).return_const(search_api_arc);
+
+        // --- Run Service ---
+        let service = TweetSynchronizerService::new(db.clone(), Arc::new(mock_gateway), telegram_service, config);
+
+        let result = service.sync_relevant_tweets().await;
+
+        // --- Assertions ---
+        assert!(result.is_ok());
+
+        // 1. Check DB for Authors
+        let author = db.tweet_authors.find_by_id("u1").await.unwrap();
+        assert!(author.is_some());
+        assert_eq!(author.unwrap().username, "user_one");
+
+        // 2. Check DB for Tweets
+        let tweet = db.relevant_tweets.find_by_id("t1").await.unwrap();
+        assert!(tweet.is_some());
+        assert_eq!(tweet.unwrap().impression_count, 100);
+    }
+
+    #[tokio::test]
+    async fn test_sync_sends_telegram_when_raid_active() {
+        let (db, mock_tg, telegram_service, config) = setup_deps().await;
+
+        // --- Setup Active Raid ---
+        db.raid_quests
+            .create(&CreateRaidQuest {
+                name: "Test Raid".to_string(),
+                start_date: None,
+                end_date: None,
+            })
+            .await
+            .unwrap();
+
+        // --- Setup Telegram Mock ---
+        // Expect a POST to /sendMessage
+        Mock::given(method("POST"))
+            .and(path("/bot123456/sendMessage"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1) // We expect 1 message for 1 tweet
+            .mount(&mock_tg)
+            .await;
+
+        // --- Setup Twitter Mock ---
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_search = MockSearchApi::new();
+
+        mock_search.expect_recent().returning(|_| {
+            Ok(TwitterApiResponse {
+                data: Some(vec![create_mock_tweet("t2", "u2")]),
+                includes: Some(Includes {
+                    users: Some(vec![create_mock_user("u2", "user_two")]),
+                    tweets: None,
+                }),
+                meta: None,
+            })
+        });
+
+        let search_api_arc: Arc<dyn SearchApi> = Arc::new(mock_search);
+
+        mock_gateway.expect_search().times(1).return_const(search_api_arc);
+
+        // --- Run Service ---
+        let service = TweetSynchronizerService::new(db.clone(), Arc::new(mock_gateway), telegram_service, config);
+
+        // This will spawn the background task for telegram, so we need to wait slightly
+        // or ensure the service function awaits the spawn (it doesn't in your code).
+        // *Correction*: Your code uses `tokio::spawn` inside `process_sending_raid_targets`.
+        // We need to verify the side effect (wiremock receiving request).
+        service.sync_relevant_tweets().await.unwrap();
+
+        // Wait a bit for the spawned tokio task to fire the http request
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pagination_logic_uses_last_id() {
+        let (db, _mock_tg, telegram_service, config) = setup_deps().await;
+
+        // --- Setup DB with existing tweet ---
+        // We insert a tweet directly to simulate "last state"
+        // Note: We need a valid author first due to FK
+        db.tweet_authors
+            .upsert_many(&vec![crate::models::tweet_author::NewAuthorPayload {
+                id: "old_u".to_string(),
+                name: "Old".to_string(),
+                username: "old".to_string(),
+                followers_count: 0,
+                following_count: 0,
+                tweet_count: 0,
+                listed_count: 0,
+                like_count: 0,
+                media_count: 0,
+            }])
+            .await
+            .unwrap();
+
+        db.relevant_tweets
+            .upsert_many(&vec![crate::models::relevant_tweet::NewTweetPayload {
+                id: "12345".to_string(), // This is the ID we expect in 'since_id'
+                author_id: "old_u".to_string(),
+                text: "Old tweet".to_string(),
+                impression_count: 0,
+                reply_count: 0,
+                retweet_count: 0,
+                like_count: 0,
+                created_at: chrono::Utc::now(),
+            }])
+            .await
+            .unwrap();
+
+        // --- Setup Twitter Mock ---
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_search = MockSearchApi::new();
+
+        // Verify the params passed to search contain the correct `since_id`
+        mock_search
+            .expect_recent()
+            .withf(|params| {
+                // Assert that since_id matches the one in DB
+                params.since_id == Some("12345".to_string())
+            })
+            .returning(|_| {
+                Ok(TwitterApiResponse {
+                    data: None,
+                    includes: None,
+                    meta: None,
+                })
+            });
+
+        let search_api_arc: Arc<dyn SearchApi> = Arc::new(mock_search);
+
+        mock_gateway.expect_search().times(1).return_const(search_api_arc);
+
+        let service = TweetSynchronizerService::new(db, Arc::new(mock_gateway), telegram_service, config);
+
+        service.sync_relevant_tweets().await.unwrap();
     }
 }

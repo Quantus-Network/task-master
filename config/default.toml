@@ -61,5 +61,6 @@ keywords = "quantum"
 whitelist = ["username"]
 
 [tg_bot]
+base_url = "https://api.telegram.org"
 chat_id = '-1'
 token = "token"

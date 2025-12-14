@@ -19,10 +19,10 @@ struct MessagePayload<'a> {
 }
 
 impl TelegramService {
-    pub fn new(token: &str, default_chat_id: &str) -> Self {
+    pub fn new(base_url: &str, token: &str, default_chat_id: &str) -> Self {
         Self {
             client: Client::new(),
-            base_url: format!("https://api.telegram.org/bot{token}"),
+            base_url: format!("{base_url}/bot{token}"),
             default_chat_id: default_chat_id.to_string(),
         }
     }

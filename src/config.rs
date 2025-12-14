@@ -78,6 +78,7 @@ pub struct TweetSyncConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramBotConfig {
+    pub base_url: String,
     pub token: String,
     pub chat_id: String,
 }
@@ -196,6 +197,7 @@ impl Default for Config {
                 api_key: "key".to_string(),
             },
             tg_bot: TelegramBotConfig {
+                base_url: "https://api.telegram.org".to_string(),
                 chat_id: "-0".to_string(),
                 token: "token".to_string(),
             },
