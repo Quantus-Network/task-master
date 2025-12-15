@@ -43,9 +43,9 @@ impl RaidQuestRepository {
         // Filter: Active status
         if let Some(is_active) = filters.is_active {
             if is_active {
-                query_builder.push_condition(" rq.end_date IS NOT NULL ", &mut where_started);
-            } else {
                 query_builder.push_condition(" rq.end_date IS NULL ", &mut where_started);
+            } else {
+                query_builder.push_condition(" rq.end_date IS NOT NULL ", &mut where_started);
             }
         }
     }
@@ -102,8 +102,8 @@ impl RaidQuestRepository {
 
         let result = sqlx::query_scalar::<_, i32>(
             "
-            INSERT INTO raid_quests (name, start_date, end_date) 
-            VALUES ($1, $2, $3)
+            INSERT INTO raid_quests (name, start_date) 
+            VALUES ($1, $2)
             RETURNING id
             ",
         )
@@ -181,13 +181,30 @@ impl RaidQuestRepository {
         let result = sqlx::query("UPDATE raid_quests SET end_date = NULL WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
-            .await?;
+            .await;
 
-        if result.rows_affected() == 0 {
-            return Err(DbError::RecordNotFound(format!("Raid Quest {} not found", id)));
+        match result {
+            Ok(result) => {
+                if result.rows_affected() == 0 {
+                    return Err(DbError::RecordNotFound(format!("Raid Quest {} not found", id)));
+                }
+
+                Ok(())
+            }
+            Err(sqlx::Error::Database(db_err)) => {
+                // Check specifically for Exclusion Violation (Postgres Code 23P01)
+                if let Some(code) = db_err.code() {
+                    if code == "23P01" {
+                        return Err(DbError::UniqueViolation(
+                            "Cannot revert active raid: Another raid is currently active or overlaps with this time range."
+                                .to_string(),
+                        ));
+                    }
+                }
+                Err(DbError::Database(sqlx::Error::Database(db_err)))
+            }
+            Err(e) => Err(DbError::Database(e)),
         }
-
-        Ok(())
     }
 
     pub async fn count_filtered(

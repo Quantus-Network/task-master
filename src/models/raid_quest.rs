@@ -61,8 +61,3 @@ pub struct RaidQuestFilter {
 pub struct CreateRaidQuest {
     pub name: String,
 }
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct UpdateRaidQuestStatus {
-    pub make_active: bool,
-}
