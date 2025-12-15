@@ -48,7 +48,10 @@ impl RaidLeaderboardService {
                 tracing::info!("🔄 Background Worker: Starting Raid Leaderboard Sync...");
 
                 match service.sync_raid_leaderboard().await {
-                    Ok(_) => tracing::info!("✅ Sync Complete."),
+                    Ok(_) => {
+                        tracing::info!("✅ Sync Complete. Refreshing raid leaderboard material view");
+                        service.db.raid_leaderboards.refresh().await?;
+                    }
                     Err(e) => tracing::error!("❌ Sync Failed: {:?}", e),
                 }
             }
