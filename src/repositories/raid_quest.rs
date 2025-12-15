@@ -141,16 +141,6 @@ impl RaidQuestRepository {
         Ok(quest)
     }
 
-    pub async fn find_by_id(&self, id: i32) -> DbResult<Option<RaidQuest>> {
-        let mut qb = Self::create_select_base_query();
-        qb.push(" WHERE id = ");
-        qb.push_bind(id);
-
-        let quest = qb.build_query_as().fetch_optional(&self.pool).await?;
-
-        Ok(quest)
-    }
-
     /// Finds the single currently active raid quest.
     /// Active = start_date <= NOW and (end_date IS NULL or end_date > NOW)
     pub async fn find_active(&self) -> DbResult<Option<RaidQuest>> {
@@ -251,23 +241,6 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_create_and_find_by_id() {
-        let repo = setup_test_repository().await;
-        let input = create_mock_quest_input("Raid Alpha");
-
-        let id = repo.create(&input).await.expect("Failed to create raid");
-
-        let found = repo
-            .find_by_id(id)
-            .await
-            .expect("Failed to find raid")
-            .expect("Raid not found");
-
-        assert_eq!(found.name, "Raid Alpha");
-        assert!(found.end_date.is_none());
-    }
-
-    #[tokio::test]
     async fn test_find_active_none() {
         let repo = setup_test_repository().await;
 
@@ -316,8 +289,8 @@ mod tests {
         assert!(active_after.is_none());
 
         // 4. Verify end_date is set in DB
-        let finished_raid = repo.find_by_id(id).await.unwrap().unwrap();
-        assert!(finished_raid.end_date.is_some());
+        let finished_raid = repo.find_active().await.unwrap();
+        assert!(finished_raid.is_none());
     }
 
     #[tokio::test]
