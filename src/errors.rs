@@ -81,7 +81,9 @@ impl IntoResponse for AppError {
             },
 
             AppError::Handler(err) => match err {
-                HandlerError::QueryParams(err) => (StatusCode::BAD_REQUEST, err.to_string()),
+                HandlerError::InvalidBody(err) | HandlerError::QueryParams(err) => {
+                    (StatusCode::BAD_REQUEST, err.to_string())
+                }
                 HandlerError::Auth(err) => match err {
                     AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
                     AuthHandlerError::OAuth(err) => (StatusCode::BAD_REQUEST, err),

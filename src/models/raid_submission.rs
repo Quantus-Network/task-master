@@ -9,7 +9,6 @@ pub struct RaidSubmission {
     pub raid_id: i32,
     pub target_id: String,
     pub raider_id: String,
-    pub text: String,
     pub impression_count: i32,
     pub reply_count: i32,
     pub retweet_count: i32,
@@ -24,7 +23,6 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
         let raid_id = row.try_get("raid_id")?;
         let target_id = row.try_get("target_id")?;
         let raider_id = row.try_get("raider_id")?;
-        let text = row.try_get("text")?;
         let impression_count: Option<i32> = row.try_get("impression_count")?;
         let reply_count: Option<i32> = row.try_get("reply_count")?;
         let retweet_count: Option<i32> = row.try_get("retweet_count")?;
@@ -37,7 +35,6 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
             raid_id,
             target_id,
             raider_id,
-            text,
             impression_count: impression_count.unwrap_or(0),
             reply_count: reply_count.unwrap_or(0),
             retweet_count: retweet_count.unwrap_or(0),
@@ -54,11 +51,12 @@ pub struct CreateRaidSubmission {
     pub raid_id: i32,
     pub target_id: String,
     pub raider_id: String,
-    pub text: String,
-    pub impression_count: i32,
-    pub reply_count: i32,
-    pub retweet_count: i32,
-    pub like_count: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RaidSubmissionInput {
+    pub target_tweet_link: String,
+    pub tweet_reply_link: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -30,6 +30,8 @@ pub enum HandlerError {
 
     #[error("{0}")]
     QueryParams(String),
+    #[error("Invalid body: {0}")]
+    InvalidBody(String),
 }
 
 #[derive(Debug, Serialize)]

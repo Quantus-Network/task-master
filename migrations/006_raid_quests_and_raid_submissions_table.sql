@@ -28,8 +28,6 @@ CREATE TABLE IF NOT EXISTS raid_submissions (
     raid_id INTEGER NOT NULL REFERENCES raid_quests (id) ON DELETE CASCADE,
     target_id VARCHAR(255) NOT NULL REFERENCES relevant_tweets (id) ON DELETE NO ACTION,
     raider_id VARCHAR(64) NOT NULL REFERENCES addresses (quan_address) ON DELETE NO ACTION,
-    text TEXT NOT NULL,
-    text_fts tsvector GENERATED ALWAYS AS (to_tsvector ('english', text)) STORED,
     impression_count INTEGER DEFAULT 0,
     reply_count INTEGER DEFAULT 0,
     retweet_count INTEGER DEFAULT 0,
@@ -51,8 +49,6 @@ CREATE INDEX IF NOT EXISTS idx_raid_submissions_target_id ON raid_submissions (t
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_single_top_rank ON raid_submissions (raid_id, impression_count DESC);
 
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_aggregation ON raid_submissions (raid_id, raider_id) INCLUDE (impression_count);
-
-CREATE INDEX IF NOT EXISTS idx_raid_submissions_fts ON raid_submissions USING GIN (text_fts);
 
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_created_at ON raid_submissions (created_at DESC);
 

@@ -24,10 +24,9 @@ impl RaidSubmissionRepository {
         let created_id = sqlx::query_scalar::<_, String>(
             "
             INSERT INTO raid_submissions (
-                id, raid_id, target_id, raider_id, text,
-                impression_count, reply_count, retweet_count, like_count
+                id, raid_id, target_id, raider_id
             ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4)
             RETURNING id
             ",
         )
@@ -35,11 +34,6 @@ impl RaidSubmissionRepository {
         .bind(submission.raid_id)
         .bind(&submission.target_id)
         .bind(&submission.raider_id)
-        .bind(&submission.text)
-        .bind(submission.impression_count)
-        .bind(submission.reply_count)
-        .bind(submission.retweet_count)
-        .bind(submission.like_count)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -204,17 +198,12 @@ mod tests {
         }
     }
 
-    fn create_mock_submission_input(seed: &SeedData, suffix: &str) -> CreateRaidSubmission {
+    fn create_mock_submission_input(seed: &SeedData) -> CreateRaidSubmission {
         CreateRaidSubmission {
             id: Uuid::new_v4().to_string(),
             raid_id: seed.raid_id,
             target_id: seed.target_id.clone(),
             raider_id: seed.raider_id.clone(),
-            text: format!("I am joining the raid! {}", suffix),
-            impression_count: 10,
-            reply_count: 2,
-            retweet_count: 5,
-            like_count: 20,
         }
     }
 
@@ -227,7 +216,7 @@ mod tests {
         let repo = setup_test_repository().await;
         let seed = seed_dependencies(&repo.pool).await;
 
-        let input = create_mock_submission_input(&seed, "Alpha");
+        let input = create_mock_submission_input(&seed);
 
         // 1. Create
         let created_id = repo.create(&input).await.expect("Failed to create submission");
@@ -243,9 +232,8 @@ mod tests {
         assert_eq!(found.id, input.id);
         assert_eq!(found.raid_id, seed.raid_id);
         assert_eq!(found.raider_id, seed.raider_id);
-        assert_eq!(found.text, input.text);
-        assert_eq!(found.impression_count, 10);
-        assert_eq!(found.like_count, 20);
+        assert_eq!(found.impression_count, 0);
+        assert_eq!(found.like_count, 0);
     }
 
     #[tokio::test]
@@ -254,15 +242,15 @@ mod tests {
         let seed = seed_dependencies(&repo.pool).await;
 
         // Create 3 submissions with slight delays to ensure distinct created_at timestamps
-        let sub1 = create_mock_submission_input(&seed, "1");
+        let sub1 = create_mock_submission_input(&seed);
         repo.create(&sub1).await.unwrap();
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-        let sub2 = create_mock_submission_input(&seed, "2");
+        let sub2 = create_mock_submission_input(&seed);
         repo.create(&sub2).await.unwrap();
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-        let sub3 = create_mock_submission_input(&seed, "3");
+        let sub3 = create_mock_submission_input(&seed);
         repo.create(&sub3).await.unwrap();
 
         // Query by Raid ID
@@ -281,7 +269,7 @@ mod tests {
     async fn test_update_stats_success() {
         let repo = setup_test_repository().await;
         let seed = seed_dependencies(&repo.pool).await;
-        let input = create_mock_submission_input(&seed, "Stats");
+        let input = create_mock_submission_input(&seed);
 
         repo.create(&input).await.unwrap();
 
@@ -345,11 +333,6 @@ mod tests {
             raid_id: 9999, // Non-existent Raid
             target_id: "fake_tweet".to_string(),
             raider_id: "fake_user".to_string(),
-            text: "Fail".to_string(),
-            impression_count: 0,
-            reply_count: 0,
-            retweet_count: 0,
-            like_count: 0,
         };
 
         let result = repo.create(&input).await;

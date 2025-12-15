@@ -1,20 +1,24 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{self, Path, Query, State},
     response::NoContent,
     Extension, Json,
 };
 
 use crate::{
+    db_persistence::DbError,
     handlers::{
-        calculate_total_pages, validate_pagination_query, LeaderboardQueryParams, ListQueryParams, PaginatedResponse,
-        PaginationMetadata,
+        calculate_total_pages, validate_pagination_query, HandlerError, LeaderboardQueryParams, ListQueryParams,
+        PaginatedResponse, PaginationMetadata,
     },
     http_server::AppState,
     models::{
+        address::Address,
         admin::Admin,
         raid_leaderboard::RaidLeaderboard,
         raid_quest::{CreateRaidQuest, RaidQuest, RaidQuestFilter, RaidQuestSortColumn},
+        raid_submission::{CreateRaidSubmission, RaidSubmissionInput},
     },
+    utils::parse_x_status_url::parse_x_status_url,
     AppError,
 };
 
@@ -133,4 +137,37 @@ pub async fn handle_get_raid_leaderboard(
     };
 
     Ok(Json(response))
+}
+
+pub async fn handle_create_raid_submission(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+    extract::Json(payload): Json<RaidSubmissionInput>,
+) -> Result<Json<SuccessResponse<i32>>, AppError> {
+    let Some(target_id) = parse_x_status_url(&payload.target_tweet_link) else {
+        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
+            "Couldn't parse target tweet link"
+        ))));
+    };
+    let Some(reply_id) = parse_x_status_url(&payload.tweet_reply_link) else {
+        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
+            "Couldn't parse tweet reply link"
+        ))));
+    };
+    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "No active raid is found"
+        ))));
+    };
+
+    let new_raid_submission = CreateRaidSubmission {
+        id: reply_id,
+        raid_id: current_active_raid.id,
+        raider_id: user.quan_address.0,
+        target_id: target_id,
+    };
+
+    state.db.raid_submissions.create(&new_raid_submission).await?;
+
+    Ok(SuccessResponse::new(0))
 }
