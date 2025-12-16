@@ -53,7 +53,7 @@ pub struct CreateRaidSubmission {
     pub raider_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RaidSubmissionInput {
     pub target_tweet_link: String,
     pub tweet_reply_link: String,

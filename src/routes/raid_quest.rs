@@ -7,8 +7,9 @@ use axum::{
 
 use crate::{
     handlers::raid_quest::{
-        handle_create_raid, handle_create_raid_submission, handle_delete_raid, handle_finish_raid,
-        handle_get_raid_leaderboard, handle_get_raid_quests, handle_revert_to_active_raid,
+        handle_create_raid, handle_create_raid_submission, handle_delete_raid, handle_delete_raid_submission,
+        handle_finish_raid, handle_get_raid_leaderboard, handle_get_raid_quests,
+        handle_get_specific_raider_raid_leaderboard, handle_revert_to_active_raid,
     },
     http_server::AppState,
     middlewares::jwt_auth,
@@ -28,7 +29,17 @@ pub fn raid_quest_routes(state: AppState) -> Router<AppState> {
                 handle_create_raid_submission.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
             ),
         )
-        .route("/raid-quests/leaderboard/:raid_id", get(handle_get_raid_leaderboard))
+        .route(
+            "/raid-quests/submissions/:id",
+            post(
+                handle_delete_raid_submission.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
+            ),
+        )
+        .route(
+            "/raid-quests/raiders/:raider_id/leaderboards/:raid_id",
+            get(handle_get_specific_raider_raid_leaderboard),
+        )
+        .route("/raid-quests/leaderboards/:raid_id", get(handle_get_raid_leaderboard))
         .route(
             "/raid-quests/:raid_id",
             get(handle_get_raid_quests).delete(

@@ -44,6 +44,15 @@ impl RaidSubmissionRepository {
         }
     }
 
+    pub async fn delete(&self, submission_id: &str) -> DbResult<()> {
+        sqlx::query("DELETE FROM raid_submissions WHERE id = $1")
+            .bind(submission_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn find_by_id(&self, id: &str) -> DbResult<Option<RaidSubmission>> {
         let mut qb = Self::create_select_base_query();
         qb.push(" WHERE id = ");
@@ -234,6 +243,26 @@ mod tests {
         assert_eq!(found.raider_id, seed.raider_id);
         assert_eq!(found.impression_count, 0);
         assert_eq!(found.like_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_create_and_delete_by_id() {
+        let repo = setup_test_repository().await;
+        let seed = seed_dependencies(&repo.pool).await;
+
+        let input = create_mock_submission_input(&seed);
+
+        // 1. Create
+        let created_id = repo.create(&input).await.expect("Failed to create submission");
+        assert_eq!(created_id, input.id);
+
+        // 2. Delete
+        repo.delete(&created_id).await.unwrap();
+
+        // 3. Find
+        let found = repo.find_by_id(&created_id).await.expect("Failed to query");
+
+        assert!(found.is_none());
     }
 
     #[tokio::test]
