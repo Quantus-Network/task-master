@@ -61,15 +61,16 @@ pub async fn handle_get_tweet_author_by_id(
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, extract::Request, http::StatusCode, routing::get, Extension, Router};
-    use chrono::Utc;
     use serde_json::Value;
     use tower::ServiceExt;
-    use uuid::Uuid;
 
     use crate::{
         handlers::tweet_author::{handle_get_tweet_author_by_id, handle_get_tweet_authors},
-        models::{admin::Admin, tweet_author::NewAuthorPayload},
-        utils::{test_app_state::create_test_app_state, test_db::reset_database},
+        models::tweet_author::NewAuthorPayload,
+        utils::{
+            test_app_state::create_test_app_state,
+            test_db::{create_mock_admin, reset_database},
+        },
     };
 
     // --- Helper to seed authors easily ---
@@ -116,17 +117,6 @@ mod tests {
             .upsert_many(&authors)
             .await
             .expect("Failed to seed authors");
-    }
-
-    // --- Helper to create a dummy Admin for the Extension ---
-    fn create_mock_admin() -> Admin {
-        Admin {
-            id: Uuid::new_v4(),
-            username: "admin_test".to_string(),
-            password: "hashed_pass".to_string(),
-            updated_at: Utc::now(),
-            created_at: Utc::now(),
-        }
     }
 
     #[tokio::test]
@@ -290,10 +280,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Depending on your error handling, this might be 404 or 500 wrapped in an error response.
-        // Assuming typical generic error handler maps RecordNotFound -> 404 or 400.
-        // If your AppError::Database(RecordNotFound) maps to 500, check for that,
-        // but typically finding by ID returns 404 if missing.
-        assert!(!response.status().is_success());
+        assert_eq!(response.status(), 404);
     }
 }

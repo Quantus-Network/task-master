@@ -377,7 +377,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Expect failure (404 or 500 depending on generic error mapping)
-        assert!(!response.status().is_success());
+        assert_eq!(response.status(), 404);
     }
 }

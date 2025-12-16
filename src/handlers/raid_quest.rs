@@ -221,7 +221,6 @@ mod tests {
     use chrono::Utc;
     use serde_json::Value;
     use tower::ServiceExt;
-    use uuid::Uuid;
 
     use crate::{
         handlers::raid_quest::{
@@ -229,26 +228,14 @@ mod tests {
             handle_get_raid_quests, handle_get_specific_raider_raid_leaderboard, handle_revert_to_active_raid,
         },
         models::{
-            admin::Admin, raid_quest::CreateRaidQuest, raid_submission::RaidSubmissionInput,
-            relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload,
+            raid_quest::CreateRaidQuest, raid_submission::RaidSubmissionInput, relevant_tweet::NewTweetPayload,
+            tweet_author::NewAuthorPayload,
         },
         utils::{
             test_app_state::create_test_app_state,
-            test_db::{create_persisted_address, reset_database},
+            test_db::{create_mock_admin, create_persisted_address, reset_database},
         },
     };
-
-    // --- Helpers ---
-
-    fn create_mock_admin() -> Admin {
-        Admin {
-            id: Uuid::new_v4(),
-            username: "admin_tester".to_string(),
-            password: "hash".to_string(),
-            updated_at: Utc::now(),
-            created_at: Utc::now(),
-        }
-    }
 
     // Helper to seed the strict Foreign Key chain required for submissions
     // Author -> Tweet -> (Submission uses Tweet ID)

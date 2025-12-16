@@ -1,8 +1,11 @@
+use chrono::Utc;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{
     models::{
         address::{Address, AddressInput},
+        admin::Admin,
         eth_association::{EthAssociation, EthAssociationInput},
         x_association::{XAssociation, XAssociationInput},
     },
@@ -65,4 +68,14 @@ pub async fn create_persisted_eth_association(
     repo.create(&new_association).await.unwrap();
 
     new_association
+}
+
+pub fn create_mock_admin() -> Admin {
+    Admin {
+        id: Uuid::new_v4(),
+        username: "admin_tester".to_string(),
+        password: "hash".to_string(),
+        updated_at: Utc::now(),
+        created_at: Utc::now(),
+    }
 }
