@@ -175,8 +175,8 @@ mod tests {
 
             // C. Create Submission
             sqlx::query(
-                "INSERT INTO raid_submissions (id, raid_id, target_id, raider_id, text, impression_count) 
-                 VALUES ($1, $2, $3, $4, 'content', $5)",
+                "INSERT INTO raid_submissions (id, raid_id, target_id, raider_id, impression_count) 
+                 VALUES ($1, $2, $3, $4, $5)",
             )
             .bind(Uuid::new_v4().to_string())
             .bind(raid_id)

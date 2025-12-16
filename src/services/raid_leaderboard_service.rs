@@ -185,8 +185,8 @@ mod tests {
 
         // 4. Create Submission
         let _ = sqlx::query(
-            "INSERT INTO raid_submissions (id, raid_id, target_id, raider_id, text, impression_count, like_count) 
-             VALUES ($1, $2, $3, $4, 'I joined!', 0, 0)",
+            "INSERT INTO raid_submissions (id, raid_id, target_id, raider_id, impression_count, like_count) 
+             VALUES ($1, $2, $3, $4, 0, 0)",
         )
         .bind(submission_id)
         .bind(raid_id)
