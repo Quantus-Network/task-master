@@ -13,6 +13,7 @@ use crate::{
     db_persistence::DbPersistence,
     models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
     services::telegram_service::TelegramService,
+    utils::x_url::build_x_status_url,
     AppError, AppResult, Config,
 };
 
@@ -108,7 +109,7 @@ impl TweetSynchronizerService {
                     }
                 };
 
-                let link = format!("https://x.com/{}/status/{}", author_name, &tweet.id);
+                let link = build_x_status_url(author_name, &tweet.id);
 
                 let tg_message = format!(
                     "Raid Target Found!\n\n*Link*: {}\n*Author*: {}\n*Text*: {}\n*Impressions*: {}\n*Posted At*: {}",

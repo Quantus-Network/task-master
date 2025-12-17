@@ -1,15 +1,15 @@
 use axum::{
     handler::Handler,
     middleware,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 
 use crate::{
     handlers::raid_quest::{
         handle_create_raid, handle_create_raid_submission, handle_delete_raid, handle_delete_raid_submission,
-        handle_finish_raid, handle_get_raid_leaderboard, handle_get_raid_quests,
-        handle_get_specific_raider_raid_leaderboard, handle_revert_to_active_raid,
+        handle_finish_raid, handle_get_active_raid_raider_submissions, handle_get_raid_leaderboard,
+        handle_get_raid_quests, handle_get_specific_raider_raid_leaderboard, handle_revert_to_active_raid,
     },
     http_server::AppState,
     middlewares::jwt_auth,
@@ -30,8 +30,13 @@ pub fn raid_quest_routes(state: AppState) -> Router<AppState> {
             ),
         )
         .route(
+            "/raid-quests/submissions/me",
+            get(handle_get_active_raid_raider_submissions
+                .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth))),
+        )
+        .route(
             "/raid-quests/submissions/:id",
-            post(
+            delete(
                 handle_delete_raid_submission.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
             ),
         )
@@ -42,9 +47,7 @@ pub fn raid_quest_routes(state: AppState) -> Router<AppState> {
         .route("/raid-quests/leaderboards/:raid_id", get(handle_get_raid_leaderboard))
         .route(
             "/raid-quests/:raid_id",
-            get(handle_get_raid_quests).delete(
-                handle_delete_raid.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth)),
-            ),
+            delete(handle_delete_raid.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))),
         )
         .route(
             "/raid-quests/:raid_id/finish",

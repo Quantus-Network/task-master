@@ -11,7 +11,7 @@ use crate::{
     db_persistence::DbError,
     handlers::{
         address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
-        ErrorResponse, HandlerError,
+        HandlerError,
     },
     models::ModelError,
     services::{
@@ -54,91 +54,26 @@ pub type AppResult<T> = Result<T, AppError>;
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            AppError::Telegram(status_code_in_u16, err) => {
-                let status_code =
-                    StatusCode::from_u16(status_code_in_u16).unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR);
+        let (status, message) = match self {
+            // --- Telegram ---
+            AppError::Telegram(code, err) => (
+                StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                err,
+            ),
 
-                (status_code, err)
-            }
-
+            // --- Model ---
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
 
-            AppError::Rusx(err) => match err {
-                SdkError::Api { status, data } => {
-                    tracing::error!("Rusx API error: {:?}", data);
+            // --- Rusx ---
+            AppError::Rusx(err) => map_rusx_error(err),
 
-                    (
-                        StatusCode::from_u16(status).unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR),
-                        data.title,
-                    )
-                }
+            // --- Handler ---
+            AppError::Handler(err) => map_handler_error(err),
 
-                SdkError::AuthConfiguration(_) | SdkError::Http(_) | SdkError::Json(_) | SdkError::Unknown(_) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "An internal server error occurred".to_string(),
-                ),
-            },
+            // --- Database ---
+            AppError::Database(err) => map_db_error(err),
 
-            AppError::Handler(err) => match err {
-                HandlerError::InvalidBody(err) | HandlerError::QueryParams(err) => {
-                    (StatusCode::BAD_REQUEST, err.to_string())
-                }
-                HandlerError::Auth(err) => match err {
-                    AuthHandlerError::Unauthrorized(err) => (StatusCode::UNAUTHORIZED, err),
-                    AuthHandlerError::OAuth(err) => (StatusCode::BAD_REQUEST, err),
-                },
-                HandlerError::Address(err) => match err {
-                    AddressHandlerError::InvalidQueryParams(err) => {
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorResponse {
-                                status: "fail",
-                                message: err,
-                            }),
-                        )
-                            .into_response()
-                    }
-                    AddressHandlerError::Unauthorized(err) => {
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(ErrorResponse {
-                                status: "fail",
-                                message: err,
-                            }),
-                        )
-                            .into_response()
-                    }
-                },
-                HandlerError::Referral(err) => match err {
-                    ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
-                    ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
-                    ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
-                },
-                HandlerError::Task(err) => match err {
-                    TaskHandlerError::TaskNotFound(err) => return (StatusCode::NOT_FOUND, err).into_response(),
-                    TaskHandlerError::InvalidTaskUrl(err) => return (StatusCode::BAD_REQUEST, err).into_response(),
-                    TaskHandlerError::StatusConflict(err) => return (StatusCode::CONFLICT, err).into_response(),
-                },
-            },
-
-            AppError::Database(err) => {
-                error!("{}", err);
-
-                match err {
-                    DbError::UniqueViolation(err) => (StatusCode::CONFLICT, err),
-
-                    DbError::RecordNotFound(err) | DbError::AddressNotFound(err) | DbError::TaskNotFound(err) => {
-                        (StatusCode::NOT_FOUND, err)
-                    }
-
-                    DbError::Database(_) | DbError::InvalidStatus(_) | DbError::Migration(_) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "An internal server error occurred".to_string(),
-                    ),
-                }
-            }
-
+            // --- Everything else ---
             AppError::Transaction(_)
             | AppError::TaskGenerator(_)
             | AppError::Reverser(_)
@@ -152,10 +87,94 @@ impl IntoResponse for AppError {
             ),
         };
 
-        let body = Json(json!({
-            "error": error_message,
-        }));
+        error_response(status, message)
+    }
+}
 
-        (status, body).into_response()
+fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
+    let message = message.into();
+
+    let message = if message.is_empty() {
+        "An error occurred".to_string()
+    } else {
+        message
+    };
+
+    (
+        status,
+        Json(json!({
+            "error": message
+        })),
+    )
+        .into_response()
+}
+
+fn map_rusx_error(err: SdkError) -> (StatusCode, String) {
+    match err {
+        SdkError::Api { status, data } => {
+            let message = data.title;
+
+            (
+                StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                message,
+            )
+        }
+
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "An internal server error occurred".to_string(),
+        ),
+    }
+}
+
+fn map_handler_error(err: HandlerError) -> (StatusCode, String) {
+    match err {
+        HandlerError::InvalidBody(err) | HandlerError::QueryParams(err) => (StatusCode::BAD_REQUEST, err),
+
+        HandlerError::Auth(err) => match err {
+            AuthHandlerError::Unauthorized(err) => (StatusCode::UNAUTHORIZED, err),
+            AuthHandlerError::OAuth(err) => (StatusCode::BAD_REQUEST, err),
+        },
+
+        HandlerError::Address(err) => match err {
+            AddressHandlerError::InvalidQueryParams(err) => (StatusCode::BAD_REQUEST, err),
+            AddressHandlerError::Unauthorized(err) => (StatusCode::UNAUTHORIZED, err),
+        },
+
+        HandlerError::Referral(err) => match err {
+            ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
+            ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
+            ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
+        },
+
+        HandlerError::Task(err) => match err {
+            TaskHandlerError::TaskNotFound(err) => (StatusCode::NOT_FOUND, err.message.clone()),
+            TaskHandlerError::InvalidTaskUrl(err) => (StatusCode::BAD_REQUEST, err.message.clone()),
+            TaskHandlerError::StatusConflict(err) => (StatusCode::CONFLICT, err.message.clone()),
+        },
+    }
+}
+
+fn map_db_error(err: DbError) -> (StatusCode, String) {
+    match err {
+        DbError::UniqueViolation(err) => (StatusCode::CONFLICT, err),
+        DbError::RecordNotFound(err) | DbError::AddressNotFound(err) | DbError::TaskNotFound(err) => {
+            (StatusCode::NOT_FOUND, err)
+        }
+
+        DbError::Database(err) => {
+            let msg = err.to_string();
+
+            if msg.contains("duplicate key value violates unique constraint") {
+                (StatusCode::CONFLICT, msg)
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg)
+            }
+        }
+
+        DbError::InvalidStatus(_) | DbError::Migration(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "An internal server error occurred".to_string(),
+        ),
     }
 }

@@ -50,7 +50,6 @@ impl RaidLeaderboardService {
                 match service.sync_raid_leaderboard().await {
                     Ok(_) => {
                         tracing::info!("✅ Sync Complete. Refreshing raid leaderboard material view");
-                        service.db.raid_leaderboards.refresh().await?;
                     }
                     Err(e) => tracing::error!("❌ Sync Failed: {:?}", e),
                 }
@@ -104,6 +103,9 @@ impl RaidLeaderboardService {
                 .collect();
             self.db.raid_submissions.update_stats_many(&updates).await?;
         }
+
+        // We immediately refresh leaderboard after finish syncing stats
+        self.db.raid_leaderboards.refresh().await?;
 
         Ok(())
     }

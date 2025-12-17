@@ -3,6 +3,8 @@ use rusx::resources::tweet::{Tweet as TwitterTweet, TweetPublicMetrics};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
+use crate::models::raid_quest::RaidQuest;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RaidSubmission {
     pub id: String,
@@ -84,4 +86,10 @@ impl From<TwitterTweet> for UpdateRaidSubmissionStats {
 
         update_payload
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RaiderSubmissions {
+    pub current_raid: RaidQuest,
+    pub submissions: Vec<String>,
 }

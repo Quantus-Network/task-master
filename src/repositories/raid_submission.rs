@@ -74,6 +74,19 @@ impl RaidSubmissionRepository {
         Ok(submissions)
     }
 
+    pub async fn find_by_raider(&self, raid_id: i32, raider_id: &str) -> DbResult<Vec<RaidSubmission>> {
+        let mut qb = Self::create_select_base_query();
+        qb.push(" WHERE raid_id = ");
+        qb.push_bind(raid_id);
+        qb.push(" AND raider_id = ");
+        qb.push_bind(raider_id);
+        qb.push(" ORDER BY created_at DESC");
+
+        let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
+
+        Ok(submissions)
+    }
+
     pub async fn update_stats_many(&self, updates: &[UpdateRaidSubmissionStats]) -> DbResult<u64> {
         if updates.is_empty() {
             return Ok(0);

@@ -1,5 +1,6 @@
 use axum::{
     extract::{self, Path, Query, State},
+    http::StatusCode,
     response::NoContent,
     Extension, Json,
 };
@@ -16,9 +17,9 @@ use crate::{
         admin::Admin,
         raid_leaderboard::RaidLeaderboard,
         raid_quest::{CreateRaidQuest, RaidQuest, RaidQuestFilter, RaidQuestSortColumn},
-        raid_submission::{CreateRaidSubmission, RaidSubmissionInput},
+        raid_submission::{CreateRaidSubmission, RaidSubmissionInput, RaiderSubmissions},
     },
-    utils::parse_x_status_url::parse_x_status_url,
+    utils::x_url::{build_x_status_url, parse_x_status_url},
     AppError,
 };
 
@@ -153,14 +154,50 @@ pub async fn handle_get_specific_raider_raid_leaderboard(
     Ok(SuccessResponse::new(raider_leaderboard))
 }
 
+pub async fn handle_get_active_raid_raider_submissions(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+) -> Result<Json<SuccessResponse<RaiderSubmissions>>, AppError> {
+    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "No active raid is found"
+        ))));
+    };
+    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "User doesn't have X association"
+        ))));
+    };
+
+    let submissions = state
+        .db
+        .raid_submissions
+        .find_by_raider(current_active_raid.id, &user.quan_address.0)
+        .await?;
+    let raider_submissions: Vec<String> = submissions
+        .iter()
+        .map(|submission| build_x_status_url(&user_x.username, &submission.id))
+        .collect();
+
+    Ok(SuccessResponse::new(RaiderSubmissions {
+        current_raid: current_active_raid,
+        submissions: raider_submissions,
+    }))
+}
+
 pub async fn handle_create_raid_submission(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
-) -> Result<Json<SuccessResponse<i32>>, AppError> {
+) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
     let Some((_target_username, target_id)) = parse_x_status_url(&payload.target_tweet_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse target tweet link"
+        ))));
+    };
+    let Some(_) = state.db.relevant_tweets.find_by_id(&target_id).await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "Not a valid target tweet"
         ))));
     };
     let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
@@ -175,11 +212,11 @@ pub async fn handle_create_raid_submission(
     };
     let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
         return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No user X association is found"
+            "User doesn't have X association"
         ))));
     };
     if user_x.username != reply_username {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             format!("Only tweet reply author is eligible to submit"),
         ))));
     }
@@ -191,9 +228,9 @@ pub async fn handle_create_raid_submission(
         target_id: target_id,
     };
 
-    state.db.raid_submissions.create(&new_raid_submission).await?;
+    let created_id = state.db.raid_submissions.create(&new_raid_submission).await?;
 
-    Ok(SuccessResponse::new(0))
+    Ok((StatusCode::CREATED, SuccessResponse::new(created_id)))
 }
 
 pub async fn handle_delete_raid_submission(
@@ -209,7 +246,7 @@ pub async fn handle_delete_raid_submission(
     };
 
     if raid_submission.raider_id != user.quan_address.0 {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             format!("Only raid submission owner can delete"),
         ))));
     }
@@ -497,36 +534,44 @@ mod tests {
         assert_eq!(body["data"]["total_impressions"], 10);
     }
 
-    // --- Submission Handlers ---
-
     #[tokio::test]
     async fn test_create_raid_submission_success() {
         let state = create_test_app_state().await;
         reset_database(&state.db.pool).await;
 
-        // 1. Setup
+        // 1. Setup Active Raid
         let raid_id = state
             .db
             .raid_quests
             .create(&CreateRaidQuest { name: "Active".into() })
             .await
             .unwrap();
-        // Ensure it is active (default is active)
 
+        // 2. Setup User
         let user = create_persisted_address(&state.db.addresses, "submitter").await;
 
-        // Important: Seed the Target Tweet so the foreign key constraint is satisfied
+        // 3. Seed Target Tweet (Required for Foreign Key)
         let target_tweet_id = "1868000000000000000";
         seed_target_tweet(&state, target_tweet_id).await;
+
+        // 4. Setup X Association
+        // The handler requires the user to have an X account, and that account
+        // must match the username in the 'tweet_reply_link' (which is "me" below).
+        sqlx::query("INSERT INTO x_associations (quan_address, username, created_at) VALUES ($1, $2, NOW())")
+            .bind(&user.quan_address.0)
+            .bind("me") // Must match the username in the payload URL
+            .execute(&state.db.pool)
+            .await
+            .expect("Failed to create X association");
 
         let router = Router::new()
             .route("/submissions", post(handle_create_raid_submission))
             .layer(Extension(user))
             .with_state(state.clone());
 
-        // 2. Payload with valid URLs
+        // 5. Payload
         // Target Link -> ID 1868000000000000000
-        // Reply Link -> ID 12345 (This will be the submission ID)
+        // Reply Link -> ID 999999999, Username "me"
         let payload = RaidSubmissionInput {
             target_tweet_link: format!("https://x.com/someone/status/{}", target_tweet_id),
             tweet_reply_link: "https://x.com/me/status/999999999".to_string(),
@@ -544,9 +589,9 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED); // Note: Handler returns CREATED (201), your assert was checking 200
 
-        // 3. Verify in DB
+        // 6. Verify in DB
         let sub = state.db.raid_submissions.find_by_id("999999999").await.unwrap();
         assert!(sub.is_some());
         let sub = sub.unwrap();
