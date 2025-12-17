@@ -96,7 +96,7 @@ impl TweetSynchronizerService {
             let tweets_to_process = relevant_tweets.to_vec();
             let mut messages: Vec<String> = Vec::with_capacity(tweets_to_process.len());
 
-            for tweet in &tweets_to_process {
+            for tweet in tweets_to_process.iter().rev() {
                 let author_name = match author_lookup.get(&tweet.author_id) {
                     Some(name) => name,
                     None => {
@@ -111,7 +111,7 @@ impl TweetSynchronizerService {
                 let link = format!("https://x.com/{}/status/{}", author_name, &tweet.id);
 
                 let tg_message = format!(
-                    "Raid Target Found!\n\nLink: {}\nAuthor: {}\nText: {}\nImpressions: {}\nPosted At: {}",
+                    "Raid Target Found!\n\n*Link*: {}\n*Author*: {}\n*Text*: {}\n*Impressions*: {}\n*Posted At*: {}",
                     link, author_name, tweet.text, tweet.impression_count, tweet.created_at
                 );
                 messages.push(tg_message);
