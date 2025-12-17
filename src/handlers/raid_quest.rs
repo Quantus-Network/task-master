@@ -158,12 +158,12 @@ pub async fn handle_create_raid_submission(
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
 ) -> Result<Json<SuccessResponse<i32>>, AppError> {
-    let Some(target_id) = parse_x_status_url(&payload.target_tweet_link) else {
+    let Some((_target_username, target_id)) = parse_x_status_url(&payload.target_tweet_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse target tweet link"
         ))));
     };
-    let Some(reply_id) = parse_x_status_url(&payload.tweet_reply_link) else {
+    let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse tweet reply link"
         ))));
@@ -173,6 +173,16 @@ pub async fn handle_create_raid_submission(
             "No active raid is found"
         ))));
     };
+    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "No user X association is found"
+        ))));
+    };
+    if user_x.username != reply_username {
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+            format!("Only tweet reply author is eligible to submit"),
+        ))));
+    }
 
     let new_raid_submission = CreateRaidSubmission {
         id: reply_id,
