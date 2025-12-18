@@ -37,7 +37,7 @@ impl TelegramService {
         let payload = MessagePayload {
             chat_id,
             text,
-            parse_mode: "HTML", // or "MarkdownV2"
+            parse_mode: "MarkdownV2", // or "HTML"
             disable_web_page_preview: true,
         };
 

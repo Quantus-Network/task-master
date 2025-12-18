@@ -163,12 +163,19 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
         }
 
         DbError::Database(err) => {
+            error!("Database error: {}", err);
             let msg = err.to_string();
 
             if msg.contains("duplicate key value violates unique constraint") {
-                (StatusCode::CONFLICT, msg)
+                (
+                    StatusCode::CONFLICT,
+                    format!("The given value is conflicting with existing record"),
+                )
             } else {
-                (StatusCode::INTERNAL_SERVER_ERROR, msg)
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal server error occurred".to_string(),
+                )
             }
         }
 
