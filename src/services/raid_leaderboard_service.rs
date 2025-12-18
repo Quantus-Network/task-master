@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use rusx::{
     resources::{tweet::TweetParams, TweetField},
@@ -65,7 +65,11 @@ impl RaidLeaderboardService {
             return Ok(());
         };
 
-        let raid_submissions = self.db.raid_submissions.find_by_raid(active_raid_quest.id).await?;
+        let raid_submissions = self
+            .db
+            .raid_submissions
+            .find_valid_only_by_raid(active_raid_quest.id)
+            .await?;
         if raid_submissions.is_empty() {
             tracing::info!("No raid submissions found yet for current active raid quest.");
             return Ok(Default::default());
@@ -78,6 +82,8 @@ impl RaidLeaderboardService {
             TweetField::PublicMetrics,
             TweetField::CreatedAt,
             TweetField::AuthorId,
+            TweetField::InReplyToUserId,
+            TweetField::ReferencedTweets,
         ]);
 
         // X Api Request Limit: 15 requests / 15 mins.
@@ -97,11 +103,51 @@ impl RaidLeaderboardService {
                 continue;
             };
 
-            let updates: Vec<UpdateRaidSubmissionStats> = tweets
+            // EXTRACT: Collect all referenced IDs from the fetched tweets
+            // We use a HashSet immediately to remove duplicates before sending to DB
+            let referenced_ids: Vec<String> = tweets
                 .iter()
-                .map(|t| UpdateRaidSubmissionStats::from(t.clone()))
+                .filter_map(|t| t.referenced_tweets.as_ref()) // Get Option<Vec<ReferencedTweet>>
+                .flatten() // Flatten Vec<ReferencedTweet>
+                .map(|r| r.id.clone()) // Extract ID
+                .collect::<HashSet<_>>() // Deduplicate
+                .into_iter()
                 .collect();
-            self.db.raid_submissions.update_stats_many(&updates).await?;
+
+            let valid_raid_ids: HashSet<String> = self.db.relevant_tweets.get_existing_ids(&referenced_ids).await?;
+
+            let mut valid_tweets = Vec::new();
+            let mut invalid_tweets = Vec::new();
+
+            // `for tweet in tweets` consumes the original vector, so we "move"
+            // the data instead of cloning it.
+            for tweet in tweets {
+                let is_valid = tweet.referenced_tweets.as_ref().map_or(false, |refs| {
+                    // Check if ANY of the referenced IDs exist in our valid set
+                    refs.iter().any(|r| valid_raid_ids.contains(&r.id))
+                });
+
+                if is_valid {
+                    valid_tweets.push(tweet);
+                } else {
+                    invalid_tweets.push(tweet);
+                }
+            }
+
+            if !valid_tweets.is_empty() {
+                let updates: Vec<UpdateRaidSubmissionStats> =
+                    valid_tweets.into_iter().map(UpdateRaidSubmissionStats::from).collect();
+
+                self.db.raid_submissions.update_stats_many(&updates).await?;
+            }
+
+            if !invalid_tweets.is_empty() {
+                let flags: Vec<&str> = invalid_tweets.iter().map(|t| t.id.as_str()).collect();
+
+                self.db.raid_submissions.update_as_invalid_many(&flags).await?;
+
+                tracing::info!("Flagged {} invalid tweets", invalid_tweets.len());
+            }
         }
 
         // We immediately refresh leaderboard after finish syncing stats
@@ -147,6 +193,8 @@ mod tests {
             text: "Raid content".to_string(),
             author_id: Some("author_1".to_string()),
             created_at: Some(chrono::Utc::now().to_rfc3339()),
+            in_reply_to_user_id: None,
+            referenced_tweets: None,
             public_metrics: Some(TweetPublicMetrics {
                 impression_count: impressions,
                 like_count: likes,

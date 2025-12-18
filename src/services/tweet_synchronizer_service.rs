@@ -267,6 +267,8 @@ mod tests {
             text: "Hello World".to_string(),
             author_id: Some(author_id.to_string()),
             created_at: Some(chrono::Utc::now().to_rfc3339()),
+            in_reply_to_user_id: None,
+            referenced_tweets: None,
             public_metrics: Some(TweetPublicMetrics {
                 impression_count: 100,
                 like_count: 10,

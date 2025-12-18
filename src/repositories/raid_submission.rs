@@ -63,10 +63,11 @@ impl RaidSubmissionRepository {
         Ok(submission)
     }
 
-    pub async fn find_by_raid(&self, raid_id: i32) -> DbResult<Vec<RaidSubmission>> {
+    pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<RaidSubmission>> {
         let mut qb = Self::create_select_base_query();
         qb.push(" WHERE raid_id = ");
         qb.push_bind(raid_id);
+        qb.push(" AND NOT is_invalid");
         qb.push(" ORDER BY created_at DESC");
 
         let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
@@ -134,6 +135,24 @@ impl RaidSubmissionRepository {
             .bind(&likes)
             .execute(&self.pool)
             .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    pub async fn update_as_invalid_many(&self, ids: &[&str]) -> DbResult<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let query = "
+            UPDATE raid_submissions
+            SET
+                is_invalid = true,
+                updated_at = NOW()
+            WHERE id = ANY($1::varchar[]);
+        ";
+
+        let result = sqlx::query(query).bind(ids).execute(&self.pool).await?;
 
         Ok(result.rows_affected())
     }
@@ -279,7 +298,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_by_raid_sorting() {
+    async fn test_find_valid_only_by_raid_sorting() {
         let repo = setup_test_repository().await;
         let seed = seed_dependencies(&repo.pool).await;
 
@@ -296,7 +315,7 @@ mod tests {
         repo.create(&sub3).await.unwrap();
 
         // Query by Raid ID
-        let results = repo.find_by_raid(seed.raid_id).await.unwrap();
+        let results = repo.find_valid_only_by_raid(seed.raid_id).await.unwrap();
 
         assert_eq!(results.len(), 3);
 
@@ -336,6 +355,37 @@ mod tests {
         assert_eq!(updated.reply_count, 5);
         assert_eq!(updated.retweet_count, 10);
         assert_eq!(updated.like_count, 50);
+
+        // 4. Verify `updated_at` trigger worked
+        assert!(
+            updated.updated_at > updated.created_at,
+            "updated_at timestamp was not refreshed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_invalid_many_success() {
+        let repo = setup_test_repository().await;
+        let seed = seed_dependencies(&repo.pool).await;
+        let input = create_mock_submission_input(&seed);
+
+        repo.create(&input).await.unwrap();
+
+        // 1. Prepare the Update Payload
+        let ids: &[&str] = &[&input.id];
+
+        // 2. Execute Bulk Update
+        let rows_affected = repo
+            .update_as_invalid_many(ids)
+            .await
+            .expect("Failed to update status to invalid");
+
+        assert_eq!(rows_affected, 1, "Should have updated exactly 1 record");
+
+        // 3. Verify Update in DB
+        let updated = repo.find_by_id(&input.id).await.unwrap().unwrap();
+
+        assert_eq!(updated.is_invalid, true);
 
         // 4. Verify `updated_at` trigger worked
         assert!(

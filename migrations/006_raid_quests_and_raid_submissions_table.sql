@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS raid_submissions (
     reply_count INTEGER DEFAULT 0,
     retweet_count INTEGER DEFAULT 0,
     like_count INTEGER DEFAULT 0,
+    is_invalid BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW ()
 );
@@ -43,6 +44,8 @@ UPDATE
     ON raid_submissions FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp ();
 
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_raider_id ON raid_submissions (raider_id);
+
+CREATE INDEX IF NOT EXISTS idx_raid_submissions_is_invalid ON raid_submissions (is_invalid);
 
 CREATE INDEX IF NOT EXISTS idx_raid_submissions_target_id ON raid_submissions (target_id);
 

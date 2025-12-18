@@ -15,6 +15,7 @@ pub struct RaidSubmission {
     pub reply_count: i32,
     pub retweet_count: i32,
     pub like_count: i32,
+    pub is_invalid: bool,
     pub updated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
@@ -29,6 +30,7 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
         let reply_count: Option<i32> = row.try_get("reply_count")?;
         let retweet_count: Option<i32> = row.try_get("retweet_count")?;
         let like_count: Option<i32> = row.try_get("like_count")?;
+        let is_invalid = row.try_get("is_invalid")?;
         let updated_at = row.try_get("updated_at")?;
         let created_at = row.try_get("created_at")?;
 
@@ -41,6 +43,7 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
             reply_count: reply_count.unwrap_or(0),
             retweet_count: retweet_count.unwrap_or(0),
             like_count: like_count.unwrap_or(0),
+            is_invalid,
             updated_at,
             created_at,
         })
@@ -70,14 +73,13 @@ pub struct UpdateRaidSubmissionStats {
     pub like_count: i32,
 }
 
-impl From<TwitterTweet> for UpdateRaidSubmissionStats {
-    fn from(tweet: TwitterTweet) -> Self {
-        let public_metrics = tweet
-            .public_metrics
-            .unwrap_or_else(|| TweetPublicMetrics { ..Default::default() });
+impl From<&TwitterTweet> for UpdateRaidSubmissionStats {
+    fn from(tweet: &TwitterTweet) -> Self {
+        let default_metrics = TweetPublicMetrics::default();
+        let public_metrics = tweet.public_metrics.as_ref().unwrap_or(&default_metrics);
 
         let update_payload = UpdateRaidSubmissionStats {
-            id: tweet.id,
+            id: tweet.id.clone(),
             impression_count: public_metrics.impression_count as i32,
             like_count: public_metrics.like_count as i32,
             retweet_count: public_metrics.retweet_count as i32,
