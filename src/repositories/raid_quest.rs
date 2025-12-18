@@ -109,12 +109,11 @@ impl RaidQuestRepository {
         )
         .bind(&new_quest.name)
         .bind(start_date)
-        .fetch_optional(&self.pool)
+        .fetch_one(&self.pool)
         .await;
 
         match result {
-            Ok(Some(id)) => Ok(id),
-            Ok(None) => Err(DbError::RecordNotFound("Failed to retrieve generated ID".to_string())),
+            Ok(id) => Ok(id),
             Err(sqlx::Error::Database(db_err)) => {
                 // Check specifically for Exclusion Violation (Postgres Code 23P01)
                 if let Some(code) = db_err.code() {
@@ -132,11 +131,10 @@ impl RaidQuestRepository {
     }
 
     pub async fn delete_by_id(&self, id: i32) -> DbResult<Option<RaidQuest>> {
-        let mut qb = QueryBuilder::new("DELETE FROM raid_quests");
-        qb.push(" WHERE id = ");
-        qb.push_bind(id);
-
-        let quest = qb.build_query_as().fetch_optional(&self.pool).await?;
+        let quest = sqlx::query_as::<_, RaidQuest>("DELETE FROM raid_quests WHERE id = $1 RETURNING *")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(quest)
     }

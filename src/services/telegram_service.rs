@@ -14,7 +14,6 @@ pub struct TelegramService {
 struct MessagePayload<'a> {
     chat_id: &'a str,
     text: &'a str,
-    parse_mode: &'a str,
     disable_web_page_preview: bool,
 }
 
@@ -37,7 +36,6 @@ impl TelegramService {
         let payload = MessagePayload {
             chat_id,
             text,
-            parse_mode: "HTML", // or "MarkdownV2"
             disable_web_page_preview: true,
         };
 

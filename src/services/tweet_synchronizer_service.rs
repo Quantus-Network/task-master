@@ -112,15 +112,13 @@ impl TweetSynchronizerService {
                 let link = build_x_status_url(author_name, &tweet.id);
 
                 let tg_message = format!(
-                    "Raid Target Found!\n\n*Link*: {}\n*Author*: {}\n*Text*: {}\n*Impressions*: {}\n*Posted At*: {}",
+                    "Raid Target Found!\n\nLink: {}\nAuthor: {}\nText: {}\nImpressions: {}\nPosted At: {}",
                     link, author_name, tweet.text, tweet.impression_count, tweet.created_at
                 );
                 messages.push(tg_message);
             }
 
             tokio::spawn(async move {
-                // Telegram Limit: ~30 messages per second.
-                // We set interval to 50ms (~20 msgs/sec) to be safe.
                 let mut rate_limiter = tokio::time::interval(tokio::time::Duration::from_millis(50));
 
                 for msg in messages {
