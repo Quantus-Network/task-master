@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match result {
         Ok(id) => {
-            println!("✅ Success! Admin created.");
+            println!("✅ Success! Raid created.");
             println!("ID: {}", id);
             println!("Name: {}", name);
         }
