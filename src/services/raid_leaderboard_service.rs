@@ -167,7 +167,7 @@ mod tests {
     use mockall::*;
     use rusx::{
         resources::{
-            tweet::{Tweet, TweetApi, TweetPublicMetrics},
+            tweet::{ReferenceType, ReferencedTweet, Tweet, TweetApi, TweetPublicMetrics},
             TwitterApiResponse,
         },
         MockTweetApi, MockTwitterGateway,
@@ -187,14 +187,17 @@ mod tests {
         (db, Arc::new(config))
     }
 
-    fn create_mock_tweet(id: &str, impressions: u32, likes: u32) -> Tweet {
+    fn create_mock_tweet(id: &str, target_id: String, impressions: u32, likes: u32) -> Tweet {
         Tweet {
             id: id.to_string(),
             text: "Raid content".to_string(),
             author_id: Some("author_1".to_string()),
             created_at: Some(chrono::Utc::now().to_rfc3339()),
             in_reply_to_user_id: None,
-            referenced_tweets: None,
+            referenced_tweets: Some(vec![ReferencedTweet {
+                reference_type: ReferenceType::RepliedTo,
+                id: target_id,
+            }]),
             public_metrics: Some(TweetPublicMetrics {
                 impression_count: impressions,
                 like_count: likes,
@@ -206,7 +209,7 @@ mod tests {
     }
 
     // Helper to seed the DB requirements for a submission
-    async fn seed_submission(db: &Arc<DbPersistence>, raid_id: i32, submission_id: &str) {
+    async fn seed_submission(db: &Arc<DbPersistence>, raid_id: i32, target_id: &str, submission_id: &str) {
         // 1. Seed Raider (Address)
         let raider_id = "0xRaider";
         // Handle constraint if address already exists from previous calls in same test
@@ -225,11 +228,10 @@ mod tests {
         .await;
 
         // 3. Seed Relevant Tweet (Target)
-        let target_id = format!("target_{}", submission_id);
         let _ = sqlx::query(
             "INSERT INTO relevant_tweets (id, author_id, text, created_at) VALUES ($1, 'auth_1', 'Target', NOW())",
         )
-        .bind(&target_id)
+        .bind(target_id)
         .execute(&db.pool)
         .await;
 
@@ -302,7 +304,8 @@ mod tests {
 
         // 2. Seed Submission (Initial Stats: 0 impressions, 0 likes)
         let sub_id = "12345_submission";
-        seed_submission(&db, raid_id, sub_id).await;
+        let target_id = "target_12345_submission";
+        seed_submission(&db, raid_id, target_id, sub_id).await;
 
         // 3. Setup Mocks
         let mut mock_gateway = MockTwitterGateway::new();
@@ -316,7 +319,7 @@ mod tests {
             .returning(|_, _| {
                 Ok(TwitterApiResponse {
                     // Return UPDATED stats (100 impressions, 50 likes)
-                    data: Some(vec![create_mock_tweet("12345_submission", 100, 50)]),
+                    data: Some(vec![create_mock_tweet(sub_id, target_id.to_string(), 100, 50)]),
                     includes: None,
                     meta: None,
                 })
@@ -334,9 +337,10 @@ mod tests {
         // 5. Verify DB Updated
         let updated_sub = db.raid_submissions.find_by_id(sub_id).await.unwrap().unwrap();
 
+        assert!(updated_sub.updated_at > updated_sub.created_at);
+        assert_eq!(updated_sub.is_invalid, false);
         assert_eq!(updated_sub.impression_count, 100);
         assert_eq!(updated_sub.like_count, 50);
-        assert!(updated_sub.updated_at > updated_sub.created_at);
     }
 
     #[tokio::test]
@@ -358,7 +362,7 @@ mod tests {
         let mut all_ids = Vec::new();
         for i in 0..150 {
             let id = format!("sub_{}", i);
-            seed_submission(&db, raid_id, &id).await;
+            seed_submission(&db, raid_id, &format!("target_{}", id), &id).await;
             all_ids.push(id);
         }
 
@@ -371,7 +375,10 @@ mod tests {
         // 2nd time: 50 IDs
         mock_tweet_api.expect_get_many().times(2).returning(|ids, _| {
             // Return valid responses for whatever IDs were requested
-            let tweets = ids.iter().map(|id| create_mock_tweet(id, 10, 1)).collect();
+            let tweets = ids
+                .iter()
+                .map(|id| create_mock_tweet(id, format!("target_{}", id), 10, 1))
+                .collect();
             Ok(TwitterApiResponse {
                 data: Some(tweets),
                 includes: None,
