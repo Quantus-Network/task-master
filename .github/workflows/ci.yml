@@ -1,0 +1,69 @@
+name: Rust CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_VERSION: 0.7
+  DATABASE_URL: "postgres://postgres:postgres@localhost:5432/task_master"
+
+jobs:
+  test:
+    name: Test & Migrate
+    runs-on: ubuntu-latest
+    # Service Containers: The standard GitHub way to run sidecar DBs
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: task_master
+        ports:
+          - 5432:5432
+        # Health check to ensure DB is ready before steps run
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      # Compiling sqlx-cli takes forever. We cache the binary.
+      - name: Cache sqlx-cli
+        uses: actions/cache@v3
+        id: cache-sqlx
+        with:
+          path: ~/.cargo/bin/sqlx
+          key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
+
+      - name: Install sqlx-cli
+        if: steps.cache-sqlx.outputs.cache-hit != 'true'
+        run: cargo install sqlx-cli --version ${{ env.SQLX_VERSION }} --no-default-features --features postgres,native-tls
+
+      - name: Run Migrations
+        run: sqlx migrate run
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
+
+      # Run tests (Non-chain only, as requested)
+      - name: Run Tests
+        run: cargo test -- --skip chain_ --test-threads=1 --nocapture
