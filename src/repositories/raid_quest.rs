@@ -274,16 +274,22 @@ mod tests {
 
         // 2. Attempt to create second active raid immediately
         let input2 = create_mock_quest_input("Raid Two");
-        let result = repo.create(&input2).await;
-
-        // 3. Assert failure
-        assert!(result.is_err());
-
-        match result.unwrap_err() {
-            DbError::UniqueViolation(_) => {
-                // Success: We caught the specific overlap violation
-            }
+        let repo_err = repo.create(&input2).await.unwrap_err();
+        match repo_err {
+            DbError::UniqueViolation(_) => {}
             err => panic!("Expected UniqueViolation, got {:?}", err),
+        }
+
+        let db_err =
+            sqlx::query_scalar::<_, i32>("INSERT INTO raid_quests (name, start_date) VALUES ($1, $2) RETURNING id")
+                .bind("Raid Three")
+                .bind(Utc::now())
+                .fetch_one(&repo.pool)
+                .await
+                .unwrap_err();
+        match db_err {
+            sqlx::Error::Database(db_err) => assert_eq!(db_err.code().as_deref(), Some("23P01")),
+            err => panic!("Expected exclusion violation (23P01), got {:?}", err),
         }
     }
 
