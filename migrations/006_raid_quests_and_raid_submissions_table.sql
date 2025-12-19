@@ -67,6 +67,8 @@ SELECT
     MAX(updated_at) as last_activity
 FROM
     raid_submissions
+WHERE
+    is_invalid = false
 GROUP BY
     raid_id,
     raider_id;
