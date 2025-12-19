@@ -60,7 +60,7 @@ pub async fn handle_revert_to_active_raid(
     Extension(_admin): Extension<Admin>,
     Path(id): Path<i32>,
 ) -> Result<NoContent, AppError> {
-    tracing::info!("Admin finishing raid id: {}", id);
+    tracing::info!("Admin reverting to active raid id: {}", id);
 
     state.db.raid_quests.make_active(id).await?;
 
@@ -72,7 +72,7 @@ pub async fn handle_delete_raid(
     Extension(_admin): Extension<Admin>,
     Path(id): Path<i32>,
 ) -> Result<NoContent, AppError> {
-    tracing::info!("Admin finishing raid id: {}", id);
+    tracing::info!("Admin deleting raid id: {}", id);
 
     state.db.raid_quests.delete_by_id(id).await?;
 
