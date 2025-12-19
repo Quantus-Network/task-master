@@ -113,7 +113,7 @@ impl TweetSynchronizerService {
 
                 let tg_message = format!(
                     "Raid Target Found!\n\n*Link*: {}\n*Author*: {}\n*Text*: {}\n*Impressions*: {}\n*Posted At*: {}",
-                    link,
+                    TelegramService::escape_markdown_v2(&link),
                     TelegramService::escape_markdown_v2(author_name),
                     TelegramService::escape_markdown_v2(&tweet.text),
                     tweet.impression_count,
