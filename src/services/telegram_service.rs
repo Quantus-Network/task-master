@@ -19,6 +19,27 @@ struct MessagePayload<'a> {
 }
 
 impl TelegramService {
+    pub fn escape_markdown_v2(text: &str) -> String {
+        text.replace("_", "\\_")
+            .replace("*", "\\*")
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+            .replace("~", "\\~")
+            .replace("`", "\\`")
+            .replace(">", "\\>")
+            .replace("#", "\\#")
+            .replace("+", "\\+")
+            .replace("-", "\\-")
+            .replace("=", "\\=")
+            .replace("|", "\\|")
+            .replace("{", "\\{")
+            .replace("}", "\\}")
+            .replace(".", "\\.")
+            .replace("!", "\\!")
+    }
+
     pub fn new(base_url: &str, token: &str, default_chat_id: &str) -> Self {
         Self {
             client: Client::new(),
