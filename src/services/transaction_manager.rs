@@ -263,7 +263,7 @@ mod tests {
     use crate::config::Config;
 
     #[tokio::test]
-    async fn test_new_manager_creates_and_loads_wallet() {
+    async fn chain_test_new_manager_creates_and_loads_wallet() {
         // This test requires filesystem access to create a wallet.
         let config = Config::load_test_env().expect("Failed to load test configuration");
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
