@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SQLX_VERSION: 0.7
+  SQLX_VERSION: 0.7.0
   DATABASE_URL: "postgres://postgres:postgres@localhost:5432/task_master"
 
 jobs:
