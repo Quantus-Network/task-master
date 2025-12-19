@@ -5,6 +5,7 @@
 if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9944)" != "405" ]; then
   echo "Blockchain node is not running!"
   echo "Please start the development chain first."
+  echo "Or else run the tests without chain using ./scripts/run_non_chain_tests.sh"
   exit 1
 fi
 
