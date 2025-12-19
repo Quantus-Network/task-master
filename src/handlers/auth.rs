@@ -33,7 +33,7 @@ use tracing::{debug, warn};
 #[derive(Debug, thiserror::Error)]
 pub enum AuthHandlerError {
     #[error("Not authorized: {0}")]
-    Unauthrorized(String),
+    Unauthorized(String),
     #[error("Oauth error: {0}")]
     OAuth(String),
 }
@@ -70,7 +70,7 @@ pub async fn verify_login(
         "verify_login: received payload"
     );
     let Some(chal) = state.challenges.read().await.get(&body.temp_session_id).cloned() else {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             format!("no challenge with key {} found", &body.temp_session_id),
         ))));
     };
@@ -85,12 +85,12 @@ pub async fn verify_login(
         warn!(error = %e, "verify_login: verify_address error");
     }
     let addr_ok = addr_res.map_err(|_| {
-        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(format!(
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(format!(
             "address verification failed"
         ))))
     })?;
     if !addr_ok {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             format!("address verification failed"),
         ))));
     }
@@ -99,13 +99,13 @@ pub async fn verify_login(
         warn!(error = %e, "verify_login: verify_message error");
     }
     let sig_ok = sig_res.map_err(|_| {
-        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(format!(
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(format!(
             "message verification failed"
         ))))
     })?;
     debug!(addr_ok = addr_ok, sig_ok = sig_ok, "verify_login: verification results");
     if !sig_ok {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthrorized(
+        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             format!("message verification failed"),
         ))));
     }
@@ -304,7 +304,7 @@ pub async fn handle_admin_login(
     Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| {
-            HandlerError::Auth(AuthHandlerError::Unauthrorized(
+            HandlerError::Auth(AuthHandlerError::Unauthorized(
                 "Invalid username or password".to_string(),
             ))
         })?;

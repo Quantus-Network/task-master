@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 
 use crate::{
@@ -145,7 +147,7 @@ impl RelevantTweetRepository {
     }
 
     /// Batch Upsert
-    pub async fn upsert_many(&self, tweets: Vec<NewTweetPayload>) -> DbResult<u64> {
+    pub async fn upsert_many(&self, tweets: &Vec<NewTweetPayload>) -> DbResult<u64> {
         if tweets.is_empty() {
             return Ok(0);
         }
@@ -161,9 +163,9 @@ impl RelevantTweetRepository {
         let mut created_ats = Vec::with_capacity(tweets.len());
 
         for t in tweets {
-            ids.push(t.id);
-            author_ids.push(t.author_id);
-            texts.push(t.text);
+            ids.push(t.id.clone());
+            author_ids.push(t.author_id.clone());
+            texts.push(t.text.clone());
             impression_counts.push(t.impression_count);
             reply_counts.push(t.reply_count);
             retweet_counts.push(t.retweet_count);
@@ -217,5 +219,131 @@ impl RelevantTweetRepository {
             .await?;
 
         Ok(tweet)
+    }
+
+    pub async fn get_existing_ids(&self, ids: &[String]) -> DbResult<HashSet<String>> {
+        if ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let rows: Vec<String> = sqlx::query_scalar("SELECT id FROM relevant_tweets WHERE id = ANY($1)")
+            .bind(ids)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows.into_iter().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
+        repositories::tweet_author::TweetAuthorRepository,
+        utils::test_db::reset_database,
+        Config,
+    };
+    use chrono::Utc;
+    use sqlx::PgPool;
+
+    // --- Helpers to create dummy data ---
+    async fn setup_test_repository() -> (RelevantTweetRepository, TweetAuthorRepository) {
+        let config = Config::load_test_env().expect("Failed to load configuration for tests");
+        let pool = PgPool::connect(config.get_database_url())
+            .await
+            .expect("Failed to create pool.");
+
+        // Clean database before each test
+        reset_database(&pool).await;
+
+        (RelevantTweetRepository::new(&pool), TweetAuthorRepository::new(&pool))
+    }
+
+    async fn seed_author(repo: &TweetAuthorRepository, id: &str, username: &str) {
+        let authors = vec![NewAuthorPayload {
+            id: id.to_string(),
+            name: username.to_string(),
+            username: username.to_string(),
+            followers_count: 100,
+            following_count: 10,
+            tweet_count: 50,
+            listed_count: 1,
+            like_count: 200,
+            media_count: 5,
+        }];
+
+        repo.upsert_many(&authors).await.expect("Failed to seed authors");
+    }
+
+    fn create_payload(id: &str, author_id: &str, text: &str) -> NewTweetPayload {
+        NewTweetPayload {
+            id: id.to_string(),
+            author_id: author_id.to_string(),
+            text: text.to_string(),
+            impression_count: 100,
+            reply_count: 5,
+            retweet_count: 10,
+            like_count: 50,
+            created_at: Utc::now(),
+        }
+    }
+
+    // --- Tests ---
+
+    #[tokio::test]
+    async fn test_upsert_and_find_by_id() {
+        let (repo, author_repo) = setup_test_repository().await;
+
+        // 1. Setup Author (Foreign Key constraint)
+        let author_id = "author_1";
+        seed_author(&author_repo, author_id, "rust_dev").await;
+
+        // 2. Prepare Payload
+        let tweet_id = "tweet_123";
+        let payload = create_payload(tweet_id, author_id, "Hello Rust!");
+        let tweets = vec![payload.clone()];
+
+        // 3. Test Upsert (Insert)
+        let count = repo.upsert_many(&tweets).await.unwrap();
+        assert_eq!(count, 1, "Should insert 1 row");
+
+        // 4. Test Find
+        let found = repo.find_by_id(tweet_id).await.unwrap();
+        assert!(found.is_some());
+        let t = found.unwrap();
+        assert_eq!(t.text, "Hello Rust!");
+        assert_eq!(t.impression_count, 100);
+
+        // 5. Test Upsert (Update)
+        // Change metrics and upsert again
+        let mut update_payload = payload.clone();
+        update_payload.impression_count = 999;
+        repo.upsert_many(&vec![update_payload]).await.unwrap();
+
+        let updated = repo.find_by_id(tweet_id).await.unwrap().unwrap();
+        assert_eq!(
+            updated.impression_count, 999,
+            "Should update existing record on conflict"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_existing_ids() {
+        let (repo, author_repo) = setup_test_repository().await;
+        seed_author(&author_repo, "a1", "user1").await;
+
+        let t1 = create_payload("t1", "a1", "one");
+        let t2 = create_payload("t2", "a1", "two");
+        repo.upsert_many(&vec![t1, t2]).await.unwrap();
+
+        // Check for t1, t2 and a non-existent t3
+        let check_ids = vec!["t1".to_string(), "t2".to_string(), "t3".to_string()];
+        let existing = repo.get_existing_ids(&check_ids).await.unwrap();
+
+        assert_eq!(existing.len(), 2);
+        assert!(existing.contains("t1"));
+        assert!(existing.contains("t2"));
+        assert!(!existing.contains("t3"));
     }
 }

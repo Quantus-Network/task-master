@@ -70,6 +70,15 @@ interval_in_hours = 24
 keywords = "example"
 whitelist = ["example-username"]
 
+[tg_bot]
+base_url = "https://api.telegram.org"
+chat_id = '-1'
+token = "token"
+
+[raid_leaderboard]
+sync_interval_in_hours = 24
+tweets_req_interval_in_secs = 60
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"

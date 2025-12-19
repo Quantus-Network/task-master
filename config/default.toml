@@ -59,3 +59,12 @@ api_key = "some-key"
 interval_in_hours = 24
 keywords = "quantum"
 whitelist = ["username"]
+
+[tg_bot]
+base_url = "https://api.telegram.org"
+chat_id = '-1'
+token = "token"
+
+[raid_leaderboard]
+sync_interval_in_hours = 24
+tweets_req_interval_in_secs = 60

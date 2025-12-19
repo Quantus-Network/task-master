@@ -4,7 +4,8 @@ use crate::{
     errors::{AppError, AppResult},
     models::task::{Task, TaskInput},
     services::{
-        graphql_client::GraphqlClient, reverser::start_reverser_service, task_generator::TaskGenerator,
+        graphql_client::GraphqlClient, raid_leaderboard_service::RaidLeaderboardService,
+        reverser::start_reverser_service, task_generator::TaskGenerator, telegram_service::TelegramService,
         transaction_manager::TransactionManager, tweet_synchronizer_service::TweetSynchronizerService,
     },
 };
@@ -269,6 +270,11 @@ async fn main() -> AppResult<()> {
         config.x_oauth.clone(),
         Some(config.tweet_sync.api_key.clone()),
     )?);
+    let telegram_service = Arc::new(TelegramService::new(
+        &config.tg_bot.base_url,
+        &config.tg_bot.token,
+        &config.tg_bot.chat_id,
+    ));
     let server_db = db.clone();
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
@@ -299,7 +305,15 @@ async fn main() -> AppResult<()> {
     info!("Reversal period: {} hours", config.blockchain.reversal_period_hours);
 
     // Initialize tweet sync service
-    let tweet_synchronizer = TweetSynchronizerService::new(db.clone(), twitter_gateway, Arc::new(config.clone()));
+    let tweet_synchronizer = TweetSynchronizerService::new(
+        db.clone(),
+        twitter_gateway.clone(),
+        telegram_service,
+        Arc::new(config.clone()),
+    );
+
+    // Initialize raid leaderboard  service
+    let raid_leaderboard_service = RaidLeaderboardService::new(db.clone(), twitter_gateway, Arc::new(config.clone()));
 
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {
@@ -317,6 +331,10 @@ async fn main() -> AppResult<()> {
         }
         result = tweet_synchronizer.spawn_tweet_synchronizer() => {
             error!("Tweet synchronizer exited: {:?}", result);
+            result??;
+        }
+        result = raid_leaderboard_service.spawn_raid_leaderboard_synchronizer() => {
+            error!("Raid leaderboard synchronizer exited: {:?}", result);
             result??;
         }
         // result = start_task_generation_task(
