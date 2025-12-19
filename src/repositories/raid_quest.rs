@@ -151,9 +151,7 @@ impl RaidQuestRepository {
         qb.push_bind(now);
 
         // Check that it hasn't ended yet
-        qb.push(" AND (end_date IS NULL OR end_date > ");
-        qb.push_bind(now);
-        qb.push(")");
+        qb.push(" AND end_date IS NULL");
 
         // Order by most recently started just to be safe
         qb.push(" ORDER BY start_date DESC LIMIT 1");
