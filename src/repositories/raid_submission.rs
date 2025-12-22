@@ -24,15 +24,14 @@ impl RaidSubmissionRepository {
         let created_id = sqlx::query_scalar::<_, String>(
             "
             INSERT INTO raid_submissions (
-                id, raid_id, target_id, raider_id
+                id, raid_id, raider_id
             ) 
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3)
             RETURNING id
             ",
         )
         .bind(&submission.id)
         .bind(submission.raid_id)
-        .bind(&submission.target_id)
         .bind(&submission.raider_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -186,7 +185,6 @@ mod tests {
     struct SeedData {
         raid_id: i32,
         raider_id: String,
-        target_id: String,
     }
 
     // Helper to satisfy the strict Foreign Key chain:
@@ -232,18 +230,13 @@ mod tests {
         .await
         .expect("Failed to seed relevant tweet");
 
-        SeedData {
-            raid_id,
-            raider_id,
-            target_id,
-        }
+        SeedData { raid_id, raider_id }
     }
 
     fn create_mock_submission_input(seed: &SeedData) -> CreateRaidSubmission {
         CreateRaidSubmission {
             id: Uuid::new_v4().to_string(),
             raid_id: seed.raid_id,
-            target_id: seed.target_id.clone(),
             raider_id: seed.raider_id.clone(),
         }
     }
@@ -423,7 +416,6 @@ mod tests {
         let input = CreateRaidSubmission {
             id: Uuid::new_v4().to_string(),
             raid_id: 9999, // Non-existent Raid
-            target_id: "fake_tweet".to_string(),
             raider_id: "fake_user".to_string(),
         };
 

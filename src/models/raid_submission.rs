@@ -9,7 +9,7 @@ use crate::models::raid_quest::RaidQuest;
 pub struct RaidSubmission {
     pub id: String,
     pub raid_id: i32,
-    pub target_id: String,
+    pub target_id: Option<String>,
     pub raider_id: String,
     pub impression_count: i32,
     pub reply_count: i32,
@@ -54,13 +54,11 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
 pub struct CreateRaidSubmission {
     pub id: String,
     pub raid_id: i32,
-    pub target_id: String,
     pub raider_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RaidSubmissionInput {
-    pub target_tweet_link: String,
     pub tweet_reply_link: String,
 }
 

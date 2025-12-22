@@ -190,16 +190,6 @@ pub async fn handle_create_raid_submission(
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
 ) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
-    let Some((_target_username, target_id)) = parse_x_status_url(&payload.target_tweet_link) else {
-        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
-            "Couldn't parse target tweet link"
-        ))));
-    };
-    let Some(_) = state.db.relevant_tweets.find_by_id(&target_id).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "Not a valid target tweet"
-        ))));
-    };
     let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse tweet reply link"
@@ -225,7 +215,6 @@ pub async fn handle_create_raid_submission(
         id: reply_id,
         raid_id: current_active_raid.id,
         raider_id: user.quan_address.0,
-        target_id: target_id,
     };
 
     let created_id = state.db.raid_submissions.create(&new_raid_submission).await?;
@@ -570,10 +559,8 @@ mod tests {
             .with_state(state.clone());
 
         // 5. Payload
-        // Target Link -> ID 1868000000000000000
         // Reply Link -> ID 999999999, Username "me"
         let payload = RaidSubmissionInput {
-            target_tweet_link: format!("https://x.com/someone/status/{}", target_tweet_id),
             tweet_reply_link: "https://x.com/me/status/999999999".to_string(),
         };
 
@@ -596,7 +583,8 @@ mod tests {
         assert!(sub.is_some());
         let sub = sub.unwrap();
         assert_eq!(sub.raid_id, raid_id);
-        assert_eq!(sub.target_id, target_tweet_id);
+        assert_eq!(&sub.id, "999999999");
+        assert!(sub.target_id.is_none());
     }
 
     #[tokio::test]
@@ -621,7 +609,6 @@ mod tests {
             .with_state(state);
 
         let payload = RaidSubmissionInput {
-            target_tweet_link: "https://x.com/a/status/100".into(),
             tweet_reply_link: "https://x.com/b/status/200".into(),
         };
 
@@ -660,8 +647,7 @@ mod tests {
             .with_state(state);
 
         let payload = RaidSubmissionInput {
-            target_tweet_link: "not_a_valid_url".into(),
-            tweet_reply_link: "https://x.com/b/status/200".into(),
+            tweet_reply_link: "https://x.com/b/dwdwdwt/dwdwd".into(),
         };
 
         let response = router
