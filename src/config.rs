@@ -82,6 +82,7 @@ pub struct TelegramBotConfig {
     pub base_url: String,
     pub token: String,
     pub chat_id: String,
+    pub message_thread_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,6 +215,7 @@ impl Default for Config {
             tg_bot: TelegramBotConfig {
                 base_url: "https://api.telegram.org".to_string(),
                 chat_id: "-0".to_string(),
+                message_thread_id: Some("-0".to_string()),
                 token: "token".to_string(),
             },
             raid_leaderboard: RaidLeaderboardConfig {

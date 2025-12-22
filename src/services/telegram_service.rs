@@ -1,18 +1,21 @@
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
 
-use crate::{AppError, AppResult};
+use crate::{config::TelegramBotConfig, AppError, AppResult};
 
 #[derive(Clone)]
 pub struct TelegramService {
     client: Client,
     base_url: String,
     default_chat_id: String,
+    default_message_thread_id: Option<String>,
 }
 
 #[derive(Serialize)]
 struct MessagePayload<'a> {
     chat_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_thread_id: Option<&'a str>,
     text: &'a str,
     parse_mode: &'a str,
     disable_web_page_preview: bool,
@@ -40,23 +43,26 @@ impl TelegramService {
             .replace("!", "\\!")
     }
 
-    pub fn new(base_url: &str, token: &str, default_chat_id: &str) -> Self {
+    pub fn new(config: TelegramBotConfig) -> Self {
         Self {
             client: Client::new(),
-            base_url: format!("{base_url}/bot{token}"),
-            default_chat_id: default_chat_id.to_string(),
+            base_url: format!("{}/bot{}", config.base_url, config.token),
+            default_chat_id: config.chat_id,
+            default_message_thread_id: config.message_thread_id,
         }
     }
 
     pub async fn send_message(&self, text: &str) -> AppResult<()> {
-        self.send(&self.default_chat_id, text).await
+        self.send(&self.default_chat_id, self.default_message_thread_id.as_deref(), text)
+            .await
     }
 
-    async fn send(&self, chat_id: &str, text: &str) -> AppResult<()> {
+    async fn send(&self, chat_id: &str, message_thread_id: Option<&str>, text: &str) -> AppResult<()> {
         let url = format!("{}/sendMessage", self.base_url);
 
         let payload = MessagePayload {
             chat_id,
+            message_thread_id,
             text,
             parse_mode: "MarkdownV2", // or "HTML"
             disable_web_page_preview: true,

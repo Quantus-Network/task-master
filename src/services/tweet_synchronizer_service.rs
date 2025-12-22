@@ -112,14 +112,10 @@ impl TweetSynchronizerService {
                 let link = build_x_status_url(author_name, &tweet.id);
 
                 let tg_message = format!(
-                    "Raid Target Found!\n\n*Link*: {}\n*Author*: {}\n*Text*: {}\n*Impressions*: {}\n*Posted At*: {}",
-                    TelegramService::escape_markdown_v2(&link),
-                    TelegramService::escape_markdown_v2(author_name),
-                    TelegramService::escape_markdown_v2(&tweet.text),
-                    tweet.impression_count,
-                    tweet.created_at
+                    "**Raid Target Found!**\n\n**Link**: {}\n**Author**: {}\n**Text**: {}\n**Impressions**: {}\n**Posted At**: {}",
+                    &link, author_name, &tweet.text, tweet.impression_count, tweet.created_at
                 );
-                messages.push(tg_message);
+                messages.push(TelegramService::escape_markdown_v2(&tg_message));
             }
 
             tokio::spawn(async move {
@@ -222,7 +218,7 @@ impl TweetSynchronizerService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{Config, TelegramBotConfig};
     use crate::models::raid_quest::CreateRaidQuest;
     use crate::utils::test_db::reset_database;
     use mockall::predicate::*;
@@ -253,11 +249,13 @@ mod tests {
 
         // B. Setup Telegram Mock Server
         let mock_server = MockServer::start().await;
-        let telegram_service = Arc::new(TelegramService::new(
-            &mock_server.uri(),
-            "123456",
-            &config.tg_bot.chat_id,
-        ));
+        let telegram_config = TelegramBotConfig {
+            base_url: mock_server.uri(),
+            token: "123456".to_string(),
+            chat_id: config.tg_bot.chat_id.clone(),
+            message_thread_id: config.tg_bot.message_thread_id.clone(),
+        };
+        let telegram_service = Arc::new(TelegramService::new(telegram_config));
 
         // C. Config
         let app_config = Arc::new(config);
