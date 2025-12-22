@@ -270,11 +270,7 @@ async fn main() -> AppResult<()> {
         config.x_oauth.clone(),
         Some(config.tweet_sync.api_key.clone()),
     )?);
-    let telegram_service = Arc::new(TelegramService::new(
-        &config.tg_bot.base_url,
-        &config.tg_bot.token,
-        &config.tg_bot.chat_id,
-    ));
+    let telegram_service = Arc::new(TelegramService::new(config.tg_bot.clone()));
     let server_db = db.clone();
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();

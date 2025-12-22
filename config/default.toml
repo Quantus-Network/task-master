@@ -63,6 +63,8 @@ whitelist = ["username"]
 [tg_bot]
 base_url = "https://api.telegram.org"
 chat_id = '-1'
+# This is optional, if you don't need message thread just remove it
+message_thread_id = '1'
 token = "token"
 
 [raid_leaderboard]
