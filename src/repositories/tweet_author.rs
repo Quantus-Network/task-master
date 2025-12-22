@@ -107,6 +107,70 @@ impl TweetAuthorRepository {
         Ok(authors)
     }
 
+    pub async fn get_whitelist(&self) -> Result<Vec<String>, DbError> {
+        let authors = sqlx::query_as::<_, TweetAuthor>("SELECT * FROM tweet_authors WHERE is_ignored = false")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let whitelist: Vec<String> = authors.iter().map(|f| f.id.clone()).collect();
+
+        Ok(whitelist)
+    }
+
+    pub async fn make_ignored_from_whitelist(&self, id: &str) -> Result<(), DbError> {
+        sqlx::query("UPDATE tweet_authors SET is_ignored = true WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn make_watched_in_whitelist(&self, id: &str) -> Result<(), DbError> {
+        sqlx::query("UPDATE tweet_authors SET is_ignored = false WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn upsert(&self, payload: &NewAuthorPayload) -> DbResult<String> {
+        let author = sqlx::query_as::<_, TweetAuthor>(
+            r#"
+            INSERT INTO tweet_authors (
+                id, name, username, followers_count, following_count, 
+                tweet_count, listed_count, like_count, media_count, fetched_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                username = EXCLUDED.username,
+                followers_count = EXCLUDED.followers_count,
+                following_count = EXCLUDED.following_count,
+                tweet_count = EXCLUDED.tweet_count,
+                listed_count = EXCLUDED.listed_count,
+                like_count = EXCLUDED.like_count,
+                media_count = EXCLUDED.media_count,
+                fetched_at = NOW()
+            RETURNING *
+            "#,
+        )
+        .bind(&payload.id)
+        .bind(&payload.name)
+        .bind(&payload.username)
+        .bind(payload.followers_count)
+        .bind(payload.following_count)
+        .bind(payload.tweet_count)
+        .bind(payload.listed_count)
+        .bind(payload.like_count)
+        .bind(payload.media_count)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(author.id)
+    }
+
     /// Batch Upsert for Authors
     pub async fn upsert_many(&self, authors: &Vec<NewAuthorPayload>) -> DbResult<u64> {
         if authors.is_empty() {

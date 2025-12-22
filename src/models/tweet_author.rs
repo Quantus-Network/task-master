@@ -8,6 +8,7 @@ pub struct TweetAuthor {
     pub id: String,
     pub name: String,
     pub username: String,
+    pub is_ignored: bool,
     pub followers_count: i32,
     pub following_count: i32,
     pub tweet_count: i32,
@@ -22,6 +23,7 @@ impl<'r> FromRow<'r, PgRow> for TweetAuthor {
             id: row.try_get("id")?,
             name: row.try_get("name")?,
             username: row.try_get("username")?,
+            is_ignored: row.try_get("is_ignored")?,
             followers_count: row.try_get("followers_count")?,
             following_count: row.try_get("following_count")?,
             tweet_count: row.try_get("tweet_count")?,
@@ -104,4 +106,9 @@ impl NewAuthorPayload {
 
         new_author
     }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CreateTweetAuthorInput {
+    pub username: String,
 }

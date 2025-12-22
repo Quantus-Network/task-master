@@ -58,7 +58,6 @@ client_secret = "test-secret"
 api_key = "some-key"
 interval_in_hours = 24
 keywords = "test"
-whitelist = ["test-username"]
 
 [tg_bot]
 base_url = "https://api.telegram.org"

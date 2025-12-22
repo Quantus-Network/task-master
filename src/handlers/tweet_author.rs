@@ -1,15 +1,19 @@
 use axum::{
-    extract::{self, Query, State},
+    extract::{self, Path, Query, State},
+    http::StatusCode,
+    response::NoContent,
     Extension, Json,
 };
 
 use crate::{
     db_persistence::DbError,
-    handlers::{calculate_total_pages, ListQueryParams, PaginatedResponse, PaginationMetadata, SuccessResponse},
+    handlers::{
+        calculate_total_pages, HandlerError, ListQueryParams, PaginatedResponse, PaginationMetadata, SuccessResponse,
+    },
     http_server::AppState,
     models::{
         admin::Admin,
-        tweet_author::{AuthorFilter, AuthorSortColumn, TweetAuthor},
+        tweet_author::{AuthorFilter, AuthorSortColumn, CreateTweetAuthorInput, NewAuthorPayload, TweetAuthor},
     },
     AppError,
 };
@@ -40,6 +44,48 @@ pub async fn handle_get_tweet_authors(
     Ok(Json(response))
 }
 
+/// POST /tweet-authors
+pub async fn handle_create_tweet_author(
+    State(state): State<AppState>,
+    Extension(_): Extension<Admin>,
+    Json(payload): Json<CreateTweetAuthorInput>,
+) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
+    let author_response = state.twitter_gateway.users().get_by_username(&payload.username).await?;
+    let Some(author) = author_response.data else {
+        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
+            "Tweet Author {} not found",
+            payload.username
+        ))));
+    };
+
+    let new_author = NewAuthorPayload::new(author);
+    let create_response = state.db.tweet_authors.upsert(&new_author).await?;
+
+    Ok((StatusCode::CREATED, SuccessResponse::new(create_response)))
+}
+
+/// PUT /tweet-authors/:id/ignore
+pub async fn handle_ignore_tweet_author(
+    State(state): State<AppState>,
+    Extension(_): Extension<Admin>,
+    Path(id): Path<String>,
+) -> Result<NoContent, AppError> {
+    state.db.tweet_authors.make_ignored_from_whitelist(&id).await?;
+
+    Ok(NoContent)
+}
+
+/// PUT /tweet-authors/:id/watch
+pub async fn handle_watch_tweet_author(
+    State(state): State<AppState>,
+    Extension(_): Extension<Admin>,
+    Path(id): Path<String>,
+) -> Result<NoContent, AppError> {
+    state.db.tweet_authors.make_watched_in_whitelist(&id).await?;
+
+    Ok(NoContent)
+}
+
 /// GET /tweet-authors/:id
 /// Gets a single author by their X ID
 pub async fn handle_get_tweet_author_by_id(
@@ -60,12 +106,30 @@ pub async fn handle_get_tweet_author_by_id(
 
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, extract::Request, http::StatusCode, routing::get, Extension, Router};
+    use std::sync::Arc;
+
+    use axum::{
+        body::Body,
+        extract::Request,
+        http::StatusCode,
+        routing::{get, post, put},
+        Extension, Router,
+    };
+    use rusx::{
+        resources::{
+            user::{User, UserApi, UserPublicMetrics},
+            TwitterApiResponse,
+        },
+        MockTwitterGateway, MockUserApi,
+    };
     use serde_json::Value;
     use tower::ServiceExt;
 
     use crate::{
-        handlers::tweet_author::{handle_get_tweet_author_by_id, handle_get_tweet_authors},
+        handlers::tweet_author::{
+            handle_create_tweet_author, handle_get_tweet_author_by_id, handle_get_tweet_authors,
+            handle_ignore_tweet_author, handle_watch_tweet_author,
+        },
         models::tweet_author::NewAuthorPayload,
         utils::{
             test_app_state::create_test_app_state,
@@ -263,7 +327,6 @@ mod tests {
     async fn test_get_tweet_author_by_id_not_found() {
         let state = create_test_app_state().await;
         reset_database(&state.db.pool).await;
-        // No authors seeded
 
         let router = Router::new()
             .route("/tweet-authors/:id", get(handle_get_tweet_author_by_id))
@@ -281,5 +344,114 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn test_create_tweet_author_success() {
+        let mut state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // --- Setup Twitter Mock ---
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_user = MockUserApi::new();
+
+        mock_user.expect_get_by_username().returning(|_| {
+            Ok(TwitterApiResponse {
+                data: Some(User {
+                    id: "hello".to_string(),
+                    name: "hello".to_string(),
+                    username: "test_user".to_string(),
+                    public_metrics: Some(UserPublicMetrics {
+                        followers_count: 100,
+                        following_count: 50,
+                        tweet_count: 10,
+                        listed_count: 5,
+                        like_count: Some(0),
+                        media_count: Some(0),
+                    }),
+                }),
+                includes: None,
+                meta: None,
+            })
+        });
+
+        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user);
+
+        mock_gateway.expect_users().times(1).return_const(user_api_arc);
+
+        state.twitter_gateway = Arc::new(mock_gateway);
+
+        let router = Router::new()
+            .route("/tweet-authors", post(handle_create_tweet_author))
+            .layer(Extension(create_mock_admin()))
+            .with_state(state);
+
+        let payload = serde_json::json!({
+            "username": "test_user"
+        });
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/tweet-authors")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(response.status() == StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn test_ignore_and_watch_tweet_author() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+        seed_authors(&state).await;
+
+        let router = Router::new()
+            .route("/tweet-authors/:id/ignore", put(handle_ignore_tweet_author))
+            .route("/tweet-authors/:id/watch", put(handle_watch_tweet_author))
+            .layer(Extension(create_mock_admin()))
+            .with_state(state.clone());
+
+        // 1. Test Ignore
+        let ignore_res = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/tweet-authors/auth_1/ignore")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(ignore_res.status(), StatusCode::NO_CONTENT);
+
+        // Verify in DB
+        let author = state.db.tweet_authors.find_by_id("auth_1").await.unwrap().unwrap();
+        assert!(author.is_ignored);
+
+        // 2. Test Watch (Un-ignore)
+        let watch_res = router
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/tweet-authors/auth_1/watch")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(watch_res.status(), StatusCode::NO_CONTENT);
+
+        // Verify in DB
+        let author_updated = state.db.tweet_authors.find_by_id("auth_1").await.unwrap().unwrap();
+        assert!(!author_updated.is_ignored);
     }
 }

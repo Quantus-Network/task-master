@@ -170,11 +170,10 @@ impl TweetSynchronizerService {
 
     pub async fn sync_relevant_tweets(&self) -> Result<(), AppError> {
         let last_id = self.db.relevant_tweets.get_newest_tweet_id().await?;
+        let whitelist = self.db.tweet_authors.get_whitelist().await?;
 
-        let whitelist_queries = SearchParams::build_batched_whitelist_queries(
-            &self.config.tweet_sync.whitelist,
-            Some(&self.config.tweet_sync.keywords),
-        );
+        let whitelist_queries =
+            SearchParams::build_batched_whitelist_queries(&whitelist, Some(&self.config.tweet_sync.keywords));
 
         for query in whitelist_queries {
             let mut params = SearchParams::new(query);
