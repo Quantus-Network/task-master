@@ -178,7 +178,7 @@ impl TweetSynchronizerService {
 
         for query in whitelist_queries {
             let mut params = SearchParams::new(query);
-            params.max_results = Some(10);
+            params.max_results = Some(100);
 
             params.sort_order = Some(SearchSortOrder::Recency);
 
