@@ -1,6 +1,6 @@
 use crate::{
-    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims, Config,
-    GraphqlClient,
+    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims,
+    services::alert_service::AlertService, Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;
@@ -16,6 +16,7 @@ pub async fn create_test_app_state() -> AppState {
         db: Arc::new(db),
         metrics: Arc::new(Metrics::new()),
         graphql_client: Arc::new(graphql_client),
+        alert_client: Arc::new(AlertService::new(config.alert.webhook_url.clone())),
         config: Arc::new(config),
         twitter_gateway: Arc::new(twitter_gateway),
         oauth_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
