@@ -75,6 +75,9 @@ pub struct TweetSyncConfig {
     pub interval_in_hours: u64,
     pub keywords: String,
     pub api_key: String,
+    pub monthly_limit: u32,
+    pub alert_threshold: u32,
+    pub reset_day: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +218,9 @@ impl Default for Config {
                 interval_in_hours: 24,
                 keywords: "hello".to_string(),
                 api_key: "key".to_string(),
+                monthly_limit: 15000,
+                alert_threshold: 13000,
+                reset_day: 1,
             },
             tg_bot: TelegramBotConfig {
                 base_url: "https://api.telegram.org".to_string(),

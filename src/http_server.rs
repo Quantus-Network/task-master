@@ -117,6 +117,7 @@ pub async fn start_server(
     db: Arc<DbPersistence>,
     graphql_client: Arc<GraphqlClient>,
     twitter_gateway: Arc<dyn TwitterGateway>,
+    alert_client: Arc<AlertService>,
     bind_address: &str,
     config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -124,7 +125,7 @@ pub async fn start_server(
         db,
         metrics: Arc::new(Metrics::new()),
         graphql_client,
-        alert_client: Arc::new(AlertService::new(config.alert.webhook_url.clone())),
+        alert_client: alert_client,
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),

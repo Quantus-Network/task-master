@@ -58,6 +58,9 @@ client_secret = "lfXc45dZLqYTzP62Ms32EhXinGQzxcIP9TvjJml2B-h0T1nIJK"
 api_key = "some-key"
 interval_in_hours = 24
 keywords = "quantum"
+monthly_limit = 15000
+alert_threshold = 13500
+reset_day = 22
 
 [tg_bot]
 base_url = "https://api.telegram.org"

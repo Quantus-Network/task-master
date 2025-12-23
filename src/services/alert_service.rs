@@ -1,4 +1,5 @@
-use crate::AppResult;
+use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
+use crate::{AppResult, Config};
 use reqwest::Client;
 use serde::Serialize;
 
@@ -6,6 +7,8 @@ use serde::Serialize;
 pub struct AlertService {
     client: Client,
     webhook_url: String,
+    config: Config,
+    usage_repo: TweetPullUsageRepository,
 }
 
 #[derive(Serialize)]
@@ -14,11 +17,43 @@ struct WebhookPayload<'a> {
 }
 
 impl AlertService {
-    pub fn new(webhook_url: String) -> Self {
+    pub fn new(config: Config, usage_repo: TweetPullUsageRepository) -> Self {
         Self {
             client: Client::new(),
-            webhook_url,
+            webhook_url: config.alert.webhook_url.clone(),
+            config,
+            usage_repo,
         }
+    }
+
+    /// Increments Twitter API usage and sends an alert if the threshold is reached.
+    pub async fn track_and_alert_usage(&self, tweets_pulled: i32) -> AppResult<()> {
+        if tweets_pulled <= 0 {
+            return Ok(());
+        }
+
+        match self
+            .usage_repo
+            .increment_usage(tweets_pulled, self.config.tweet_sync.reset_day)
+            .await
+        {
+            Ok(usage) => {
+                let current_total = usage.tweet_count as u32;
+                if current_total >= self.config.tweet_sync.alert_threshold {
+                    if let Err(e) = self
+                        .send_twitter_limit_alert(current_total, self.config.tweet_sync.monthly_limit)
+                        .await
+                    {
+                        tracing::error!("Failed to send Twitter limit alert: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to increment Twitter API usage: {:?}", e);
+            }
+        }
+
+        Ok(())
     }
 
     /// Sends an alert when the Twitter API tweet pull limit is nearing its threshold.

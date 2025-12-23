@@ -4,7 +4,7 @@ use crate::{
     errors::{AppError, AppResult},
     models::task::{Task, TaskInput},
     services::{
-        graphql_client::GraphqlClient, raid_leaderboard_service::RaidLeaderboardService,
+        alert_service::AlertService, graphql_client::GraphqlClient, raid_leaderboard_service::RaidLeaderboardService,
         reverser::start_reverser_service, task_generator::TaskGenerator, telegram_service::TelegramService,
         transaction_manager::TransactionManager, tweet_synchronizer_service::TweetSynchronizerService,
     },
@@ -271,16 +271,19 @@ async fn main() -> AppResult<()> {
         Some(config.tweet_sync.api_key.clone()),
     )?);
     let telegram_service = Arc::new(TelegramService::new(config.tg_bot.clone()));
+    let alert_service = Arc::new(AlertService::new(config.clone(), db.tweet_pull_usage.clone()));
     let server_db = db.clone();
     let graphql_client = Arc::new(graphql_client.clone());
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
     let server_twitter_gateway = twitter_gateway.clone();
+    let server_alert_service = alert_service.clone();
     let server_task = tokio::spawn(async move {
         http_server::start_server(
             server_db,
             graphql_client,
             server_twitter_gateway,
+            server_alert_service,
             &server_addr_clone,
             server_config,
         )
@@ -305,11 +308,13 @@ async fn main() -> AppResult<()> {
         db.clone(),
         twitter_gateway.clone(),
         telegram_service,
+        alert_service.clone(),
         Arc::new(config.clone()),
     );
 
     // Initialize raid leaderboard  service
-    let raid_leaderboard_service = RaidLeaderboardService::new(db.clone(), twitter_gateway, Arc::new(config.clone()));
+    let raid_leaderboard_service =
+        RaidLeaderboardService::new(db.clone(), twitter_gateway, alert_service, Arc::new(config.clone()));
 
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {
