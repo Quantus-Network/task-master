@@ -48,14 +48,23 @@ impl TweetPullUsageRepository {
 
     pub async fn get_current_usage(&self, reset_day: u32) -> Result<TweetPullUsage, DbError> {
         let period = Self::get_current_period(reset_day);
+        self.get_usage_for_period(&period).await
+    }
 
+    pub async fn increment_usage(&self, amount: i32, reset_day: u32) -> Result<TweetPullUsage, DbError> {
+        let period = Self::get_current_period(reset_day);
+        self.increment_usage_for_period(amount, &period).await
+    }
+
+    /// Internal helper to get usage for a specific period string.
+    async fn get_usage_for_period(&self, period: &str) -> Result<TweetPullUsage, DbError> {
         let usage = sqlx::query_as::<_, TweetPullUsage>(
             "INSERT INTO tweet_pull_usage (period, tweet_count) 
              VALUES ($1, 0) 
              ON CONFLICT (period) DO UPDATE SET period = EXCLUDED.period
              RETURNING *",
         )
-        .bind(&period)
+        .bind(period)
         .fetch_one(&self.pool)
         .await
         .map_err(DbError::Database)?;
@@ -63,9 +72,8 @@ impl TweetPullUsageRepository {
         Ok(usage)
     }
 
-    pub async fn increment_usage(&self, amount: i32, reset_day: u32) -> Result<TweetPullUsage, DbError> {
-        let period = Self::get_current_period(reset_day);
-
+    /// Internal helper to increment usage for a specific period string.
+    async fn increment_usage_for_period(&self, amount: i32, period: &str) -> Result<TweetPullUsage, DbError> {
         let usage = sqlx::query_as::<_, TweetPullUsage>(
             "INSERT INTO tweet_pull_usage (period, tweet_count) 
              VALUES ($1, $2) 
@@ -73,7 +81,7 @@ impl TweetPullUsageRepository {
              SET tweet_count = tweet_pull_usage.tweet_count + EXCLUDED.tweet_count
              RETURNING *",
         )
-        .bind(&period)
+        .bind(period)
         .bind(amount)
         .fetch_one(&self.pool)
         .await
@@ -101,7 +109,68 @@ fn get_days_in_month(year: i32, month: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_app_state::create_test_app_state;
+    use crate::utils::test_db::reset_database;
     use chrono::{TimeZone, Utc};
+
+    #[tokio::test]
+    async fn test_get_current_usage_integration() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let repo = &state.db.tweet_pull_usage;
+        let reset_day = 1;
+
+        // 1. Initial call should create a record with 0
+        let usage = repo.get_current_usage(reset_day).await.unwrap();
+        assert_eq!(usage.tweet_count, 0);
+
+        // 2. Subsequent call should return the same record
+        let usage2 = repo.get_current_usage(reset_day).await.unwrap();
+        assert_eq!(usage2.tweet_count, 0);
+        assert_eq!(usage.period, usage2.period);
+    }
+
+    #[tokio::test]
+    async fn test_increment_usage_integration() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let repo = &state.db.tweet_pull_usage;
+        let reset_day = 1;
+
+        // 1. Increment from zero
+        let usage = repo.increment_usage(10, reset_day).await.unwrap();
+        assert_eq!(usage.tweet_count, 10);
+
+        // 2. Increment again
+        let usage2 = repo.increment_usage(5, reset_day).await.unwrap();
+        assert_eq!(usage2.tweet_count, 15);
+    }
+
+    #[tokio::test]
+    async fn test_transition_between_months_integration() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let repo = &state.db.tweet_pull_usage;
+
+        // 1. Increment for Month A
+        let period_a = "2023-01";
+        repo.increment_usage_for_period(100, period_a).await.unwrap();
+
+        // 2. Increment for Month B
+        let period_b = "2023-02";
+        repo.increment_usage_for_period(50, period_b).await.unwrap();
+
+        // 3. Verify they are separate
+        let usage_a = repo.get_usage_for_period(period_a).await.unwrap();
+        let usage_b = repo.get_usage_for_period(period_b).await.unwrap();
+
+        assert_eq!(usage_a.tweet_count, 100);
+        assert_eq!(usage_b.tweet_count, 50);
+        assert_ne!(usage_a.period, usage_b.period);
+    }
 
     #[test]
     fn test_period_standard_reset() {
@@ -146,5 +215,14 @@ mod tests {
         // 29 >= 29 -> Current cycle (Feb).
         let date = Utc.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
         assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 30), "2024-02");
+    }
+
+    #[test]
+    fn test_period_new_year() {
+        // Reset on 31st. Current is Jan 1st 2024.
+        // Effective reset for Jan is 31st.
+        // 1 < 31 -> Previous cycle (Dec 2023).
+        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-12");
     }
 }
