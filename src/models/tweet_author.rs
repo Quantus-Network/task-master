@@ -100,8 +100,8 @@ impl NewAuthorPayload {
             following_count: public_metrics.following_count as i32,
             tweet_count: public_metrics.tweet_count as i32,
             listed_count: public_metrics.listed_count as i32,
-            media_count: public_metrics.media_count.unwrap() as i32,
-            like_count: public_metrics.like_count.unwrap() as i32,
+            media_count: public_metrics.media_count.unwrap_or(0) as i32,
+            like_count: public_metrics.like_count.unwrap_or(0) as i32,
         };
 
         new_author
