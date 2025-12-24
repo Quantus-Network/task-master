@@ -1,5 +1,5 @@
 use crate::{models::raid_leaderboard::RaidLeaderboard, repositories::DbResult};
-use sqlx::PgPool;
+use sqlx::{PgPool, QueryBuilder};
 
 #[derive(Clone, Debug)]
 pub struct RaidLeaderboardRepository {
@@ -19,33 +19,60 @@ impl RaidLeaderboardRepository {
     }
 
     /// Retrieves the top raiders with their Rank and Address info.
-    pub async fn get_entries(&self, raid_id: i32, limit: i64, offset: i64) -> DbResult<Vec<RaidLeaderboard>> {
-        let query = "
-            SELECT 
-                l.raid_id,
-                l.total_submissions,
-                l.total_impressions,
-                l.total_replies,
-                l.total_retweets,
-                l.total_likes,
-                l.last_activity,
-                RANK() OVER (ORDER BY l.total_impressions DESC) as rank,
+    pub async fn get_entries(
+        &self,
+        raid_id: i32,
+        limit: i64,
+        offset: i64,
+        referral_code: Option<String>,
+    ) -> DbResult<Vec<RaidLeaderboard>> {
+        let mut qb = QueryBuilder::new(
+            "WITH ranked_entries AS (
+                SELECT 
+                    l.raid_id,
+                    l.total_submissions,
+                    l.total_impressions,
+                    l.total_replies,
+                    l.total_retweets,
+                    l.total_likes,
+                    l.last_activity,
+                    l.raider_id,
+                    RANK() OVER (ORDER BY l.total_impressions DESC) as rank
+                FROM raid_leaderboards l
+                WHERE l.raid_id = ",
+        );
+        qb.push_bind(raid_id);
+        qb.push(" ) ");
+
+        qb.push(
+            "SELECT 
+                r.raid_id,
+                r.total_submissions,
+                r.total_impressions,
+                r.total_replies,
+                r.total_retweets,
+                r.total_likes,
+                r.last_activity,
+                r.rank,
                 a.quan_address,
                 a.referral_code,
                 a.referrals_count
-            FROM raid_leaderboards l
-            JOIN addresses a ON l.raider_id = a.quan_address
-            WHERE l.raid_id = $1
-            ORDER BY l.total_impressions DESC
-            LIMIT $2 OFFSET $3
-        ";
+            FROM ranked_entries r
+            JOIN addresses a ON r.raider_id = a.quan_address
+            WHERE 1=1 ",
+        );
 
-        let leaderboard = sqlx::query_as::<_, RaidLeaderboard>(query)
-            .bind(raid_id)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?;
+        if let Some(code) = referral_code {
+            qb.push(" AND a.referral_code ILIKE ");
+            qb.push_bind(format!("{}%", code));
+        }
+
+        qb.push(" ORDER BY r.total_impressions DESC LIMIT ");
+        qb.push_bind(limit);
+        qb.push(" OFFSET ");
+        qb.push_bind(offset);
+
+        let leaderboard = qb.build_query_as::<RaidLeaderboard>().fetch_all(&self.pool).await?;
 
         Ok(leaderboard)
     }
@@ -88,10 +115,22 @@ impl RaidLeaderboardRepository {
         Ok(entry)
     }
 
-    pub async fn get_total_items(&self, raid_id: i32) -> DbResult<i64> {
-        let query = "SELECT COUNT(*) FROM raid_leaderboards WHERE raid_id = $1";
+    pub async fn get_total_items(&self, raid_id: i32, referral_code: Option<String>) -> DbResult<i64> {
+        let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM raid_leaderboards l ");
 
-        let total_items = sqlx::query_scalar(query).bind(raid_id).fetch_one(&self.pool).await?;
+        if referral_code.is_some() {
+            qb.push(" JOIN addresses a ON l.raider_id = a.quan_address ");
+        }
+
+        qb.push(" WHERE l.raid_id = ");
+        qb.push_bind(raid_id);
+
+        if let Some(code) = referral_code {
+            qb.push(" AND a.referral_code ILIKE ");
+            qb.push_bind(format!("{}%", code));
+        }
+
+        let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
 
         Ok(total_items)
     }
@@ -209,7 +248,7 @@ mod tests {
         repo.refresh().await.expect("Failed to refresh view");
 
         // 1. Get Top 3
-        let entries = repo.get_entries(data.raid_id, 10, 0).await.unwrap();
+        let entries = repo.get_entries(data.raid_id, 10, 0, None).await.unwrap();
 
         assert_eq!(entries.len(), 3);
 
@@ -253,7 +292,7 @@ mod tests {
         repo.refresh().await.unwrap();
 
         // 1. Limit 1, Offset 1 (Should skip Rank 1, return Rank 2)
-        let page = repo.get_entries(data.raid_id, 1, 1).await.unwrap();
+        let page = repo.get_entries(data.raid_id, 1, 1, None).await.unwrap();
 
         assert_eq!(page.len(), 1);
         assert_eq!(page[0].raider.address, data.user_mid);
@@ -282,11 +321,35 @@ mod tests {
         repo.refresh().await.unwrap();
 
         // Query the empty/old raid
-        let entries = repo.get_entries(other_raid_id, 10, 0).await.unwrap();
+        let entries = repo.get_entries(other_raid_id, 10, 0, None).await.unwrap();
         assert!(entries.is_empty(), "Should not return entries from a different raid");
 
         // Query the populated raid
-        let entries_main = repo.get_entries(data.raid_id, 10, 0).await.unwrap();
+        let entries_main = repo.get_entries(data.raid_id, 10, 0, None).await.unwrap();
         assert_eq!(entries_main.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_get_entries_filtered_by_referral_code() {
+        let repo = setup_test_repository().await;
+        let data = seed_leaderboard_scenario(&repo.pool).await;
+        repo.refresh().await.unwrap();
+
+        // user_mid has REF_MID
+        let entries = repo
+            .get_entries(data.raid_id, 10, 0, Some("REF_MID".to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].raider.address, data.user_mid);
+        // Rank should be preserved from global ranking (Rank 2)
+        assert_eq!(entries[0].rank, Some(2));
+
+        let total = repo
+            .get_total_items(data.raid_id, Some("REF_MID".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(total, 1);
     }
 }
