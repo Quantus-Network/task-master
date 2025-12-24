@@ -1,4 +1,9 @@
-use axum::{handler::Handler, middleware, routing::get, Router};
+use axum::{
+    handler::Handler,
+    middleware,
+    routing::{get, put},
+    Router,
+};
 
 use crate::{
     handlers::tweet_author::{
@@ -23,12 +28,12 @@ pub fn tweet_author_routes(state: AppState) -> Router<AppState> {
         )
         .route(
             "/tweet-authors/:id/ignore",
-            get(handle_ignore_tweet_author
+            put(handle_ignore_tweet_author
                 .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))),
         )
         .route(
             "/tweet-authors/:id/watch",
-            get(handle_watch_tweet_author
+            put(handle_watch_tweet_author
                 .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))),
         )
 }
