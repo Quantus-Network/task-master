@@ -4,6 +4,7 @@ use axum::{
     response::NoContent,
     Extension, Json,
 };
+use rusx::resources::{user::UserParams, UserField};
 
 use crate::{
     db_persistence::DbError,
@@ -50,7 +51,19 @@ pub async fn handle_create_tweet_author(
     Extension(_): Extension<Admin>,
     Json(payload): Json<CreateTweetAuthorInput>,
 ) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
-    let author_response = state.twitter_gateway.users().get_by_username(&payload.username).await?;
+    let mut params = UserParams::new();
+    params.user_fields = Some(vec![
+        UserField::PublicMetrics,
+        UserField::Id,
+        UserField::Name,
+        UserField::Username,
+    ]);
+
+    let author_response = state
+        .twitter_gateway
+        .users()
+        .get_by_username(&payload.username, Some(params.clone()))
+        .await?;
     let Some(author) = author_response.data else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Tweet Author {} not found",
@@ -355,7 +368,7 @@ mod tests {
         let mut mock_gateway = MockTwitterGateway::new();
         let mut mock_user = MockUserApi::new();
 
-        mock_user.expect_get_by_username().returning(|_| {
+        mock_user.expect_get_by_username().returning(|_, _| {
             Ok(TwitterApiResponse {
                 data: Some(User {
                     id: "hello".to_string(),
