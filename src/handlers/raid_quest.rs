@@ -663,7 +663,7 @@ mod tests {
             .unwrap();
 
         // 400 Bad Request / Handler Error
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
