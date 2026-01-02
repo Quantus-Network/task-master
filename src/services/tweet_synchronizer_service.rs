@@ -304,19 +304,38 @@ mod tests {
     async fn test_sync_saves_data_no_raid_notification() {
         let (db, _mock_tg, telegram_service, config) = setup_deps().await;
 
+        // --- Setup DB with existing watched tweet authors ---
+        let dummy_author = crate::models::tweet_author::NewAuthorPayload {
+            id: "old_u".to_string(),
+            name: "Old".to_string(),
+            username: "old".to_string(),
+            followers_count: 0,
+            following_count: 0,
+            tweet_count: 0,
+            listed_count: 0,
+            like_count: 0,
+            media_count: 0,
+            is_ignored: Some(false),
+        };
+
+        db.tweet_authors.upsert(&dummy_author).await.unwrap();
+
         // --- Setup Mocks ---
         let mut mock_gateway = MockTwitterGateway::new();
         let mut mock_search = MockSearchApi::new();
 
         // Expect search().recent() to be called
+        let mock_data = create_mock_tweet("t1", &dummy_author.id);
+        let mock_users = create_mock_user(&dummy_author.id, &dummy_author.username);
+
         mock_search
             .expect_recent()
             .times(1) // Expect 1 batch (based on whitelist loop)
-            .returning(|_| {
+            .returning(move |_| {
                 Ok(TwitterApiResponse::<Vec<Tweet>> {
-                    data: Some(vec![create_mock_tweet("t1", "u1")]),
+                    data: Some(vec![mock_data.clone()]),
                     includes: Some(Includes {
-                        users: Some(vec![create_mock_user("u1", "user_one")]),
+                        users: Some(vec![mock_users.clone()]),
                         tweets: None,
                     }),
                     meta: None,
@@ -336,9 +355,9 @@ mod tests {
         assert!(result.is_ok());
 
         // 1. Check DB for Authors
-        let author = db.tweet_authors.find_by_id("u1").await.unwrap();
+        let author = db.tweet_authors.find_by_id(&dummy_author.id).await.unwrap();
         assert!(author.is_some());
-        assert_eq!(author.unwrap().username, "user_one");
+        assert_eq!(author.unwrap().username, dummy_author.username);
 
         // 2. Check DB for Tweets
         let tweet = db.relevant_tweets.find_by_id("t1").await.unwrap();
@@ -349,6 +368,22 @@ mod tests {
     #[tokio::test]
     async fn test_sync_sends_telegram_when_raid_active() {
         let (db, mock_tg, telegram_service, config) = setup_deps().await;
+
+        // --- Setup DB with existing watched tweet authors ---
+        let dummy_author = crate::models::tweet_author::NewAuthorPayload {
+            id: "old_u".to_string(),
+            name: "Old".to_string(),
+            username: "old".to_string(),
+            followers_count: 0,
+            following_count: 0,
+            tweet_count: 0,
+            listed_count: 0,
+            like_count: 0,
+            media_count: 0,
+            is_ignored: Some(false),
+        };
+
+        db.tweet_authors.upsert(&dummy_author).await.unwrap();
 
         // --- Setup Active Raid ---
         db.raid_quests
@@ -371,11 +406,11 @@ mod tests {
         let mut mock_gateway = MockTwitterGateway::new();
         let mut mock_search = MockSearchApi::new();
 
-        mock_search.expect_recent().returning(|_| {
+        mock_search.expect_recent().returning(move |_| {
             Ok(TwitterApiResponse {
-                data: Some(vec![create_mock_tweet("t2", "u2")]),
+                data: Some(vec![create_mock_tweet("t2", &dummy_author.id)]),
                 includes: Some(Includes {
-                    users: Some(vec![create_mock_user("u2", "user_two")]),
+                    users: Some(vec![create_mock_user(&dummy_author.id, &dummy_author.username)]),
                     tweets: None,
                 }),
                 meta: None,
@@ -406,20 +441,20 @@ mod tests {
         // --- Setup DB with existing tweet ---
         // We insert a tweet directly to simulate "last state"
         // Note: We need a valid author first due to FK
-        db.tweet_authors
-            .upsert_many(&vec![crate::models::tweet_author::NewAuthorPayload {
-                id: "old_u".to_string(),
-                name: "Old".to_string(),
-                username: "old".to_string(),
-                followers_count: 0,
-                following_count: 0,
-                tweet_count: 0,
-                listed_count: 0,
-                like_count: 0,
-                media_count: 0,
-            }])
-            .await
-            .unwrap();
+        let dummy_author = crate::models::tweet_author::NewAuthorPayload {
+            id: "old_u".to_string(),
+            name: "Old".to_string(),
+            username: "old".to_string(),
+            followers_count: 0,
+            following_count: 0,
+            tweet_count: 0,
+            listed_count: 0,
+            like_count: 0,
+            media_count: 0,
+            is_ignored: Some(false),
+        };
+
+        db.tweet_authors.upsert(&dummy_author).await.unwrap();
 
         db.relevant_tweets
             .upsert_many(&vec![crate::models::relevant_tweet::NewTweetPayload {

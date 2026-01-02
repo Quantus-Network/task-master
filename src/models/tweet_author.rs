@@ -79,6 +79,7 @@ pub struct NewAuthorPayload {
     pub listed_count: i32,
     pub like_count: i32,
     pub media_count: i32,
+    pub is_ignored: Option<bool>,
 }
 
 impl NewAuthorPayload {
@@ -95,6 +96,7 @@ impl NewAuthorPayload {
             listed_count: public_metrics.listed_count as i32,
             media_count: public_metrics.media_count.unwrap_or(0) as i32,
             like_count: public_metrics.like_count.unwrap_or(0) as i32,
+            is_ignored: Some(true),
         };
 
         new_author

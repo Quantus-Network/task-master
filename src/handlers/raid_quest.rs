@@ -289,6 +289,7 @@ mod tests {
             listed_count: 0,
             like_count: 0,
             media_count: 0,
+            is_ignored: Some(true),
         };
         state.db.tweet_authors.upsert_many(&vec![author]).await.unwrap();
 
