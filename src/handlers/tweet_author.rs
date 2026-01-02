@@ -83,7 +83,7 @@ pub async fn handle_ignore_tweet_author(
     Extension(_): Extension<Admin>,
     Path(id): Path<String>,
 ) -> Result<NoContent, AppError> {
-    state.db.tweet_authors.make_ignored_from_whitelist(&id).await?;
+    state.db.tweet_authors.set_ignore_status(&id, true).await?;
 
     Ok(NoContent)
 }
@@ -94,7 +94,7 @@ pub async fn handle_watch_tweet_author(
     Extension(_): Extension<Admin>,
     Path(id): Path<String>,
 ) -> Result<NoContent, AppError> {
-    state.db.tweet_authors.make_watched_in_whitelist(&id).await?;
+    state.db.tweet_authors.set_ignore_status(&id, false).await?;
 
     Ok(NoContent)
 }
@@ -163,6 +163,7 @@ mod tests {
                 listed_count: 1,
                 like_count: 200,
                 media_count: 5,
+                is_ignored: Some(true),
             },
             NewAuthorPayload {
                 id: "auth_2".to_string(),
@@ -174,6 +175,7 @@ mod tests {
                 listed_count: 5,
                 like_count: 1000,
                 media_count: 10,
+                is_ignored: Some(true),
             },
             NewAuthorPayload {
                 id: "auth_3".to_string(),
@@ -185,6 +187,7 @@ mod tests {
                 listed_count: 0,
                 like_count: 20,
                 media_count: 0,
+                is_ignored: Some(true),
             },
         ];
 
@@ -397,7 +400,7 @@ mod tests {
         let router = Router::new()
             .route("/tweet-authors", post(handle_create_tweet_author))
             .layer(Extension(create_mock_admin()))
-            .with_state(state);
+            .with_state(state.clone());
 
         let payload = serde_json::json!({
             "username": "test_user"
@@ -416,6 +419,10 @@ mod tests {
             .unwrap();
 
         assert!(response.status() == StatusCode::CREATED);
+
+        let author = state.db.tweet_authors.find_by_id("hello").await.unwrap().unwrap();
+
+        assert_eq!(author.is_ignored, true);
     }
 
     #[tokio::test]

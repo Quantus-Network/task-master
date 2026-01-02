@@ -108,26 +108,16 @@ impl TweetAuthorRepository {
     }
 
     pub async fn get_whitelist(&self) -> Result<Vec<String>, DbError> {
-        let authors = sqlx::query_as::<_, TweetAuthor>("SELECT * FROM tweet_authors WHERE is_ignored = false")
+        let ids = sqlx::query_scalar::<_, String>("SELECT id FROM tweet_authors WHERE is_ignored = false")
             .fetch_all(&self.pool)
             .await?;
 
-        let whitelist: Vec<String> = authors.iter().map(|f| f.id.clone()).collect();
-
-        Ok(whitelist)
+        Ok(ids)
     }
 
-    pub async fn make_ignored_from_whitelist(&self, id: &str) -> Result<(), DbError> {
-        sqlx::query("UPDATE tweet_authors SET is_ignored = true WHERE id = $1")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn make_watched_in_whitelist(&self, id: &str) -> Result<(), DbError> {
-        sqlx::query("UPDATE tweet_authors SET is_ignored = false WHERE id = $1")
+    pub async fn set_ignore_status(&self, id: &str, status: bool) -> Result<(), DbError> {
+        sqlx::query("UPDATE tweet_authors SET is_ignored = $1 WHERE id = $2")
+            .bind(status)
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -136,16 +126,17 @@ impl TweetAuthorRepository {
     }
 
     pub async fn upsert(&self, payload: &NewAuthorPayload) -> DbResult<String> {
-        let author = sqlx::query_as::<_, TweetAuthor>(
+        let id = sqlx::query_scalar::<_, String>(
             r#"
             INSERT INTO tweet_authors (
-                id, name, username, followers_count, following_count, 
+                id, name, username, is_ignored, followers_count, following_count, 
                 tweet_count, listed_count, like_count, media_count, fetched_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 username = EXCLUDED.username,
+                is_ignored = EXCLUDED.is_ignored,
                 followers_count = EXCLUDED.followers_count,
                 following_count = EXCLUDED.following_count,
                 tweet_count = EXCLUDED.tweet_count,
@@ -153,12 +144,13 @@ impl TweetAuthorRepository {
                 like_count = EXCLUDED.like_count,
                 media_count = EXCLUDED.media_count,
                 fetched_at = NOW()
-            RETURNING *
+            RETURNING id
             "#,
         )
         .bind(&payload.id)
         .bind(&payload.name)
         .bind(&payload.username)
+        .bind(&payload.is_ignored)
         .bind(payload.followers_count)
         .bind(payload.following_count)
         .bind(payload.tweet_count)
@@ -168,7 +160,7 @@ impl TweetAuthorRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(author.id)
+        Ok(id)
     }
 
     /// Batch Upsert for Authors

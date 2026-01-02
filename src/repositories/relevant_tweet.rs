@@ -271,6 +271,7 @@ mod tests {
             listed_count: 1,
             like_count: 200,
             media_count: 5,
+            is_ignored: Some(true),
         }];
 
         repo.upsert_many(&authors).await.expect("Failed to seed authors");
