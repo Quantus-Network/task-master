@@ -19,8 +19,15 @@ impl TweetPullUsageRepository {
 
     /// Calculates the billing period string (YYYY-MM) based on the given date and a reset day.
     ///
-    /// The logic handles edge cases where the reset day (e.g., 31st) doesn't exist in the current or previous month.
+    /// The logic handles edge cases where the reset day (e.g., 31st) doesn't exist in the current month.
     /// In such cases, the reset day effectively becomes the last day of that month.
+    ///
+    /// Note on Month Label Shifting:
+    /// If `reset_day` is 31, the "2023-01" cycle starts on Jan 31st and ends on Feb 27th.
+    /// The "2023-02" cycle starts on Feb 28th and ends on Mar 30th.
+    /// This means most of the usage for the "2023-01" period actually occurs in February.
+    /// This is consistent with most billing systems that reset on the last day of the month
+    /// for shorter months, but it means the month label refers to the START of the billing cycle.
     fn calculate_period_for_date(date: chrono::DateTime<Utc>, reset_day: u32) -> String {
         let current_year = date.year();
         let current_month = date.month();
@@ -224,5 +231,35 @@ mod tests {
         // 1 < 31 -> Previous cycle (Dec 2023).
         let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
         assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-12");
+    }
+
+    #[test]
+    fn test_period_reset_day_31_feb_edge_cases() {
+        // Reset on 31st.
+
+        // Jan 31st -> Starts Jan cycle.
+        let date = Utc.with_ymd_and_hms(2023, 1, 31, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-01");
+
+        // Feb 27th -> Still in Jan cycle (started Jan 31).
+        let date = Utc.with_ymd_and_hms(2023, 2, 27, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-01");
+
+        // Feb 28th -> Starts Feb cycle because Feb only has 28 days.
+        // The reset is "capped" at the last day of the month.
+        let date = Utc.with_ymd_and_hms(2023, 2, 28, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-02");
+
+        // Mar 1st -> Still in Feb cycle (started Feb 28).
+        let date = Utc.with_ymd_and_hms(2023, 3, 1, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-02");
+
+        // Mar 30th -> Still in Feb cycle.
+        let date = Utc.with_ymd_and_hms(2023, 3, 30, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-02");
+
+        // Mar 31st -> Starts Mar cycle.
+        let date = Utc.with_ymd_and_hms(2023, 3, 31, 0, 0, 0).unwrap();
+        assert_eq!(TweetPullUsageRepository::calculate_period_for_date(date, 31), "2023-03");
     }
 }
