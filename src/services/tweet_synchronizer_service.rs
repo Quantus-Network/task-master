@@ -12,7 +12,7 @@ use rusx::{
 use crate::{
     db_persistence::DbPersistence,
     models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
-    services::telegram_service::TelegramService,
+    services::{alert_service::AlertService, telegram_service::TelegramService},
     utils::x_url::build_x_status_url,
     AppError, AppResult, Config,
 };
@@ -22,6 +22,7 @@ pub struct TweetSynchronizerService {
     db: Arc<DbPersistence>,
     twitter_gateway: Arc<dyn TwitterGateway>,
     telegram_service: Arc<TelegramService>,
+    alert_service: Arc<AlertService>,
     config: Arc<Config>,
 }
 
@@ -140,12 +141,14 @@ impl TweetSynchronizerService {
         db: Arc<DbPersistence>,
         twitter_gateway: Arc<dyn TwitterGateway>,
         telegram_service: Arc<TelegramService>,
+        alert_service: Arc<AlertService>,
         config: Arc<Config>,
     ) -> Self {
         Self {
             db,
             twitter_gateway,
             telegram_service,
+            alert_service,
             config,
         }
     }
@@ -206,6 +209,10 @@ impl TweetSynchronizerService {
             let tweet_authors = self.process_tweet_authors(&response).await?;
             let relevant_tweets = self.process_relevant_tweets(&response).await?;
 
+            // Track Twitter API usage
+            let tweets_pulled = relevant_tweets.len() as i32;
+            self.alert_service.track_and_alert_usage(tweets_pulled).await?;
+
             self.process_sending_raid_targets(&tweet_authors, &relevant_tweets)
                 .await?;
         }
@@ -239,12 +246,35 @@ mod tests {
     // Test Helpers
     // -------------------------------------------------------------------------
 
-    async fn setup_deps() -> (Arc<DbPersistence>, MockServer, Arc<TelegramService>, Arc<Config>) {
+    async fn setup_deps() -> (
+        Arc<DbPersistence>,
+        MockServer,
+        Arc<TelegramService>,
+        Arc<AlertService>,
+        Arc<Config>,
+    ) {
         // A. Setup DB
         let config = Config::load_test_env().expect("Failed to load test config");
         let pool = PgPool::connect(config.get_database_url()).await.unwrap();
         reset_database(&pool).await;
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
+
+        // Seed an author for the whitelist so sync loop runs
+        db.tweet_authors
+            .upsert_many(&vec![crate::models::tweet_author::NewAuthorPayload {
+                id: "u1".to_string(),
+                name: "User One".to_string(),
+                username: "user_one".to_string(),
+                followers_count: 1000,
+                following_count: 100,
+                tweet_count: 50,
+                listed_count: 5,
+                like_count: 0,
+                media_count: 0,
+                is_ignored: Some(false),
+            }])
+            .await
+            .unwrap();
 
         // B. Setup Telegram Mock Server
         let mock_server = MockServer::start().await;
@@ -257,9 +287,12 @@ mod tests {
         let telegram_service = Arc::new(TelegramService::new(telegram_config));
 
         // C. Config
-        let app_config = Arc::new(config);
+        let app_config = Arc::new(config.clone());
 
-        (db, mock_server, telegram_service, app_config)
+        // D. Alert Service
+        let alert_service = Arc::new(AlertService::new(config.clone(), db.tweet_pull_usage.clone()));
+
+        (db, mock_server, telegram_service, alert_service, app_config)
     }
 
     fn create_mock_tweet(id: &str, author_id: &str) -> Tweet {
@@ -302,7 +335,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_saves_data_no_raid_notification() {
-        let (db, _mock_tg, telegram_service, config) = setup_deps().await;
+        let (db, _mock_tg, telegram_service, alert_service, config) = setup_deps().await;
 
         // --- Setup DB with existing watched tweet authors ---
         let dummy_author = crate::models::tweet_author::NewAuthorPayload {
@@ -347,7 +380,13 @@ mod tests {
         mock_gateway.expect_search().times(1).return_const(search_api_arc);
 
         // --- Run Service ---
-        let service = TweetSynchronizerService::new(db.clone(), Arc::new(mock_gateway), telegram_service, config);
+        let service = TweetSynchronizerService::new(
+            db.clone(),
+            Arc::new(mock_gateway),
+            telegram_service,
+            alert_service,
+            config,
+        );
 
         let result = service.sync_relevant_tweets().await;
 
@@ -367,7 +406,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_sends_telegram_when_raid_active() {
-        let (db, mock_tg, telegram_service, config) = setup_deps().await;
+        let (db, mock_tg, telegram_service, alert_service, config) = setup_deps().await;
 
         // --- Setup DB with existing watched tweet authors ---
         let dummy_author = crate::models::tweet_author::NewAuthorPayload {
@@ -422,7 +461,13 @@ mod tests {
         mock_gateway.expect_search().times(1).return_const(search_api_arc);
 
         // --- Run Service ---
-        let service = TweetSynchronizerService::new(db.clone(), Arc::new(mock_gateway), telegram_service, config);
+        let service = TweetSynchronizerService::new(
+            db.clone(),
+            Arc::new(mock_gateway),
+            telegram_service,
+            alert_service,
+            config,
+        );
 
         // This will spawn the background task for telegram, so we need to wait slightly
         // or ensure the service function awaits the spawn (it doesn't in your code).
@@ -436,7 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pagination_logic_uses_last_id() {
-        let (db, _mock_tg, telegram_service, config) = setup_deps().await;
+        let (db, _mock_tg, telegram_service, alert_service, config) = setup_deps().await;
 
         // --- Setup DB with existing tweet ---
         // We insert a tweet directly to simulate "last state"
@@ -493,7 +538,8 @@ mod tests {
 
         mock_gateway.expect_search().times(1).return_const(search_api_arc);
 
-        let service = TweetSynchronizerService::new(db, Arc::new(mock_gateway), telegram_service, config);
+        let service =
+            TweetSynchronizerService::new(db, Arc::new(mock_gateway), telegram_service, alert_service, config);
 
         service.sync_relevant_tweets().await.unwrap();
     }

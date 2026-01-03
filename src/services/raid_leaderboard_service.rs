@@ -11,6 +11,7 @@ use rusx::{
 use crate::{
     db_persistence::DbPersistence,
     models::raid_submission::{RaidSubmission, UpdateRaidSubmissionStats},
+    services::alert_service::AlertService,
     AppError, AppResult, Config,
 };
 
@@ -18,6 +19,7 @@ use crate::{
 pub struct RaidLeaderboardService {
     db: Arc<DbPersistence>,
     twitter_gateway: Arc<dyn TwitterGateway>,
+    alert_service: Arc<AlertService>,
     config: Arc<Config>,
 }
 
@@ -32,10 +34,16 @@ impl RaidLeaderboardService {
             .collect()
     }
 
-    pub fn new(db: Arc<DbPersistence>, twitter_gateway: Arc<dyn TwitterGateway>, config: Arc<Config>) -> Self {
+    pub fn new(
+        db: Arc<DbPersistence>,
+        twitter_gateway: Arc<dyn TwitterGateway>,
+        alert_service: Arc<AlertService>,
+        config: Arc<Config>,
+    ) -> Self {
         Self {
             db,
             twitter_gateway,
+            alert_service,
             config,
         }
     }
@@ -102,10 +110,15 @@ impl RaidLeaderboardService {
                 .tweets()
                 .get_many(query, Some(params.clone()))
                 .await?;
+
             let Some(tweets) = &response.data else {
                 tracing::info!("No tweets found!.");
                 continue;
             };
+
+            // Track Twitter API usage
+            let tweets_pulled = tweets.len() as i32;
+            self.alert_service.track_and_alert_usage(tweets_pulled).await?;
 
             // EXTRACT: Collect all referenced IDs from the fetched tweets
             // We use a HashSet immediately to remove duplicates before sending to DB
@@ -184,12 +197,14 @@ mod tests {
     // Setup & Helpers
     // -------------------------------------------------------------------------
 
-    async fn setup_deps() -> (Arc<DbPersistence>, Arc<Config>) {
+    async fn setup_deps() -> (Arc<DbPersistence>, Arc<AlertService>, Arc<Config>) {
         let config = Config::load_test_env().expect("Failed to load test config");
         let pool = PgPool::connect(config.get_database_url()).await.unwrap();
         reset_database(&pool).await;
         let db = Arc::new(DbPersistence::new(config.get_database_url()).await.unwrap());
-        (db, Arc::new(config))
+        let app_config = Arc::new(config.clone());
+        let alert_service = Arc::new(AlertService::new(config, db.tweet_pull_usage.clone()));
+        (db, alert_service, app_config)
     }
 
     fn create_mock_tweet(id: &str, target_id: String, author_id: String, impressions: u32, likes: u32) -> Tweet {
@@ -264,13 +279,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_no_active_raid_does_nothing() {
-        let (db, config) = setup_deps().await;
+        let (db, alert_service, config) = setup_deps().await;
 
         // Setup Gateway: Expect NO calls because there is no active raid
         let mut mock_gateway = MockTwitterGateway::new();
         mock_gateway.expect_tweets().times(0);
 
-        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), config);
+        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), alert_service, config);
 
         let result = service.sync_raid_leaderboard().await;
         assert!(result.is_ok());
@@ -278,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_active_raid_but_no_submissions_does_nothing() {
-        let (db, config) = setup_deps().await;
+        let (db, alert_service, config) = setup_deps().await;
 
         // 1. Create Active Raid
         db.raid_quests
@@ -292,7 +307,7 @@ mod tests {
         let mut mock_gateway = MockTwitterGateway::new();
         mock_gateway.expect_tweets().times(0);
 
-        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), config);
+        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), alert_service, config);
 
         let result = service.sync_raid_leaderboard().await;
         assert!(result.is_ok());
@@ -300,7 +315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_updates_stats_successfully() {
-        let (db, config) = setup_deps().await;
+        let (db, alert_service, config) = setup_deps().await;
 
         // 1. Create Active Raid
         let raid_id = db
@@ -345,7 +360,7 @@ mod tests {
             .expect_tweets()
             .return_const(Arc::new(mock_tweet_api) as Arc<dyn TweetApi>);
 
-        let service = RaidLeaderboardService::new(db.clone(), Arc::new(mock_gateway), config);
+        let service = RaidLeaderboardService::new(db.clone(), Arc::new(mock_gateway), alert_service, config);
 
         // 4. Run Sync
         service.sync_raid_leaderboard().await.unwrap();
@@ -361,7 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_flag_invalid() {
-        let (db, config) = setup_deps().await;
+        let (db, alert_service, config) = setup_deps().await;
 
         // 1. Create Active Raid
         let raid_id = db
@@ -406,7 +421,7 @@ mod tests {
             .expect_tweets()
             .return_const(Arc::new(mock_tweet_api) as Arc<dyn TweetApi>);
 
-        let service = RaidLeaderboardService::new(db.clone(), Arc::new(mock_gateway), config);
+        let service = RaidLeaderboardService::new(db.clone(), Arc::new(mock_gateway), alert_service, config);
 
         // 4. Run Sync
         service.sync_raid_leaderboard().await.unwrap();
@@ -424,7 +439,7 @@ mod tests {
     async fn test_sync_batching_logic() {
         // This test verifies that if we have > 100 submissions,
         // the service makes multiple calls to Twitter.
-        let (db, config) = setup_deps().await;
+        let (db, alert_service, config) = setup_deps().await;
 
         let raid_id = db
             .raid_quests
@@ -469,7 +484,7 @@ mod tests {
             .times(2)
             .return_const(Arc::new(mock_tweet_api) as Arc<dyn TweetApi>);
 
-        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), config);
+        let service = RaidLeaderboardService::new(db, Arc::new(mock_gateway), alert_service, config);
 
         // 3. Run Sync
 

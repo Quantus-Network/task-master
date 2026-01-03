@@ -7,6 +7,7 @@ use crate::repositories::raid_quest::RaidQuestRepository;
 use crate::repositories::raid_submission::RaidSubmissionRepository;
 use crate::repositories::relevant_tweet::RelevantTweetRepository;
 use crate::repositories::tweet_author::TweetAuthorRepository;
+use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
 use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
 use crate::repositories::{
@@ -45,6 +46,7 @@ pub struct DbPersistence {
     pub raid_quests: RaidQuestRepository,
     pub raid_submissions: RaidSubmissionRepository,
     pub raid_leaderboards: RaidLeaderboardRepository,
+    pub tweet_pull_usage: TweetPullUsageRepository,
 
     pub pool: PgPool,
 }
@@ -67,6 +69,7 @@ impl DbPersistence {
         let raid_quests = RaidQuestRepository::new(&pool);
         let raid_submissions = RaidSubmissionRepository::new(&pool);
         let raid_leaderboards = RaidLeaderboardRepository::new(&pool);
+        let tweet_pull_usage = TweetPullUsageRepository::new(pool.clone());
 
         Ok(Self {
             pool,
@@ -82,6 +85,7 @@ impl DbPersistence {
             raid_quests,
             raid_submissions,
             raid_leaderboards,
+            tweet_pull_usage,
         })
     }
 
@@ -101,6 +105,7 @@ impl DbPersistence {
         let raid_quests = RaidQuestRepository::new(&pool);
         let raid_submissions = RaidSubmissionRepository::new(&pool);
         let raid_leaderboards = RaidLeaderboardRepository::new(&pool);
+        let tweet_pull_usage = TweetPullUsageRepository::new(pool.clone());
 
         Ok(Self {
             pool,
@@ -116,6 +121,7 @@ impl DbPersistence {
             raid_quests,
             raid_submissions,
             raid_leaderboards,
+            tweet_pull_usage,
         })
     }
 }

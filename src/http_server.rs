@@ -14,6 +14,7 @@ use crate::{
     metrics::{metrics_handler, track_metrics, Metrics},
     models::task::TaskStatus,
     routes::api_routes,
+    services::alert_service::AlertService,
     Config, GraphqlClient,
 };
 use chrono::{DateTime, Utc};
@@ -29,6 +30,7 @@ pub struct AppState {
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
     pub twitter_oauth_tokens: Arc<RwLock<HashMap<String, String>>>,
     pub twitter_gateway: Arc<dyn TwitterGateway>,
+    pub alert_client: Arc<AlertService>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +117,7 @@ pub async fn start_server(
     db: Arc<DbPersistence>,
     graphql_client: Arc<GraphqlClient>,
     twitter_gateway: Arc<dyn TwitterGateway>,
+    alert_client: Arc<AlertService>,
     bind_address: &str,
     config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -122,6 +125,7 @@ pub async fn start_server(
         db,
         metrics: Arc::new(Metrics::new()),
         graphql_client,
+        alert_client: alert_client,
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),

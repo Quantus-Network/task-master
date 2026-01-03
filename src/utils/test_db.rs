@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub async fn reset_database(pool: &PgPool) {
-    sqlx::query("TRUNCATE tasks, referrals, opt_ins, addresses, admins, eth_associations, x_associations, relevant_tweets, tweet_authors, raid_quests, raid_submissions RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE tasks, referrals, opt_ins, addresses, admins, eth_associations, x_associations, relevant_tweets, tweet_authors, raid_quests, raid_submissions, tweet_pull_usage RESTART IDENTITY CASCADE")
         .execute(pool)
         .await
         .expect("Failed to truncate tables for tests");

@@ -68,6 +68,9 @@ client_secret = "example-secret"
 api_key = "some-key"
 interval_in_hours = 24
 keywords = "example"
+monthly_limit = 15000
+alert_threshold = 13500
+reset_day = 22
 
 [tg_bot]
 base_url = "https://api.telegram.org"
@@ -79,6 +82,9 @@ token = "token"
 [raid_leaderboard]
 sync_interval_in_hours = 24
 tweets_req_interval_in_secs = 60
+
+[alert]
+webhook_url = "https://www.webhook_url.com"
 
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
