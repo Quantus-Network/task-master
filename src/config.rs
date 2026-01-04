@@ -71,7 +71,6 @@ pub struct JwtConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TweetSyncConfig {
-    pub whitelist: Vec<String>,
     pub interval_in_hours: u64,
     pub keywords: String,
     pub api_key: String,
@@ -207,7 +206,6 @@ impl Default for Config {
                 client_secret: "example".to_string(),
             },
             tweet_sync: TweetSyncConfig {
-                whitelist: vec![],
                 interval_in_hours: 24,
                 keywords: "hello".to_string(),
                 api_key: "key".to_string(),

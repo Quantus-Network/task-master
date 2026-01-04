@@ -107,6 +107,62 @@ impl TweetAuthorRepository {
         Ok(authors)
     }
 
+    pub async fn get_whitelist(&self) -> Result<Vec<String>, DbError> {
+        let ids = sqlx::query_scalar::<_, String>("SELECT id FROM tweet_authors WHERE is_ignored = false")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(ids)
+    }
+
+    pub async fn set_ignore_status(&self, id: &str, status: bool) -> Result<(), DbError> {
+        sqlx::query("UPDATE tweet_authors SET is_ignored = $1 WHERE id = $2")
+            .bind(status)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn upsert(&self, payload: &NewAuthorPayload) -> DbResult<String> {
+        let id = sqlx::query_scalar::<_, String>(
+            r#"
+            INSERT INTO tweet_authors (
+                id, name, username, is_ignored, followers_count, following_count, 
+                tweet_count, listed_count, like_count, media_count, fetched_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                username = EXCLUDED.username,
+                is_ignored = EXCLUDED.is_ignored,
+                followers_count = EXCLUDED.followers_count,
+                following_count = EXCLUDED.following_count,
+                tweet_count = EXCLUDED.tweet_count,
+                listed_count = EXCLUDED.listed_count,
+                like_count = EXCLUDED.like_count,
+                media_count = EXCLUDED.media_count,
+                fetched_at = NOW()
+            RETURNING id
+            "#,
+        )
+        .bind(&payload.id)
+        .bind(&payload.name)
+        .bind(&payload.username)
+        .bind(&payload.is_ignored)
+        .bind(payload.followers_count)
+        .bind(payload.following_count)
+        .bind(payload.tweet_count)
+        .bind(payload.listed_count)
+        .bind(payload.like_count)
+        .bind(payload.media_count)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(id)
+    }
+
     /// Batch Upsert for Authors
     pub async fn upsert_many(&self, authors: &Vec<NewAuthorPayload>) -> DbResult<u64> {
         if authors.is_empty() {

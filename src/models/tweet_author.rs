@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rusx::resources::user::{User as TwitterUser, UserPublicMetrics};
+use rusx::resources::user::User as TwitterUser;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
@@ -8,6 +8,7 @@ pub struct TweetAuthor {
     pub id: String,
     pub name: String,
     pub username: String,
+    pub is_ignored: bool,
     pub followers_count: i32,
     pub following_count: i32,
     pub tweet_count: i32,
@@ -22,6 +23,7 @@ impl<'r> FromRow<'r, PgRow> for TweetAuthor {
             id: row.try_get("id")?,
             name: row.try_get("name")?,
             username: row.try_get("username")?,
+            is_ignored: row.try_get("is_ignored")?,
             followers_count: row.try_get("followers_count")?,
             following_count: row.try_get("following_count")?,
             tweet_count: row.try_get("tweet_count")?,
@@ -77,18 +79,12 @@ pub struct NewAuthorPayload {
     pub listed_count: i32,
     pub like_count: i32,
     pub media_count: i32,
+    pub is_ignored: Option<bool>,
 }
 
 impl NewAuthorPayload {
     pub fn new(author: TwitterUser) -> Self {
-        let public_metrics = author
-            .public_metrics
-            .ok_or_else(|| UserPublicMetrics {
-                media_count: Some(0),
-                like_count: Some(0),
-                ..Default::default()
-            })
-            .unwrap();
+        let public_metrics = author.public_metrics.unwrap_or_default();
 
         let new_author = NewAuthorPayload {
             id: author.id,
@@ -98,10 +94,16 @@ impl NewAuthorPayload {
             following_count: public_metrics.following_count as i32,
             tweet_count: public_metrics.tweet_count as i32,
             listed_count: public_metrics.listed_count as i32,
-            media_count: public_metrics.media_count.unwrap() as i32,
-            like_count: public_metrics.like_count.unwrap() as i32,
+            media_count: public_metrics.media_count.unwrap_or(0) as i32,
+            like_count: public_metrics.like_count.unwrap_or(0) as i32,
+            is_ignored: Some(true),
         };
 
         new_author
     }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CreateTweetAuthorInput {
+    pub username: String,
 }
