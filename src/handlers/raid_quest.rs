@@ -18,6 +18,7 @@ use crate::{
         raid_leaderboard::RaidLeaderboard,
         raid_quest::{CreateRaidQuest, RaidQuest, RaidQuestFilter, RaidQuestSortColumn},
         raid_submission::{CreateRaidSubmission, RaidSubmissionInput, RaiderSubmissions},
+        x_association::XAssociation,
     },
     utils::x_url::{build_x_status_url, parse_x_status_url},
     AppError,
@@ -158,16 +159,7 @@ pub async fn handle_get_active_raid_raider_submissions(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
 ) -> Result<Json<SuccessResponse<RaiderSubmissions>>, AppError> {
-    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No active raid is found"
-        ))));
-    };
-    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "User doesn't have X association"
-        ))));
-    };
+    let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
 
     let submissions = state
         .db
@@ -190,29 +182,11 @@ pub async fn handle_create_raid_submission(
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
 ) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
-    let Some((_target_username, target_id)) = parse_x_status_url(&payload.target_tweet_link) else {
-        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
-            "Couldn't parse target tweet link"
-        ))));
-    };
-    let Some(_) = state.db.relevant_tweets.find_by_id(&target_id).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "Not a valid target tweet"
-        ))));
-    };
+    let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
+
     let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse tweet reply link"
-        ))));
-    };
-    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No active raid is found"
-        ))));
-    };
-    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "User doesn't have X association"
         ))));
     };
     if user_x.username != reply_username {
@@ -225,7 +199,6 @@ pub async fn handle_create_raid_submission(
         id: reply_id,
         raid_id: current_active_raid.id,
         raider_id: user.quan_address.0,
-        target_id: target_id,
     };
 
     let created_id = state.db.raid_submissions.create(&new_raid_submission).await?;
@@ -254,6 +227,23 @@ pub async fn handle_delete_raid_submission(
     state.db.raid_submissions.delete(&submission_id).await?;
 
     Ok(NoContent)
+}
+
+async fn get_active_raid_and_x_association(
+    state: &AppState,
+    user: &Address,
+) -> Result<(RaidQuest, XAssociation), AppError> {
+    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "No active raid is found"
+        ))));
+    };
+    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "User doesn't have X association"
+        ))));
+    };
+    Ok((current_active_raid, user_x))
 }
 
 #[cfg(test)]
@@ -570,10 +560,8 @@ mod tests {
             .with_state(state.clone());
 
         // 5. Payload
-        // Target Link -> ID 1868000000000000000
         // Reply Link -> ID 999999999, Username "me"
         let payload = RaidSubmissionInput {
-            target_tweet_link: format!("https://x.com/someone/status/{}", target_tweet_id),
             tweet_reply_link: "https://x.com/me/status/999999999".to_string(),
         };
 
@@ -596,7 +584,8 @@ mod tests {
         assert!(sub.is_some());
         let sub = sub.unwrap();
         assert_eq!(sub.raid_id, raid_id);
-        assert_eq!(sub.target_id, target_tweet_id);
+        assert_eq!(&sub.id, "999999999");
+        assert!(sub.target_id.is_none());
     }
 
     #[tokio::test]
@@ -621,7 +610,6 @@ mod tests {
             .with_state(state);
 
         let payload = RaidSubmissionInput {
-            target_tweet_link: "https://x.com/a/status/100".into(),
             tweet_reply_link: "https://x.com/b/status/200".into(),
         };
 
@@ -660,8 +648,7 @@ mod tests {
             .with_state(state);
 
         let payload = RaidSubmissionInput {
-            target_tweet_link: "not_a_valid_url".into(),
-            tweet_reply_link: "https://x.com/b/status/200".into(),
+            tweet_reply_link: "https://x.com/b/dwdwdwt/dwdwd".into(),
         };
 
         let response = router
@@ -677,7 +664,7 @@ mod tests {
             .unwrap();
 
         // 400 Bad Request / Handler Error
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
