@@ -16,6 +16,7 @@ pub struct Config {
     pub tweet_sync: TweetSyncConfig,
     pub tg_bot: TelegramBotConfig,
     pub raid_leaderboard: RaidLeaderboardConfig,
+    pub alert: AlertConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +75,9 @@ pub struct TweetSyncConfig {
     pub interval_in_hours: u64,
     pub keywords: String,
     pub api_key: String,
+    pub monthly_limit: u32,
+    pub alert_threshold: u32,
+    pub reset_day: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +92,11 @@ pub struct TelegramBotConfig {
 pub struct RaidLeaderboardConfig {
     pub sync_interval_in_hours: u64,
     pub tweets_req_interval_in_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertConfig {
+    pub webhook_url: String,
 }
 
 impl Config {
@@ -209,6 +218,9 @@ impl Default for Config {
                 interval_in_hours: 24,
                 keywords: "hello".to_string(),
                 api_key: "key".to_string(),
+                monthly_limit: 15000,
+                alert_threshold: 13000,
+                reset_day: 1,
             },
             tg_bot: TelegramBotConfig {
                 base_url: "https://api.telegram.org".to_string(),
@@ -219,6 +231,9 @@ impl Default for Config {
             raid_leaderboard: RaidLeaderboardConfig {
                 sync_interval_in_hours: 24,
                 tweets_req_interval_in_secs: 60,
+            },
+            alert: AlertConfig {
+                webhook_url: "https://your-webhook-url.com".to_string(),
             },
         }
     }

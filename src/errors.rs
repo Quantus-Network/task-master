@@ -74,17 +74,21 @@ impl IntoResponse for AppError {
             AppError::Database(err) => map_db_error(err),
 
             // --- Everything else ---
-            AppError::Transaction(_)
+            e @ (AppError::Transaction(_)
             | AppError::TaskGenerator(_)
             | AppError::Reverser(_)
             | AppError::Join(_)
             | AppError::Graphql(_)
             | AppError::Config(_)
             | AppError::Http(_)
-            | AppError::Server(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "An internal server error occurred".to_string(),
-            ),
+            | AppError::Server(_)) => {
+                tracing::error!("Internal server error: {:?}", e.to_string());
+
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal server error occurred".to_string(),
+                )
+            }
         };
 
         error_response(status, message)

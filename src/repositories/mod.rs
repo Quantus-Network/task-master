@@ -15,6 +15,7 @@ pub mod referral;
 pub mod relevant_tweet;
 pub mod task;
 pub mod tweet_author;
+pub mod tweet_pull_usage;
 pub mod x_association;
 
 pub trait QueryBuilderExt {
