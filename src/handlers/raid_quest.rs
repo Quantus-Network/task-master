@@ -18,6 +18,7 @@ use crate::{
         raid_leaderboard::RaidLeaderboard,
         raid_quest::{CreateRaidQuest, RaidQuest, RaidQuestFilter, RaidQuestSortColumn},
         raid_submission::{CreateRaidSubmission, RaidSubmissionInput, RaiderSubmissions},
+        x_association::XAssociation,
     },
     utils::x_url::{build_x_status_url, parse_x_status_url},
     AppError,
@@ -158,16 +159,7 @@ pub async fn handle_get_active_raid_raider_submissions(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
 ) -> Result<Json<SuccessResponse<RaiderSubmissions>>, AppError> {
-    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No active raid is found"
-        ))));
-    };
-    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "User doesn't have X association"
-        ))));
-    };
+    let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
 
     let submissions = state
         .db
@@ -190,16 +182,8 @@ pub async fn handle_create_raid_submission(
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
 ) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
-    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No active raid is found"
-        ))));
-    };
-    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "User doesn't have X association"
-        ))));
-    };
+    let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
+
     let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(format!(
             "Couldn't parse tweet reply link"
@@ -243,6 +227,23 @@ pub async fn handle_delete_raid_submission(
     state.db.raid_submissions.delete(&submission_id).await?;
 
     Ok(NoContent)
+}
+
+async fn get_active_raid_and_x_association(
+    state: &AppState,
+    user: &Address,
+) -> Result<(RaidQuest, XAssociation), AppError> {
+    let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "No active raid is found"
+        ))));
+    };
+    let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
+        return Err(AppError::Database(DbError::RecordNotFound(format!(
+            "User doesn't have X association"
+        ))));
+    };
+    Ok((current_active_raid, user_x))
 }
 
 #[cfg(test)]
