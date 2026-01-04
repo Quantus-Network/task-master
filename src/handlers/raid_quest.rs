@@ -118,14 +118,18 @@ pub async fn handle_get_raid_leaderboard(
 ) -> Result<Json<PaginatedResponse<RaidLeaderboard>>, AppError> {
     validate_pagination_query(params.page, params.page_size)?;
 
-    let total_items = state.db.raid_leaderboards.get_total_items(raid_id).await? as u32;
+    let total_items = state
+        .db
+        .raid_leaderboards
+        .get_total_items(raid_id, params.referral_code.clone())
+        .await? as u32;
     let total_pages = calculate_total_pages(params.page_size, total_items);
 
     let offset = (params.page - 1) * params.page_size;
     let entries = state
         .db
         .raid_leaderboards
-        .get_entries(raid_id, params.page_size as i64, offset as i64)
+        .get_entries(raid_id, params.page_size as i64, offset as i64, params.referral_code)
         .await?;
 
     let response = PaginatedResponse {
