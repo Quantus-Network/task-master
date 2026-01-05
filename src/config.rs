@@ -17,6 +17,7 @@ pub struct Config {
     pub tg_bot: TelegramBotConfig,
     pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
+    pub x_association: XAssociationConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +100,11 @@ pub struct AlertConfig {
     pub webhook_url: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XAssociationConfig {
+    pub bio_mention: String,
+}
+
 impl Config {
     pub fn load(config_path: &str) -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
@@ -171,7 +177,7 @@ impl Config {
     }
 
     pub fn get_x_bio_mention(&self) -> &str {
-        "@QuantusNetwork"
+        &self.x_association.bio_mention
     }
 }
 
@@ -238,6 +244,9 @@ impl Default for Config {
             },
             alert: AlertConfig {
                 webhook_url: "https://your-webhook-url.com".to_string(),
+            },
+            x_association: XAssociationConfig {
+                bio_mention: "@QuantusNetwork".to_string(),
             },
         }
     }

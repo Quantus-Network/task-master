@@ -462,13 +462,14 @@ mod tests {
         let mut mock_user_api = MockUserApi::new();
 
         // Expect get_by_username
-        mock_user_api.expect_get_by_username().returning(|_, _| {
+        let bio_mention = state.config.get_x_bio_mention().to_string();
+        mock_user_api.expect_get_by_username().returning(move |_, _| {
             Ok(TwitterApiResponse {
                 data: Some(User {
                     id: "u1".to_string(),
                     name: "Test User".to_string(),
                     username: "test_user".to_string(),
-                    description: Some("I love @QuantusNetwork".to_string()), // Contains keyword
+                    description: Some(format!("I love {}", bio_mention)), // Contains keyword from config
                     public_metrics: None,
                 }),
                 includes: None,
