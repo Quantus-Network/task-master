@@ -169,6 +169,10 @@ impl Config {
     pub fn get_raid_leaderboard_tweets_req_interval(&self) -> time::Duration {
         time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
     }
+
+    pub fn get_x_bio_mention(&self) -> &str {
+        "@QuantusNetwork"
+    }
 }
 
 impl Default for Config {
