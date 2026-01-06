@@ -21,9 +21,12 @@ use crate::{
         eth_association::{
             AssociateEthAddressRequest, AssociateEthAddressResponse, EthAssociation, EthAssociationInput,
         },
+        x_association::{AssociateXHandleRequest, XAssociation, XAssociationInput},
     },
     AppError,
 };
+
+use rusx::resources::{user::UserParams, UserField};
 
 use super::SuccessResponse;
 
@@ -222,6 +225,65 @@ pub async fn associate_eth_address(
     Ok(Json(response))
 }
 
+pub async fn associate_x_handle(
+    State(state): State<AppState>,
+    Extension(user): Extension<Address>,
+    Json(payload): Json<AssociateXHandleRequest>,
+) -> Result<NoContent, AppError> {
+    tracing::info!(
+        "Received X handle association request for quan_address: {} -> username: {}",
+        user.quan_address.0,
+        payload.username,
+    );
+
+    let mut params = UserParams::new();
+    params.user_fields = Some(vec![UserField::Description, UserField::Username]);
+
+    let user_resp = state
+        .twitter_gateway
+        .users()
+        .get_by_username(&payload.username, Some(params))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch user by username {}: {:?}", payload.username, e);
+            AppError::Handler(HandlerError::Address(AddressHandlerError::InvalidQueryParams(format!(
+                "Failed to verify Twitter username: {}",
+                e
+            ))))
+        })?;
+
+    let twitter_user = user_resp.data.ok_or_else(|| {
+        AppError::Handler(HandlerError::Address(AddressHandlerError::InvalidQueryParams(
+            "Twitter user not found".to_string(),
+        )))
+    })?;
+
+    let bio = twitter_user.description.unwrap_or_default();
+    let x_bio_mention = state.config.get_x_bio_mention();
+    if !bio.to_lowercase().contains(&x_bio_mention.to_lowercase()) {
+        return Err(AppError::Handler(HandlerError::Address(
+            AddressHandlerError::Unauthorized(format!(
+                "Twitter bio must contain '{}' to verify ownership",
+                x_bio_mention
+            )),
+        )));
+    }
+
+    let new_association = XAssociation::new(XAssociationInput {
+        quan_address: user.quan_address.0,
+        username: twitter_user.username,
+    })?;
+
+    state.db.x_associations.create(&new_association).await?;
+    tracing::info!(
+        "Created association for quan_address {} with X username {}",
+        new_association.quan_address.0,
+        new_association.username
+    );
+
+    Ok(NoContent)
+}
+
 pub async fn update_eth_address(
     State(state): State<AppState>,
     Extension(user): Extension<Address>,
@@ -376,6 +438,207 @@ mod tests {
     use serde_json::json;
     use tower::ServiceExt;
     use uuid::Uuid; // Required for .oneshot()
+
+    use rusx::{
+        resources::{
+            user::{User, UserApi},
+            TwitterApiResponse,
+        },
+        MockTwitterGateway, MockUserApi,
+    };
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_associate_x_handle_success() {
+        let mut state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // 1. Setup User & Token
+        let user = create_persisted_address(&state.db.addresses, "108").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        // 2. Mock Twitter Gateway
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_user_api = MockUserApi::new();
+
+        // Expect get_by_username
+        let bio_mention = state.config.get_x_bio_mention().to_string();
+        mock_user_api.expect_get_by_username().returning(move |_, _| {
+            Ok(TwitterApiResponse {
+                data: Some(User {
+                    id: "u1".to_string(),
+                    name: "Test User".to_string(),
+                    username: "test_user".to_string(),
+                    description: Some(format!("I love {}", bio_mention)), // Contains keyword from config
+                    public_metrics: None,
+                }),
+                includes: None,
+                meta: None,
+            })
+        });
+
+        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user_api);
+        mock_gateway.expect_users().return_const(user_api_arc);
+
+        state.twitter_gateway = Arc::new(mock_gateway);
+
+        // 3. Setup Router
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_handle))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state.clone());
+
+        // 4. Request
+        let payload = json!({ "username": "test_user" });
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // 5. Assert
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // Check DB
+        let assoc = state
+            .db
+            .x_associations
+            .find_by_address(&user.quan_address)
+            .await
+            .unwrap();
+        assert!(assoc.is_some());
+        assert_eq!(assoc.unwrap().username, "test_user");
+    }
+
+    #[tokio::test]
+    async fn test_associate_x_handle_fails_bad_bio() {
+        let mut state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let user = create_persisted_address(&state.db.addresses, "109").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_user_api = MockUserApi::new();
+
+        mock_user_api.expect_get_by_username().returning(|_, _| {
+            Ok(TwitterApiResponse {
+                data: Some(User {
+                    id: "u1".to_string(),
+                    name: "Test User".to_string(),
+                    username: "test_user".to_string(),
+                    description: Some("No keyword here".to_string()), // Missing keyword
+                    public_metrics: None,
+                }),
+                includes: None,
+                meta: None,
+            })
+        });
+
+        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user_api);
+        mock_gateway.expect_users().return_const(user_api_arc);
+        state.twitter_gateway = Arc::new(mock_gateway);
+
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_handle))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state);
+
+        let payload = json!({ "username": "test_user" });
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Should return 401 Unauthorized
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_associate_x_handle_case_insensitive_success() {
+        let mut state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // 1. Setup User & Token
+        let user = create_persisted_address(&state.db.addresses, "110").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        // 2. Mock Twitter Gateway
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_user_api = MockUserApi::new();
+
+        // Expect get_by_username
+        let bio_mention = state.config.get_x_bio_mention().to_string();
+        // Create a lowercase version of the mention for the bio
+        let lowercase_bio_mention = bio_mention.to_lowercase();
+
+        mock_user_api.expect_get_by_username().returning(move |_, _| {
+            Ok(TwitterApiResponse {
+                data: Some(User {
+                    id: "u1".to_string(),
+                    name: "Test User".to_string(),
+                    username: "test_user".to_string(),
+                    description: Some(format!("I love {}", lowercase_bio_mention)), // Contains lowercase keyword
+                    public_metrics: None,
+                }),
+                includes: None,
+                meta: None,
+            })
+        });
+
+        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user_api);
+        mock_gateway.expect_users().return_const(user_api_arc);
+
+        state.twitter_gateway = Arc::new(mock_gateway);
+
+        // 3. Setup Router
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_handle))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state.clone());
+
+        // 4. Request
+        let payload = json!({ "username": "test_user" });
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // 5. Assert - Should be successful even with different case
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // Check DB
+        let assoc = state
+            .db
+            .x_associations
+            .find_by_address(&user.quan_address)
+            .await
+            .unwrap();
+        assert!(assoc.is_some());
+    }
 
     #[tokio::test]
     async fn test_update_eth_address_success() {

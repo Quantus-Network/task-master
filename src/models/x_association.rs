@@ -49,3 +49,8 @@ pub struct XAssociationInput {
     pub quan_address: String,
     pub username: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AssociateXHandleRequest {
+    pub username: String,
+}

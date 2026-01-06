@@ -5000,8 +5000,8 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "rusx"
-version = "0.6.0"
-source = "git+https://github.com/Quantus-Network/rusx?tag=v0.6.0#1f5383af185509649fcbc117fc97e166a6cb47d3"
+version = "0.6.1"
+source = "git+https://github.com/Quantus-Network/rusx?tag=v0.6.1#cf7283b98c64c11ab2195421254393b829848abc"
 dependencies = [
  "async-trait",
  "mockall 0.12.1",

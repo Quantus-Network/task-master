@@ -443,6 +443,7 @@ mod tests {
                     id: "101".to_string(),
                     name: "Quantus Network".to_string(),
                     username: expected_username.to_string(),
+                    description: Some("Quantus Network".to_string()),
                     public_metrics: Default::default(),
                 }),
                 includes: Default::default(),

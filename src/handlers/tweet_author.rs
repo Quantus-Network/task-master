@@ -377,6 +377,7 @@ mod tests {
                     id: "hello".to_string(),
                     name: "hello".to_string(),
                     username: "test_user".to_string(),
+                    description: Some("Quantus Network".to_string()),
                     public_metrics: Some(UserPublicMetrics {
                         followers_count: 100,
                         following_count: 50,
