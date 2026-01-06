@@ -260,7 +260,7 @@ pub async fn associate_x_handle(
 
     let bio = twitter_user.description.unwrap_or_default();
     let x_bio_mention = state.config.get_x_bio_mention();
-    if !bio.contains(x_bio_mention) {
+    if !bio.to_lowercase().contains(&x_bio_mention.to_lowercase()) {
         return Err(AppError::Handler(HandlerError::Address(
             AddressHandlerError::Unauthorized(format!(
                 "Twitter bio must contain '{}' to verify ownership",
@@ -567,6 +567,77 @@ mod tests {
 
         // Should return 401 Unauthorized
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_associate_x_handle_case_insensitive_success() {
+        let mut state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // 1. Setup User & Token
+        let user = create_persisted_address(&state.db.addresses, "110").await;
+        let token = generate_test_token(&state.config.jwt.secret, &user.quan_address.0);
+
+        // 2. Mock Twitter Gateway
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_user_api = MockUserApi::new();
+
+        // Expect get_by_username
+        let bio_mention = state.config.get_x_bio_mention().to_string();
+        // Create a lowercase version of the mention for the bio
+        let lowercase_bio_mention = bio_mention.to_lowercase();
+
+        mock_user_api.expect_get_by_username().returning(move |_, _| {
+            Ok(TwitterApiResponse {
+                data: Some(User {
+                    id: "u1".to_string(),
+                    name: "Test User".to_string(),
+                    username: "test_user".to_string(),
+                    description: Some(format!("I love {}", lowercase_bio_mention)), // Contains lowercase keyword
+                    public_metrics: None,
+                }),
+                includes: None,
+                meta: None,
+            })
+        });
+
+        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user_api);
+        mock_gateway.expect_users().return_const(user_api_arc);
+
+        state.twitter_gateway = Arc::new(mock_gateway);
+
+        // 3. Setup Router
+        let router = Router::new()
+            .route("/associate-x", post(associate_x_handle))
+            .layer(middleware::from_fn_with_state(state.clone(), jwt_auth))
+            .with_state(state.clone());
+
+        // 4. Request
+        let payload = json!({ "username": "test_user" });
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/associate-x")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // 5. Assert - Should be successful even with different case
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // Check DB
+        let assoc = state
+            .db
+            .x_associations
+            .find_by_address(&user.quan_address)
+            .await
+            .unwrap();
+        assert!(assoc.is_some());
     }
 
     #[tokio::test]
