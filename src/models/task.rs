@@ -111,43 +111,6 @@ impl Task {
             updated_at: None,
         })
     }
-
-    pub fn set_transaction_sent(
-        &mut self,
-        reversible_tx_id: String,
-        send_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-    ) {
-        self.reversible_tx_id = Some(reversible_tx_id);
-        self.send_time = Some(send_time);
-        self.end_time = Some(end_time);
-        self.status = TaskStatus::Pending;
-    }
-
-    pub fn mark_completed(&mut self) {
-        self.status = TaskStatus::Completed;
-    }
-
-    pub fn mark_reversed(&mut self) {
-        self.status = TaskStatus::Reversed;
-    }
-
-    pub fn mark_failed(&mut self) {
-        self.status = TaskStatus::Failed;
-    }
-
-    pub fn is_ready_for_reversal(&self, early_minutes: i64) -> bool {
-        if self.status != TaskStatus::Pending {
-            return false;
-        }
-
-        if let Some(end_time) = self.end_time {
-            let reversal_time = end_time - chrono::Duration::minutes(early_minutes);
-            Utc::now() >= reversal_time
-        } else {
-            false
-        }
-    }
 }
 impl<'r> FromRow<'r, PgRow> for Task {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {

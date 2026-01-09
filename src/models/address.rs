@@ -111,11 +111,6 @@ pub struct AddressInput {
     pub referral_code: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct NewAddressPayload {
-    pub quan_address: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SyncTransfersResponse {
     pub success: bool,

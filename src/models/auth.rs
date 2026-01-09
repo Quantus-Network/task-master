@@ -8,9 +8,7 @@ pub struct TokenClaims {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RequestChallengeBody {
-    pub address: Option<String>,
-}
+pub struct RequestChallengeBody;
 
 #[derive(Debug, Serialize)]
 pub struct RequestChallengeResponse {

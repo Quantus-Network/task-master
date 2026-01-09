@@ -29,12 +29,6 @@ impl<'r> FromRow<'r, PgRow> for Admin {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CreateAdmin {
-    pub username: String,
-    pub password: String,
-}
-
 #[derive(Deserialize)]
 pub struct AdminLoginPayload {
     pub username: String,
