@@ -46,7 +46,7 @@ pub struct DbPersistence {
     pub raid_leaderboards: RaidLeaderboardRepository,
     pub tweet_pull_usage: TweetPullUsageRepository,
 
-    #[allow(unused_variables)]
+    #[allow(dead_code)]
     pub pool: PgPool,
 }
 
