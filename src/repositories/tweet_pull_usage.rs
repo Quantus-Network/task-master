@@ -53,30 +53,9 @@ impl TweetPullUsageRepository {
         }
     }
 
-    pub async fn get_current_usage(&self, reset_day: u32) -> Result<TweetPullUsage, DbError> {
-        let period = Self::get_current_period(reset_day);
-        self.get_usage_for_period(&period).await
-    }
-
     pub async fn increment_usage(&self, amount: i32, reset_day: u32) -> Result<TweetPullUsage, DbError> {
         let period = Self::get_current_period(reset_day);
         self.increment_usage_for_period(amount, &period).await
-    }
-
-    /// Internal helper to get usage for a specific period string.
-    async fn get_usage_for_period(&self, period: &str) -> Result<TweetPullUsage, DbError> {
-        let usage = sqlx::query_as::<_, TweetPullUsage>(
-            "INSERT INTO tweet_pull_usage (period, tweet_count) 
-             VALUES ($1, 0) 
-             ON CONFLICT (period) DO UPDATE SET period = EXCLUDED.period
-             RETURNING *",
-        )
-        .bind(period)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(DbError::Database)?;
-
-        Ok(usage)
     }
 
     /// Internal helper to increment usage for a specific period string.
@@ -119,21 +98,42 @@ mod tests {
     use crate::utils::test_app_state::create_test_app_state;
     use crate::utils::test_db::reset_database;
     use chrono::{TimeZone, Utc};
+    use sqlx::{Pool, Postgres};
+
+    async fn get_current_usage(pool: &Pool<Postgres>, reset_day: u32) -> Result<TweetPullUsage, DbError> {
+        let period = TweetPullUsageRepository::get_current_period(reset_day);
+        get_usage_for_period(pool, &period).await
+    }
+
+    /// Internal helper to get usage for a specific period string.
+    async fn get_usage_for_period(pool: &Pool<Postgres>, period: &str) -> Result<TweetPullUsage, DbError> {
+        let usage = sqlx::query_as::<_, TweetPullUsage>(
+            "INSERT INTO tweet_pull_usage (period, tweet_count) 
+             VALUES ($1, 0) 
+             ON CONFLICT (period) DO UPDATE SET period = EXCLUDED.period
+             RETURNING *",
+        )
+        .bind(period)
+        .fetch_one(pool)
+        .await
+        .map_err(DbError::Database)?;
+
+        Ok(usage)
+    }
 
     #[tokio::test]
     async fn test_get_current_usage_integration() {
         let state = create_test_app_state().await;
         reset_database(&state.db.pool).await;
 
-        let repo = &state.db.tweet_pull_usage;
         let reset_day = 1;
 
         // 1. Initial call should create a record with 0
-        let usage = repo.get_current_usage(reset_day).await.unwrap();
+        let usage = get_current_usage(&state.db.pool, reset_day).await.unwrap();
         assert_eq!(usage.tweet_count, 0);
 
         // 2. Subsequent call should return the same record
-        let usage2 = repo.get_current_usage(reset_day).await.unwrap();
+        let usage2 = get_current_usage(&state.db.pool, reset_day).await.unwrap();
         assert_eq!(usage2.tweet_count, 0);
         assert_eq!(usage.period, usage2.period);
     }
@@ -171,8 +171,8 @@ mod tests {
         repo.increment_usage_for_period(50, period_b).await.unwrap();
 
         // 3. Verify they are separate
-        let usage_a = repo.get_usage_for_period(period_a).await.unwrap();
-        let usage_b = repo.get_usage_for_period(period_b).await.unwrap();
+        let usage_a = get_usage_for_period(&state.db.pool, period_a).await.unwrap();
+        let usage_b = get_usage_for_period(&state.db.pool, period_b).await.unwrap();
 
         assert_eq!(usage_a.tweet_count, 100);
         assert_eq!(usage_b.tweet_count, 50);

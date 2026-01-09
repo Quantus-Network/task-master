@@ -104,14 +104,6 @@ impl TaskRepository {
         Ok(())
     }
 
-    pub async fn get_tasks_by_status(&self, status: TaskStatus) -> DbResult<Vec<Task>> {
-        let tasks = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE status = $1 ORDER BY created_at")
-            .bind(status.to_string())
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(tasks)
-    }
-
     pub async fn get_tasks_ready_for_reversal(&self, early_minutes: i64) -> DbResult<Vec<Task>> {
         let cutoff_time = Utc::now() + chrono::Duration::minutes(early_minutes);
 
@@ -155,28 +147,6 @@ impl TaskRepository {
         }
 
         Ok(counts)
-    }
-
-    pub async fn get_address_stats(&self) -> DbResult<Vec<(String, i64)>> {
-        let stats = sqlx::query_as::<_, (String, i64)>(
-            r#"
-        SELECT
-            a.quan_address,
-            COUNT(t.id) as task_count
-        FROM
-            addresses a
-        LEFT JOIN
-            tasks t ON a.quan_address = t.quan_address
-        GROUP BY
-            a.quan_address
-        ORDER BY
-            a.quan_address
-        "#,
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(stats)
     }
 }
 
@@ -263,24 +233,6 @@ mod tests {
         assert_eq!(updated_task.reversible_tx_id, Some(tx_id.to_string()));
         assert!(updated_task.send_time.is_some());
         assert!(updated_task.end_time.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_get_tasks_by_status() {
-        let (address_repo, task_repo) = setup_test_repositories().await;
-        let address = create_persisted_address(&address_repo, "004").await;
-
-        let mut task1 = create_mock_task_object(&address.quan_address.0);
-        task1.status = TaskStatus::Pending;
-        task_repo.create(&task1).await.unwrap();
-
-        let mut task2 = create_mock_task_object(&address.quan_address.0);
-        task2.status = TaskStatus::Completed;
-        task_repo.create(&task2).await.unwrap();
-
-        let pending_tasks = task_repo.get_tasks_by_status(TaskStatus::Pending).await.unwrap();
-        assert_eq!(pending_tasks.len(), 1);
-        assert_eq!(pending_tasks[0].task_id, task1.task_id);
     }
 
     #[tokio::test]

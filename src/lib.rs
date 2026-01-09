@@ -24,7 +24,7 @@ pub use config::Config;
 pub use errors::{AppError, AppResult};
 pub use http_server::AppState;
 pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
-pub use services::reverser::{ReversalStats, ReverserService};
+pub use services::reverser::ReverserService;
 pub use services::task_generator::TaskGenerator;
 pub use services::transaction_manager::TransactionManager;
 

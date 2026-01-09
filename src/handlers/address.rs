@@ -905,10 +905,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
         //  Verification in DB
-        let saved_assoc = state
-            .db
-            .x_associations
-            .find_by_username("twitter_pro_101")
+        let saved_assoc = sqlx::query_as::<_, XAssociation>("SELECT * FROM x_associations WHERE username = $1")
+            .bind(new_association.username)
+            .fetch_optional(&state.db.pool)
             .await
             .unwrap();
 

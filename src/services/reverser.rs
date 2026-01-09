@@ -134,37 +134,6 @@ impl ReverserService {
         Ok(())
     }
 
-    /// Get statistics about tasks that need attention
-    pub async fn get_reversal_stats(&self) -> ReverserResult<ReversalStats> {
-        let pending_tasks = self.db.tasks.get_tasks_by_status(TaskStatus::Pending).await?;
-        let tasks_ready_for_reversal = self
-            .db
-            .tasks
-            .get_tasks_ready_for_reversal(self.early_reversal_minutes)
-            .await?;
-
-        let mut tasks_expiring_soon = 0;
-        let mut tasks_already_expired = 0;
-        let now = chrono::Utc::now();
-
-        for task in &pending_tasks {
-            if let Some(end_time) = task.end_time {
-                if end_time <= now {
-                    tasks_already_expired += 1;
-                } else if end_time <= now + chrono::Duration::minutes(self.early_reversal_minutes) {
-                    tasks_expiring_soon += 1;
-                }
-            }
-        }
-
-        Ok(ReversalStats {
-            total_pending: pending_tasks.len(),
-            ready_for_reversal: tasks_ready_for_reversal.len(),
-            expiring_soon: tasks_expiring_soon,
-            already_expired: tasks_already_expired,
-        })
-    }
-
     /// Manual trigger for reversal check (useful for testing or admin endpoints)
     pub async fn trigger_reversal_check(&self) -> ReverserResult<usize> {
         let tasks_to_reverse = self
@@ -181,14 +150,6 @@ impl ReverserService {
 
         Ok(count)
     }
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ReversalStats {
-    pub total_pending: usize,
-    pub ready_for_reversal: usize,
-    pub expiring_soon: usize,
-    pub already_expired: usize,
 }
 
 /// Start the reverser service in a background task
@@ -334,50 +295,5 @@ mod tests {
         // Assert: The task should not have been reversed.
         let not_reversed_task = db.tasks.get_task(&task.task_id).await.unwrap().unwrap();
         assert_eq!(not_reversed_task.status, TaskStatus::Pending);
-    }
-
-    #[tokio::test]
-    async fn chain_test_get_reversal_stats() {
-        let (reverser, _tm, db) = setup_test_reverser().await;
-
-        // We will manually create tasks with specific timings for this test.
-        let now = Utc::now();
-        let early_reversal_window = ChronoDuration::minutes(reverser.early_reversal_minutes);
-
-        // Task 1: Already expired (should be ready for reversal)
-        let task1 = create_reversable_task(&db, &reverser.transaction_manager, "stats_01").await;
-        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
-            .bind(now - ChronoDuration::minutes(10))
-            .bind(&task1.task_id)
-            .execute(&db.pool)
-            .await
-            .unwrap();
-
-        // Task 2: Expiring soon (inside the window, also ready for reversal)
-        let task2 = create_reversable_task(&db, &reverser.transaction_manager, "stats_02").await;
-        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
-            .bind(now + early_reversal_window - ChronoDuration::minutes(1))
-            .bind(&task2.task_id)
-            .execute(&db.pool)
-            .await
-            .unwrap();
-
-        // Task 3: Pending, but not expiring soon (outside the window)
-        let task3 = create_reversable_task(&db, &reverser.transaction_manager, "stats_03").await;
-        sqlx::query("UPDATE tasks SET end_time = $1 WHERE task_id = $2")
-            .bind(now + early_reversal_window + ChronoDuration::minutes(10))
-            .bind(&task3.task_id)
-            .execute(&db.pool)
-            .await
-            .unwrap();
-
-        // Act: Get the stats
-        let stats = reverser.get_reversal_stats().await.unwrap();
-
-        // Assert
-        assert_eq!(stats.total_pending, 3);
-        assert_eq!(stats.ready_for_reversal, 2); // Expired + Expiring Soon
-        assert_eq!(stats.expiring_soon, 1); // Only task2
-        assert_eq!(stats.already_expired, 1); // Only task1
     }
 }

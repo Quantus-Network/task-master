@@ -1,10 +1,7 @@
 use sqlx::PgPool;
 
 use crate::{
-    models::{
-        address::QuanAddress,
-        eth_association::{EthAddress, EthAssociation},
-    },
+    models::{address::QuanAddress, eth_association::EthAssociation},
     repositories::DbResult,
 };
 
@@ -37,15 +34,6 @@ impl EthAssociationRepository {
     pub async fn find_by_quan_address(&self, quan_address: &QuanAddress) -> DbResult<Option<EthAssociation>> {
         let association = sqlx::query_as::<_, EthAssociation>("SELECT * FROM eth_associations WHERE quan_address = $1")
             .bind(&quan_address.0)
-            .fetch_optional(&self.pool)
-            .await?;
-
-        Ok(association)
-    }
-
-    pub async fn find_by_eth_address(&self, eth_address: &EthAddress) -> DbResult<Option<EthAssociation>> {
-        let association = sqlx::query_as::<_, EthAssociation>("SELECT * FROM eth_associations WHERE eth_address = $1")
-            .bind(&eth_address.0)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -131,30 +119,6 @@ mod tests {
 
         assert_eq!(found.quan_address.0, address.quan_address.0);
         assert_eq!(found.eth_address.0, "0x00000000219ab540356cBB839Cbe05303d7705Fa");
-    }
-
-    #[tokio::test]
-    async fn test_find_by_eth_address() {
-        let (address_repo, eth_repo) = setup_test_repositories().await;
-
-        let address = create_persisted_address(&address_repo, "user_02").await;
-
-        let input = EthAssociationInput {
-            quan_address: address.quan_address.0.clone(),
-            eth_address: "0x00000000219ab540356cBB839Cbe05303d7705Fa".to_string(),
-        };
-        let new_association = EthAssociation::new(input).unwrap();
-        eth_repo.create(&new_association).await.unwrap();
-
-        // Find by ETH Address
-        let found = eth_repo
-            .find_by_eth_address(&new_association.eth_address)
-            .await
-            .unwrap();
-
-        assert!(found.is_some());
-        let found = found.unwrap();
-        assert_eq!(found.quan_address.0, address.quan_address.0);
     }
 
     #[tokio::test]
