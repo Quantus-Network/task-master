@@ -23,14 +23,13 @@ pub mod utils;
 pub use config::Config;
 pub use errors::{AppError, AppResult};
 pub use http_server::AppState;
-pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
+pub use services::graphql_client::{GraphqlClient, Transfer};
 pub use services::reverser::ReverserService;
 pub use services::task_generator::TaskGenerator;
 pub use services::transaction_manager::TransactionManager;
 
 // Re-export errors
 pub use db_persistence::DbError;
-pub use services::ethereum_service::EthAddressAssociation;
 pub use services::graphql_client::GraphqlError;
 pub use services::reverser::ReverserError;
 pub use services::task_generator::TaskGeneratorError;

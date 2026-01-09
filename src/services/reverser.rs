@@ -133,23 +133,6 @@ impl ReverserService {
 
         Ok(())
     }
-
-    /// Manual trigger for reversal check (useful for testing or admin endpoints)
-    pub async fn trigger_reversal_check(&self) -> ReverserResult<usize> {
-        let tasks_to_reverse = self
-            .db
-            .tasks
-            .get_tasks_ready_for_reversal(self.early_reversal_minutes)
-            .await?;
-
-        let count = tasks_to_reverse.len();
-
-        if count > 0 {
-            self.check_and_reverse_tasks().await?;
-        }
-
-        Ok(count)
-    }
 }
 
 /// Start the reverser service in a background task

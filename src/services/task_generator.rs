@@ -14,8 +14,6 @@ pub enum TaskGeneratorError {
     ValidationError,
     #[error("No candidates available")]
     NoCandidates,
-    #[error("Not enough candidates for selection")]
-    InsufficientCandidates,
     #[error("CSV error: {0}")]
     Database(#[from] DbError),
     #[error("HTTP error: {0}")]
@@ -199,11 +197,6 @@ impl TaskGenerator {
         self.candidates.len()
     }
 
-    /// Get current candidates list (for debugging/status)
-    pub fn get_candidates(&self) -> &[String] {
-        &self.candidates
-    }
-
     /// Check for duplicate task URLs to avoid collisions
     pub async fn ensure_unique_task_urls(&self, tasks: &mut [Task]) -> TaskGeneratorResult<()> {
         for task in tasks {
@@ -248,6 +241,11 @@ mod tests {
         TaskGenerator::new(db)
     }
 
+    /// Get current candidates list (for debugging/status)
+    fn get_candidates(task_generator: &TaskGenerator) -> &[String] {
+        &task_generator.candidates
+    }
+
     #[tokio::test]
     async fn test_generate_random_quan_amount() {
         let generator = setup_test_generator().await;
@@ -290,8 +288,8 @@ mod tests {
         generator.refresh_candidates_from_db().await.unwrap();
 
         assert_eq!(generator.candidates_count(), 2);
-        assert!(generator.get_candidates().contains(&addr1.quan_address.0));
-        assert!(generator.get_candidates().contains(&addr2.quan_address.0));
+        assert!(get_candidates(&generator).contains(&addr1.quan_address.0));
+        assert!(get_candidates(&generator).contains(&addr2.quan_address.0));
     }
 
     #[tokio::test]
@@ -320,12 +318,8 @@ mod tests {
 
         // Assert that only valid candidates were added.
         assert_eq!(generator.candidates_count(), 2);
-        assert!(generator
-            .get_candidates()
-            .contains(&"qz_a_valid_test_address_1".to_string()));
-        assert!(generator
-            .get_candidates()
-            .contains(&"qz_a_valid_test_address_2".to_string()));
+        assert!(get_candidates(&generator).contains(&"qz_a_valid_test_address_1".to_string()));
+        assert!(get_candidates(&generator).contains(&"qz_a_valid_test_address_2".to_string()));
     }
 
     #[tokio::test]

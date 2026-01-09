@@ -1,5 +1,4 @@
 pub mod alert_service;
-pub mod ethereum_service;
 pub mod graphql_client;
 pub mod raid_leaderboard_service;
 pub mod reverser;
