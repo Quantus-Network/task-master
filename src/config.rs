@@ -144,10 +144,6 @@ impl Config {
         tokio::time::Duration::from_secs(self.candidates.refresh_interval_minutes * 60)
     }
 
-    pub fn get_task_generation_duration(&self) -> tokio::time::Duration {
-        tokio::time::Duration::from_secs(self.task_generation.generation_interval_minutes * 60)
-    }
-
     pub fn get_reverser_check_duration(&self) -> tokio::time::Duration {
         tokio::time::Duration::from_secs(self.reverser.check_interval_seconds)
     }

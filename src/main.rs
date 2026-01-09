@@ -277,13 +277,11 @@ async fn main() -> AppResult<()> {
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
     let server_twitter_gateway = twitter_gateway.clone();
-    let server_alert_service = alert_service.clone();
     let server_task = tokio::spawn(async move {
         http_server::start_server(
             server_db,
             graphql_client,
             server_twitter_gateway,
-            server_alert_service,
             &server_addr_clone,
             server_config,
         )
@@ -402,43 +400,6 @@ async fn start_candidates_refresh_task(
                 Err(e) => {
                     error!("Failed to refresh candidates: {}", e);
                     return Err(AppError::TaskGenerator(e));
-                }
-            }
-        }
-    })
-}
-
-async fn start_task_generation_task(
-    task_generator: TaskGenerator,
-    transaction_manager: Arc<TransactionManager>,
-    taskees_per_round: usize,
-    generation_interval: Duration,
-) -> tokio::task::JoinHandle<AppResult<()>> {
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(generation_interval);
-
-        loop {
-            interval.tick().await;
-
-            info!("Generating new batch of {} tasks...", taskees_per_round);
-
-            let tasks = match task_generator.generate_and_save_tasks(taskees_per_round).await {
-                Ok(tasks) => tasks,
-                Err(e) => {
-                    error!("Failed to generate tasks: {}", e);
-                    return Err(AppError::TaskGenerator(e));
-                }
-            };
-
-            info!("Generated {} tasks, processing transactions...", tasks.len());
-
-            match transaction_manager.process_task_batch(tasks).await {
-                Ok(processed) => {
-                    info!("Successfully processed {} transactions", processed.len());
-                }
-                Err(e) => {
-                    error!("Failed to process transaction batch: {}", e);
-                    return Err(AppError::Transaction(e));
                 }
             }
         }

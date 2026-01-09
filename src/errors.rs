@@ -183,7 +183,7 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
             }
         }
 
-        DbError::InvalidStatus(_) | DbError::Migration(_) => (
+        DbError::Migration(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             "An internal server error occurred".to_string(),
         ),
