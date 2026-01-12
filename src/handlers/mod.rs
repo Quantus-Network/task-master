@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use crate::{
-    handlers::{
-        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
-    },
+    handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError},
     AppError,
 };
 
@@ -14,13 +12,10 @@ pub mod auth;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
-pub mod task;
 pub mod tweet_author;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandlerError {
-    #[error("Task handler error")]
-    Task(#[from] TaskHandlerError),
     #[error("Referral handler error")]
     Referral(#[from] ReferralHandlerError),
     #[error("Address handler error")]

@@ -270,21 +270,6 @@ impl GraphqlClient {
         Ok((transfer_count, address_count as usize))
     }
 
-    /// Get statistics about stored transfers and addresses
-    pub async fn get_sync_stats(&self) -> GraphqlResult<SyncStats> {
-        // Note: This would require additional database queries to get counts
-        // For now, we'll return basic stats from the current sync
-        let transfers = self.fetch_transfers().await?;
-        let unique_addresses: std::collections::HashSet<&String> =
-            transfers.iter().flat_map(|t| [&t.from.id, &t.to.id]).collect();
-
-        Ok(SyncStats {
-            total_transfers: transfers.len(),
-            unique_addresses: unique_addresses.len(),
-            last_sync_time: chrono::Utc::now(),
-        })
-    }
-
     pub async fn get_address_stats(&self, id: String) -> GraphqlResult<AddressStats> {
         const GET_STATS_QUERY: &str = r#"
         query GetStatsById($id: String!) {
@@ -458,13 +443,6 @@ query GetEventCountByIds($ids: [String!]!) {
 
         Ok(event_count_data.events.total_count)
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SyncStats {
-    pub total_transfers: usize,
-    pub unique_addresses: usize,
-    pub last_sync_time: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -907,17 +885,6 @@ query GetEventCountByIds($ids: [String!]!) {
     }
 
     #[test]
-    fn test_graphql_error_from_db_error() {
-        let db_err = DbError::TaskNotFound("task-123".to_string());
-        let graphql_err: GraphqlError = db_err.into();
-
-        match graphql_err {
-            GraphqlError::DatabaseError(_) => (),
-            _ => panic!("Expected DatabaseError conversion"),
-        }
-    }
-
-    #[test]
     fn test_graphql_error_from_json_error() {
         let json_err = serde_json::from_str::<Transfer>("invalid json").unwrap_err();
         let graphql_err: GraphqlError = json_err.into();
@@ -1097,37 +1064,6 @@ query GetEventCountByIds($ids: [String!]!) {
         let debug_str = format!("{:?}", transfer);
         assert!(debug_str.contains("0x123"));
         assert!(debug_str.contains("1000"));
-    }
-
-    // ============================================================================
-    // SyncStats Tests
-    // ============================================================================
-
-    #[test]
-    fn test_sync_stats_serialization() {
-        let stats = SyncStats {
-            total_transfers: 10,
-            unique_addresses: 15,
-            last_sync_time: chrono::Utc::now(),
-        };
-
-        let json = serde_json::to_string(&stats).unwrap();
-        assert!(json.contains("total_transfers"));
-        assert!(json.contains("unique_addresses"));
-        assert!(json.contains("last_sync_time"));
-    }
-
-    #[test]
-    fn test_sync_stats_deserialization() {
-        let json = r#"{
-            "total_transfers": 5,
-            "unique_addresses": 8,
-            "last_sync_time": "2024-01-01T00:00:00Z"
-        }"#;
-
-        let stats: SyncStats = serde_json::from_str(json).unwrap();
-        assert_eq!(stats.total_transfers, 5);
-        assert_eq!(stats.unique_addresses, 8);
     }
 
     // ============================================================================

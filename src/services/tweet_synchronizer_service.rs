@@ -164,7 +164,7 @@ impl TweetSynchronizerService {
                 tracing::info!("🔄 Background Worker: Starting Twitter Sync...");
 
                 match service.sync_relevant_tweets().await {
-                    Ok(_) => tracing::info!("✅ Sync Complete."),
+                    Ok(_) => tracing::info!("✅ Sync Complete. Relevant tweets synced."),
                     Err(e) => tracing::error!("❌ Sync Failed: {:?}", e),
                 }
             }

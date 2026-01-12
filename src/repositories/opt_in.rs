@@ -55,14 +55,6 @@ impl OptInRepository {
 
         Ok(opt_ins)
     }
-
-    pub async fn count(&self) -> DbResult<i64> {
-        let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM opt_ins")
-            .fetch_one(&self.pool)
-            .await?;
-
-        Ok(count)
-    }
 }
 
 #[cfg(test)]
@@ -75,6 +67,7 @@ mod tests {
     use crate::repositories::address::AddressRepository;
     use crate::utils::test_db::reset_database;
     use sqlx::{postgres::PgPoolOptions, PgPool};
+    use sqlx::{Pool, Postgres};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -94,6 +87,14 @@ mod tests {
         (opt_in_repo, address_repo, pool)
     }
 
+    async fn count_records(pool: &Pool<Postgres>) -> DbResult<i64> {
+        let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM opt_ins")
+            .fetch_one(pool)
+            .await?;
+
+        Ok(count)
+    }
+
     fn create_test_address(id: &str) -> Address {
         let input = AddressInput {
             quan_address: format!("qz_test_{}", id),
@@ -108,7 +109,7 @@ mod tests {
         let address = create_test_address("test_create_001");
 
         address_repo.create(&address).await.unwrap();
-        let count = opt_in_repo.count().await.unwrap();
+        let count = count_records(&_pool).await.unwrap();
         let opt_in = opt_in_repo.create(&address.quan_address.0).await.unwrap();
 
         assert_eq!(opt_in.quan_address.0, address.quan_address.0);
@@ -129,7 +130,6 @@ mod tests {
         let address = create_test_address("test_delete_001");
 
         address_repo.create(&address).await.unwrap();
-        let count_before = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&address.quan_address.0).await.unwrap();
 
         assert!(opt_in_repo
@@ -159,15 +159,12 @@ mod tests {
         address_repo.create(&addr2).await.unwrap();
         address_repo.create(&addr3).await.unwrap();
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
 
         let all = opt_in_repo.get_all_ordered(100).await.unwrap();
@@ -189,15 +186,12 @@ mod tests {
         address_repo.create(&addr2).await.unwrap();
         address_repo.create(&addr3).await.unwrap();
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
 
         let limited = opt_in_repo.get_all_ordered(2).await.unwrap();
@@ -210,7 +204,7 @@ mod tests {
     async fn test_count() {
         let (opt_in_repo, address_repo, _pool) = setup_test_repository().await;
 
-        assert_eq!(opt_in_repo.count().await.unwrap(), 0);
+        assert_eq!(count_records(&_pool).await.unwrap(), 0);
 
         let addr1 = create_test_address("test_count_001");
         let addr2 = create_test_address("test_count_002");
@@ -220,20 +214,17 @@ mod tests {
         address_repo.create(&addr2).await.unwrap();
         address_repo.create(&addr3).await.unwrap();
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
-        assert_eq!(opt_in_repo.count().await.unwrap(), 1);
+        assert_eq!(count_records(&_pool).await.unwrap(), 1);
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
-        assert_eq!(opt_in_repo.count().await.unwrap(), 2);
+        assert_eq!(count_records(&_pool).await.unwrap(), 2);
 
-        let count = opt_in_repo.count().await.unwrap();
         opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
-        assert_eq!(opt_in_repo.count().await.unwrap(), 3);
+        assert_eq!(count_records(&_pool).await.unwrap(), 3);
 
         opt_in_repo.delete(&addr2.quan_address.0).await.unwrap();
-        assert_eq!(opt_in_repo.count().await.unwrap(), 2);
+        assert_eq!(count_records(&_pool).await.unwrap(), 2);
     }
 
     #[tokio::test]
@@ -243,13 +234,11 @@ mod tests {
 
         address_repo.create(&address).await.unwrap();
 
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in1 = opt_in_repo.create(&address.quan_address.0).await.unwrap();
         let first_created_at = opt_in1.created_at;
 
         sleep(Duration::from_millis(10)).await;
 
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in2 = opt_in_repo.create(&address.quan_address.0).await.unwrap();
 
         assert_eq!(opt_in2.quan_address.0, address.quan_address.0);
@@ -285,22 +274,19 @@ mod tests {
         address_repo.create(&addr2).await.unwrap();
         address_repo.create(&addr3).await.unwrap();
 
-        assert_eq!(opt_in_repo.count().await.unwrap(), 0);
+        assert_eq!(count_records(&_pool).await.unwrap(), 0);
 
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in1 = opt_in_repo.create(&addr1.quan_address.0).await.unwrap();
         assert_eq!(opt_in1.opt_in_number, 1);
-        assert_eq!(opt_in_repo.count().await.unwrap(), 1);
+        assert_eq!(count_records(&_pool).await.unwrap(), 1);
 
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in2 = opt_in_repo.create(&addr2.quan_address.0).await.unwrap();
         assert_eq!(opt_in2.opt_in_number, 2);
-        assert_eq!(opt_in_repo.count().await.unwrap(), 2);
+        assert_eq!(count_records(&_pool).await.unwrap(), 2);
 
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in3 = opt_in_repo.create(&addr3.quan_address.0).await.unwrap();
         assert_eq!(opt_in3.opt_in_number, 3);
-        assert_eq!(opt_in_repo.count().await.unwrap(), 3);
+        assert_eq!(count_records(&_pool).await.unwrap(), 3);
 
         let all = opt_in_repo.get_all_ordered(100).await.unwrap();
         assert_eq!(all[0].opt_in_number, 1);
@@ -314,7 +300,6 @@ mod tests {
         let address = create_test_address("test_timestamp_001");
 
         address_repo.create(&address).await.unwrap();
-        let count = opt_in_repo.count().await.unwrap();
         let opt_in = opt_in_repo.create(&address.quan_address.0).await.unwrap();
 
         assert!(!opt_in.created_at.to_rfc3339().is_empty());

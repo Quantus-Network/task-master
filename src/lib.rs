@@ -1,9 +1,9 @@
 //! # TaskMaster Library
 //!
-//! A task management server that creates reversible blockchain transactions
-//! using the Quantus Network. This library provides the core functionality
-//! for managing tasks, interacting with the blockchain, and handling
-//! HTTP API requests.
+//! A reward management server that monitors social media interactions and
+//! integrates with the Quantus Network. This library provides the core
+//! functionality for managing rewards, interacting with the blockchain,
+//! and handling HTTP API requests.
 
 pub mod args;
 pub mod config;
@@ -23,18 +23,12 @@ pub mod utils;
 pub use config::Config;
 pub use errors::{AppError, AppResult};
 pub use http_server::AppState;
-pub use services::graphql_client::{GraphqlClient, SyncStats, Transfer};
-pub use services::reverser::{ReversalStats, ReverserService};
-pub use services::task_generator::TaskGenerator;
-pub use services::transaction_manager::TransactionManager;
+pub use services::graphql_client::{GraphqlClient, Transfer};
 
 // Re-export errors
 pub use db_persistence::DbError;
-pub use services::ethereum_service::EthAddressAssociation;
 pub use services::graphql_client::GraphqlError;
-pub use services::reverser::ReverserError;
-pub use services::task_generator::TaskGeneratorError;
-pub use services::transaction_manager::TransactionError;
+pub use services::signature_service::SigServiceError;
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

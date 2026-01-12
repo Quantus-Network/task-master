@@ -344,6 +344,7 @@ mod tests {
     use crate::{
         handlers::auth::handle_x_oauth_callback,
         http_server::AppState,
+        models::x_association::XAssociation,
         routes::auth::auth_routes,
         utils::{
             test_app_state::create_test_app_state,
@@ -527,10 +528,9 @@ mod tests {
         assert!(location.contains(&format!("payload={}", expected_username)));
 
         // Check DB Side Effects
-        let saved_assoc = state
-            .db
-            .x_associations
-            .find_by_username(expected_username)
+        let saved_assoc = sqlx::query_as::<_, XAssociation>("SELECT * FROM x_associations WHERE username = $1")
+            .bind(expected_username)
+            .fetch_optional(&state.db.pool)
             .await
             .unwrap();
 
