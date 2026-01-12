@@ -8,7 +8,7 @@ pub struct TokenClaims {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RequestChallengeBody;
+pub struct RequestChallengeBody {}
 
 #[derive(Debug, Serialize)]
 pub struct RequestChallengeResponse {
