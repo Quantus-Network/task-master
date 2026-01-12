@@ -7,8 +7,6 @@ pub struct Config {
     pub server: ServerConfig,
     pub blockchain: BlockchainConfig,
     pub candidates: CandidatesConfig,
-    pub task_generation: TaskGenerationConfig,
-    pub reverser: ReverserConfig,
     pub data: DataConfig,
     pub logging: LoggingConfig,
     pub jwt: JwtConfig,
@@ -40,18 +38,6 @@ pub struct BlockchainConfig {
 pub struct CandidatesConfig {
     pub graphql_url: String,
     pub refresh_interval_minutes: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskGenerationConfig {
-    pub generation_interval_minutes: u64,
-    pub taskees_per_round: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReverserConfig {
-    pub early_reversal_minutes: u64,
-    pub check_interval_seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,22 +126,6 @@ impl Config {
         &self.server.base_api_url
     }
 
-    pub fn get_candidates_refresh_duration(&self) -> tokio::time::Duration {
-        tokio::time::Duration::from_secs(self.candidates.refresh_interval_minutes * 60)
-    }
-
-    pub fn get_reverser_check_duration(&self) -> tokio::time::Duration {
-        tokio::time::Duration::from_secs(self.reverser.check_interval_seconds)
-    }
-
-    pub fn get_reversal_period_duration(&self) -> chrono::Duration {
-        chrono::Duration::hours(self.blockchain.reversal_period_hours as i64)
-    }
-
-    pub fn get_early_reversal_duration(&self) -> chrono::Duration {
-        chrono::Duration::minutes(self.reverser.early_reversal_minutes as i64)
-    }
-
     pub fn get_jwt_expiration(&self) -> chrono::Duration {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
@@ -195,14 +165,6 @@ impl Default for Config {
             candidates: CandidatesConfig {
                 graphql_url: "http://localhost:4000/graphql".to_string(),
                 refresh_interval_minutes: 30,
-            },
-            task_generation: TaskGenerationConfig {
-                generation_interval_minutes: 60,
-                taskees_per_round: 5,
-            },
-            reverser: ReverserConfig {
-                early_reversal_minutes: 2,
-                check_interval_seconds: 30,
             },
             data: DataConfig {
                 database_url: "postgres://postgres:postgres@127.0.0.1:5432/task_master".to_string(),

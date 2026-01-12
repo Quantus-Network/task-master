@@ -111,14 +111,6 @@ pub struct AddressInput {
     pub referral_code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SyncTransfersResponse {
-    pub success: bool,
-    pub message: String,
-    pub transfers_processed: Option<usize>,
-    pub addresses_stored: Option<usize>,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct RewardProgramStatusPayload {
     pub new_status: bool,

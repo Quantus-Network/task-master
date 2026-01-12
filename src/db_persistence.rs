@@ -10,9 +10,7 @@ use crate::repositories::tweet_author::TweetAuthorRepository;
 use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
 use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
-use crate::repositories::{
-    address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository, task::TaskRepository,
-};
+use crate::repositories::{address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -20,8 +18,6 @@ pub enum DbError {
     Database(#[from] sqlx::Error),
     #[error("Migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
-    #[error("Task not found: {0}")]
-    TaskNotFound(String),
     #[error("Address not found: {0}")]
     AddressNotFound(String),
     #[error("Record not found: {0}")]
@@ -32,7 +28,6 @@ pub enum DbError {
 
 #[derive(Debug, Clone)]
 pub struct DbPersistence {
-    pub tasks: TaskRepository,
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
     pub opt_ins: OptInRepository,
@@ -56,7 +51,6 @@ impl DbPersistence {
 
         sqlx::migrate!("./migrations").run(&pool).await?;
 
-        let tasks = TaskRepository::new(&pool);
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
         let opt_ins = OptInRepository::new(&pool);
@@ -72,7 +66,6 @@ impl DbPersistence {
 
         Ok(Self {
             pool,
-            tasks,
             addresses,
             referrals,
             opt_ins,

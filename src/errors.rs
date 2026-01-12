@@ -9,15 +9,9 @@ use tracing::error;
 
 use crate::{
     db_persistence::DbError,
-    handlers::{
-        address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, task::TaskHandlerError,
-        HandlerError,
-    },
+    handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
     models::ModelError,
-    services::{
-        graphql_client::GraphqlError, reverser::ReverserError, task_generator::TaskGeneratorError,
-        transaction_manager::TransactionError,
-    },
+    services::graphql_client::GraphqlError,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -30,12 +24,6 @@ pub enum AppError {
     Model(#[from] ModelError),
     #[error("Database error: {0}")]
     Database(#[from] DbError),
-    #[error("Transaction manager error: {0}")]
-    Transaction(#[from] TransactionError),
-    #[error("Task generator error: {0}")]
-    TaskGenerator(#[from] TaskGeneratorError),
-    #[error("Reverser error: {0}")]
-    Reverser(#[from] ReverserError),
     #[error("Server error: {0}")]
     Server(String),
     #[error("Join error: {0}")]
@@ -74,10 +62,7 @@ impl IntoResponse for AppError {
             AppError::Database(err) => map_db_error(err),
 
             // --- Everything else ---
-            e @ (AppError::Transaction(_)
-            | AppError::TaskGenerator(_)
-            | AppError::Reverser(_)
-            | AppError::Join(_)
+            e @ (AppError::Join(_)
             | AppError::Graphql(_)
             | AppError::Config(_)
             | AppError::Http(_)
@@ -150,21 +135,13 @@ fn map_handler_error(err: HandlerError) -> (StatusCode, String) {
             ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
             ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
         },
-
-        HandlerError::Task(err) => match err {
-            TaskHandlerError::TaskNotFound(err) => (StatusCode::NOT_FOUND, err.message.clone()),
-            TaskHandlerError::InvalidTaskUrl(err) => (StatusCode::BAD_REQUEST, err.message.clone()),
-            TaskHandlerError::StatusConflict(err) => (StatusCode::CONFLICT, err.message.clone()),
-        },
     }
 }
 
 fn map_db_error(err: DbError) -> (StatusCode, String) {
     match err {
         DbError::UniqueViolation(err) => (StatusCode::CONFLICT, err),
-        DbError::RecordNotFound(err) | DbError::AddressNotFound(err) | DbError::TaskNotFound(err) => {
-            (StatusCode::NOT_FOUND, err)
-        }
+        DbError::RecordNotFound(err) | DbError::AddressNotFound(err) => (StatusCode::NOT_FOUND, err),
 
         DbError::Database(err) => {
             error!("Database error: {}", err);

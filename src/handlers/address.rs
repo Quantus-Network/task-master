@@ -15,7 +15,7 @@ use crate::{
         address::{
             Address, AddressFilter, AddressSortColumn, AddressStatsResponse, AddressWithOptInAndAssociations,
             AddressWithRank, AggregateStatsQueryParams, AssociatedAccountsResponse, OptedInPositionResponse,
-            RewardProgramStatusPayload, SyncTransfersResponse,
+            RewardProgramStatusPayload,
         },
         admin::Admin,
         eth_association::{
@@ -353,37 +353,6 @@ pub async fn retrieve_associated_accounts(
         eth_address: eth_address.map(|v| v.eth_address.0),
         x_username: x_username.map(|v| v.username),
     }))
-}
-
-pub async fn sync_transfers(State(state): State<AppState>) -> Result<Json<SyncTransfersResponse>, AppError> {
-    tracing::info!("Received request to sync transfers from GraphQL endpoint");
-
-    match state.graphql_client.sync_transfers_and_addresses().await {
-        Ok((transfer_count, address_count)) => {
-            tracing::info!(
-                "Transfer sync completed successfully: {} transfers, {} addresses",
-                transfer_count,
-                address_count
-            );
-
-            let response = SyncTransfersResponse {
-                success: true,
-                message: format!(
-                    "Successfully processed {} transfers and stored {} addresses",
-                    transfer_count, address_count
-                ),
-                transfers_processed: Some(transfer_count),
-                addresses_stored: Some(address_count),
-            };
-
-            Ok(Json(response))
-        }
-        Err(e) => {
-            tracing::error!("Failed to sync transfers: {}", e);
-
-            Err(AppError::Graphql(e))
-        }
-    }
 }
 
 pub async fn handle_get_opted_in_users(

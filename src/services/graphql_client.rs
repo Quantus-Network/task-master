@@ -885,17 +885,6 @@ query GetEventCountByIds($ids: [String!]!) {
     }
 
     #[test]
-    fn test_graphql_error_from_db_error() {
-        let db_err = DbError::TaskNotFound("task-123".to_string());
-        let graphql_err: GraphqlError = db_err.into();
-
-        match graphql_err {
-            GraphqlError::DatabaseError(_) => (),
-            _ => panic!("Expected DatabaseError conversion"),
-        }
-    }
-
-    #[test]
     fn test_graphql_error_from_json_error() {
         let json_err = serde_json::from_str::<Transfer>("invalid json").unwrap_err();
         let graphql_err: GraphqlError = json_err.into();

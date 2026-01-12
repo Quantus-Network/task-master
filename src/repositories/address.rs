@@ -200,6 +200,7 @@ impl AddressRepository {
         Ok(total_items)
     }
 
+    #[allow(dead_code)]
     pub async fn find_all(&self) -> DbResult<Vec<Address>> {
         let addresses = sqlx::query_as::<_, Address>("SELECT * FROM addresses")
             .fetch_all(&self.pool)

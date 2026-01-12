@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, middleware, response::Json, routing::get, Router};
+use axum::{middleware, response::Json, routing::get, Router};
 use rusx::{PkceCodeVerifier, TwitterGateway};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -12,7 +12,6 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::{
     db_persistence::DbPersistence,
     metrics::{metrics_handler, track_metrics, Metrics},
-    models::task::TaskStatus,
     routes::api_routes,
     Config, GraphqlClient,
 };
@@ -39,16 +38,6 @@ pub struct Challenge {
 }
 
 #[derive(Debug, Serialize)]
-pub struct StatusResponse {
-    pub status: String,
-    pub total_tasks: usize,
-    pub pending_tasks: usize,
-    pub completed_tasks: usize,
-    pub reversed_tasks: usize,
-    pub failed_tasks: usize,
-}
-
-#[derive(Debug, Serialize)]
 pub struct HealthResponse {
     pub healthy: bool,
     pub service: String,
@@ -60,7 +49,6 @@ pub struct HealthResponse {
 pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health_check))
-        .route("/status", get(get_status))
         .route("/metrics", get(metrics_handler))
         .nest("/api", api_routes(state.clone()))
         .layer(middleware::from_fn(track_metrics))
@@ -81,33 +69,6 @@ async fn health_check() -> Json<HealthResponse> {
         version: env!("CARGO_PKG_VERSION").to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
     })
-}
-
-/// Get service status and task counts
-async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse>, StatusCode> {
-    let status_counts = state
-        .db
-        .tasks
-        .status_counts()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let total_tasks = state
-        .db
-        .tasks
-        .task_count()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let response = StatusResponse {
-        status: "running".to_string(),
-        total_tasks: total_tasks as usize,
-        pending_tasks: status_counts.get(&TaskStatus::Pending).copied().unwrap_or(0),
-        completed_tasks: status_counts.get(&TaskStatus::Completed).copied().unwrap_or(0),
-        reversed_tasks: status_counts.get(&TaskStatus::Reversed).copied().unwrap_or(0),
-        failed_tasks: status_counts.get(&TaskStatus::Failed).copied().unwrap_or(0),
-    };
-
-    Ok(Json(response))
 }
 
 /// Start the HTTP server
