@@ -1,9 +1,9 @@
 //! # TaskMaster Library
 //!
-//! A task management server that creates reversible blockchain transactions
-//! using the Quantus Network. This library provides the core functionality
-//! for managing tasks, interacting with the blockchain, and handling
-//! HTTP API requests.
+//! A reward management server that monitors social media interactions and
+//! integrates with the Quantus Network. This library provides the core
+//! functionality for managing rewards, interacting with the blockchain,
+//! and handling HTTP API requests.
 
 pub mod args;
 pub mod config;
