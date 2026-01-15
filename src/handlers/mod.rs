@@ -130,7 +130,5 @@ pub fn validate_pagination_query(page: u32, page_size: u32) -> Result<(), AppErr
 }
 
 fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
-    let total_pages = ((total_items as f64) / (page_size as f64)).ceil() as u32;
-
-    total_pages
+    ((total_items as f64) / (page_size as f64)).ceil() as u32
 }

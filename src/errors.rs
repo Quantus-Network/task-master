@@ -150,7 +150,7 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
             if msg.contains("duplicate key value violates unique constraint") {
                 (
                     StatusCode::CONFLICT,
-                    format!("The given value is conflicting with existing record"),
+                    "The given value is conflicting with existing record".to_string(),
                 )
             } else {
                 (

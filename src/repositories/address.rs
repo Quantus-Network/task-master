@@ -110,7 +110,7 @@ impl AddressRepository {
             .build_query_scalar()
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(count)
     }
@@ -291,7 +291,7 @@ impl AddressRepository {
             .build_query_as::<AddressWithOptInAndAssociations>()
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(addresses)
     }

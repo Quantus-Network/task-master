@@ -14,7 +14,7 @@ pub fn parse_x_status_url(url: &str) -> Option<(String, String)> {
 
     // Extract Username
     let prefix = &url_path[..index];
-    let username = prefix.split('/').last()?;
+    let username = prefix.split('/').next_back()?;
 
     if username.is_empty() {
         return None;

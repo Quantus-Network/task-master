@@ -76,15 +76,13 @@ impl From<&TwitterTweet> for UpdateRaidSubmissionStats {
         let default_metrics = TweetPublicMetrics::default();
         let public_metrics = tweet.public_metrics.as_ref().unwrap_or(&default_metrics);
 
-        let update_payload = UpdateRaidSubmissionStats {
+        UpdateRaidSubmissionStats {
             id: tweet.id.clone(),
             impression_count: public_metrics.impression_count as i32,
             like_count: public_metrics.like_count as i32,
             retweet_count: public_metrics.retweet_count as i32,
             reply_count: public_metrics.reply_count as i32,
-        };
-
-        update_payload
+        }
     }
 }
 

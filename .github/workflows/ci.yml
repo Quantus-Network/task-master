@@ -61,6 +61,9 @@ jobs:
       - name: Check Formatting
         run: cargo fmt --all -- --check
 
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
       # Run tests (Non-chain only, as requested)
       - name: Run Tests
         run: cargo test -- --skip chain_ --test-threads=1 --nocapture

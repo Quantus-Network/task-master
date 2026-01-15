@@ -14,7 +14,7 @@ pub async fn create_test_app_state() -> AppState {
 
     let db = Arc::new(db);
 
-    return AppState {
+    AppState {
         db,
         metrics: Arc::new(Metrics::new()),
         graphql_client: Arc::new(graphql_client),
@@ -23,7 +23,7 @@ pub async fn create_test_app_state() -> AppState {
         oauth_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
         twitter_oauth_tokens: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         challenges: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
-    };
+    }
 }
 
 pub fn generate_test_token(secret: &str, user_id: &str) -> String {

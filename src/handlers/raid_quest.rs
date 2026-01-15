@@ -137,7 +137,7 @@ pub async fn handle_get_raid_leaderboard(
         meta: PaginationMetadata {
             page: params.page,
             page_size: params.page_size,
-            total_items: total_items as u32,
+            total_items,
             total_pages,
         },
     };
@@ -151,9 +151,9 @@ pub async fn handle_get_specific_raider_raid_leaderboard(
     Path((raider_id, raid_id)): Path<(String, i32)>,
 ) -> Result<Json<SuccessResponse<RaidLeaderboard>>, AppError> {
     let Some(raider_leaderboard) = state.db.raid_leaderboards.get_raider_entry(raid_id, &raider_id).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No raider leaderboard is found"
-        ))));
+        return Err(AppError::Database(DbError::RecordNotFound(
+            "No raider leaderboard is found".to_string(),
+        )));
     };
 
     Ok(SuccessResponse::new(raider_leaderboard))
@@ -189,13 +189,13 @@ pub async fn handle_create_raid_submission(
     let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
 
     let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
-        return Err(AppError::Handler(HandlerError::InvalidBody(format!(
-            "Couldn't parse tweet reply link"
-        ))));
+        return Err(AppError::Handler(HandlerError::InvalidBody(
+            "Couldn't parse tweet reply link".to_string(),
+        )));
     };
     if user_x.username != reply_username {
         return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
-            format!("Only tweet reply author is eligible to submit"),
+            "Only tweet reply author is eligible to submit".to_string(),
         ))));
     }
 
@@ -224,7 +224,7 @@ pub async fn handle_delete_raid_submission(
 
     if raid_submission.raider_id != user.quan_address.0 {
         return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
-            format!("Only raid submission owner can delete"),
+            "Only raid submission owner can delete".to_string(),
         ))));
     }
 
@@ -238,14 +238,14 @@ async fn get_active_raid_and_x_association(
     user: &Address,
 ) -> Result<(RaidQuest, XAssociation), AppError> {
     let Some(current_active_raid) = state.db.raid_quests.find_active().await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "No active raid is found"
-        ))));
+        return Err(AppError::Database(DbError::RecordNotFound(
+            "No active raid is found".to_string(),
+        )));
     };
     let Some(user_x) = state.db.x_associations.find_by_address(&user.quan_address).await? else {
-        return Err(AppError::Database(DbError::RecordNotFound(format!(
-            "User doesn't have X association"
-        ))));
+        return Err(AppError::Database(DbError::RecordNotFound(
+            "User doesn't have X association".to_string(),
+        )));
     };
     Ok((current_active_raid, user_x))
 }
@@ -369,7 +369,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri(&format!("/raids/{}/finish", raid_id))
+                    .uri(format!("/raids/{}/finish", raid_id))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -405,7 +405,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri(&format!("/raids/{}/activate", raid_id))
+                    .uri(format!("/raids/{}/activate", raid_id))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -514,7 +514,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri(&format!("/raiders/{}/leaderboard/{}", user.quan_address.0, raid_id,))
+                    .uri(format!("/raiders/{}/leaderboard/{}", user.quan_address.0, raid_id,))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -707,7 +707,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(&format!("/submissions/{}", submission_id))
+                    .uri(format!("/submissions/{}", submission_id))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -756,7 +756,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(&format!("/submissions/{}", submission_id))
+                    .uri(format!("/submissions/{}", submission_id))
                     .body(Body::empty())
                     .unwrap(),
             )

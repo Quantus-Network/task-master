@@ -85,13 +85,13 @@ pub async fn verify_login(
         warn!(error = %e, "verify_login: verify_address error");
     }
     let addr_ok = addr_res.map_err(|_| {
-        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(format!(
-            "address verification failed"
-        ))))
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
+            "address verification failed".to_string(),
+        )))
     })?;
     if !addr_ok {
         return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
-            format!("address verification failed"),
+            "address verification failed".to_string(),
         ))));
     }
     let sig_res = SignatureService::verify_message(message.as_bytes(), &body.signature, &body.public_key);
@@ -99,14 +99,14 @@ pub async fn verify_login(
         warn!(error = %e, "verify_login: verify_message error");
     }
     let sig_ok = sig_res.map_err(|_| {
-        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(format!(
-            "message verification failed"
-        ))))
+        AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
+            "message verification failed".to_string(),
+        )))
     })?;
     debug!(addr_ok = addr_ok, sig_ok = sig_ok, "verify_login: verification results");
     if !sig_ok {
         return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
-            format!("message verification failed"),
+            "message verification failed".to_string(),
         ))));
     }
 
@@ -168,7 +168,7 @@ pub async fn handle_x_oauth(
     tracing::info!("Quan address from token: {}", quan_address);
 
     let (auth_url, verifier) = state.twitter_gateway.generate_auth_url();
-    let session_id = format!("{}|{}", quan_address, uuid::Uuid::new_v4().to_string());
+    let session_id = format!("{}|{}", quan_address, uuid::Uuid::new_v4());
 
     tracing::info!("Session id in cookies: {}", session_id);
 
@@ -254,9 +254,9 @@ pub async fn handle_x_oauth_callback(
     tracing::debug!("Do X association...");
     let quan_address = {
         let Some(address) = session_id.split_once('|').map(|(left, _)| left) else {
-            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(format!(
-                "Session id malformed",
-            )))));
+            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
+                "Session id malformed".to_string(),
+            ))));
         };
 
         address.to_string()

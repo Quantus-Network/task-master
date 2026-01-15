@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     db_persistence::{DbError, DbPersistence},
@@ -1012,7 +1012,7 @@ query GetEventCountByIds($ids: [String!]!) {
             unique_addresses.insert(&transfer.to.id);
         }
 
-        assert!(unique_addresses.len() >= 1);
+        assert!(!unique_addresses.is_empty());
     }
 
     // ============================================================================

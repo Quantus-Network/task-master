@@ -87,7 +87,7 @@ impl RelevantTweetRepository {
             .build_query_scalar()
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(count)
     }
@@ -141,7 +141,7 @@ impl RelevantTweetRepository {
             .build_query_as::<TweetWithAuthor>()
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(tweets)
     }

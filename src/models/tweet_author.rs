@@ -86,7 +86,7 @@ impl NewAuthorPayload {
     pub fn new(author: TwitterUser) -> Self {
         let public_metrics = author.public_metrics.unwrap_or_default();
 
-        let new_author = NewAuthorPayload {
+        NewAuthorPayload {
             id: author.id,
             name: author.name,
             username: author.username,
@@ -97,9 +97,7 @@ impl NewAuthorPayload {
             media_count: public_metrics.media_count.unwrap_or(0) as i32,
             like_count: public_metrics.like_count.unwrap_or(0) as i32,
             is_ignored: Some(true),
-        };
-
-        new_author
+        }
     }
 }
 
