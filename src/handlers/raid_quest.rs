@@ -137,7 +137,7 @@ pub async fn handle_get_raid_leaderboard(
         meta: PaginationMetadata {
             page: params.page,
             page_size: params.page_size,
-            total_items: total_items as u32,
+            total_items,
             total_pages,
         },
     };
