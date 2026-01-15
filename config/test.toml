@@ -55,7 +55,7 @@ client_id = "test-id"
 client_secret = "test-secret"
 
 [x_association]
-bio_mention = "@QuantusNetwork"
+keywords = "Quantus"
 
 [tweet_sync]
 api_key = "some-key"
