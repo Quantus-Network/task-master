@@ -81,10 +81,7 @@ impl TelegramService {
                 Ok(())
             }
             Err(err) => {
-                let status = err
-                    .status()
-                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
-                    .as_u16();
+                let status = err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR).as_u16();
                 let body = err.to_string();
 
                 Err(AppError::Telegram(status, body))

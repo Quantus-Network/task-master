@@ -22,9 +22,7 @@ pub fn extract_jwt_token_from_request(req: &Request) -> Result<String, (StatusCo
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|auth_header| auth_header.to_str().ok())
-        .and_then(|auth_value| {
-            auth_value.strip_prefix("Bearer ").map(|s| s.to_owned())
-        });
+        .and_then(|auth_value| auth_value.strip_prefix("Bearer ").map(|s| s.to_owned()));
 
     token.ok_or_else(|| {
         let json_error = ErrorResponse {
