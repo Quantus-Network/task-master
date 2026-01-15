@@ -88,7 +88,7 @@ pub struct AlertConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XAssociationConfig {
-    pub bio_mention: String,
+    pub keywords: String,
 }
 
 impl Config {
@@ -142,8 +142,8 @@ impl Config {
         time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
     }
 
-    pub fn get_x_bio_mention(&self) -> &str {
-        &self.x_association.bio_mention
+    pub fn get_x_association_keywords(&self) -> &str {
+        &self.x_association.keywords
     }
 }
 
@@ -204,7 +204,7 @@ impl Default for Config {
                 webhook_url: "https://your-webhook-url.com".to_string(),
             },
             x_association: XAssociationConfig {
-                bio_mention: "@QuantusNetwork".to_string(),
+                keywords: "Quantus".to_string(),
             },
         }
     }

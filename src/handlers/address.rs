@@ -258,13 +258,13 @@ pub async fn associate_x_handle(
         )))
     })?;
 
-    let bio = twitter_user.description.unwrap_or_default();
-    let x_bio_mention = state.config.get_x_bio_mention();
-    if !bio.to_lowercase().contains(&x_bio_mention.to_lowercase()) {
+    let name = twitter_user.name;
+    let x_association_keywords = state.config.get_x_association_keywords();
+    if !name.to_lowercase().contains(&x_association_keywords.to_lowercase()) {
         return Err(AppError::Handler(HandlerError::Address(
             AddressHandlerError::Unauthorized(format!(
-                "Twitter bio must contain '{}' to verify ownership",
-                x_bio_mention
+                "Twitter name must contain '{}' to verify ownership",
+                x_association_keywords
             )),
         )));
     }
@@ -431,14 +431,14 @@ mod tests {
         let mut mock_user_api = MockUserApi::new();
 
         // Expect get_by_username
-        let bio_mention = state.config.get_x_bio_mention().to_string();
+        let x_association_keywords = state.config.get_x_association_keywords().to_string();
         mock_user_api.expect_get_by_username().returning(move |_, _| {
             Ok(TwitterApiResponse {
                 data: Some(User {
                     id: "u1".to_string(),
-                    name: "Test User".to_string(),
+                    name: format!("Test User {}", x_association_keywords),
                     username: "test_user".to_string(),
-                    description: Some(format!("I love {}", bio_mention)), // Contains keyword from config
+                    description: Some(format!("I love {}", x_association_keywords)), // Contains keyword from config
                     public_metrics: None,
                 }),
                 includes: None,
@@ -552,17 +552,17 @@ mod tests {
         let mut mock_user_api = MockUserApi::new();
 
         // Expect get_by_username
-        let bio_mention = state.config.get_x_bio_mention().to_string();
+        let x_association_keywords = state.config.get_x_association_keywords().to_string();
         // Create a lowercase version of the mention for the bio
-        let lowercase_bio_mention = bio_mention.to_lowercase();
+        let lowercase_x_association_keywords = x_association_keywords.to_lowercase();
 
         mock_user_api.expect_get_by_username().returning(move |_, _| {
             Ok(TwitterApiResponse {
                 data: Some(User {
                     id: "u1".to_string(),
-                    name: "Test User".to_string(),
+                    name: format!("Test User {}", lowercase_x_association_keywords),
                     username: "test_user".to_string(),
-                    description: Some(format!("I love {}", lowercase_bio_mention)), // Contains lowercase keyword
+                    description: Some(format!("I love {}", lowercase_x_association_keywords)), // Contains lowercase keyword
                     public_metrics: None,
                 }),
                 includes: None,
