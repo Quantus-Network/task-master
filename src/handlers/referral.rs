@@ -68,9 +68,9 @@ pub async fn handle_add_referral(
 
         Ok(SuccessResponse::new(referrer.referral_code))
     } else {
-        return Err(AppError::Handler(HandlerError::Referral(
+        Err(AppError::Handler(HandlerError::Referral(
             ReferralHandlerError::ReferralNotFound(format!("Referrer not found for code '{}'", submitted_code)),
-        )));
+        )))
     }
 }
 

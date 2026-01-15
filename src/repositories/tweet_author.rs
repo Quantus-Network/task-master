@@ -66,7 +66,7 @@ impl TweetAuthorRepository {
             .build_query_scalar()
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(count)
     }
@@ -102,7 +102,7 @@ impl TweetAuthorRepository {
             .build_query_as::<TweetAuthor>()
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| DbError::Database(e))?;
+            .map_err(DbError::Database)?;
 
         Ok(authors)
     }
@@ -150,7 +150,7 @@ impl TweetAuthorRepository {
         .bind(&payload.id)
         .bind(&payload.name)
         .bind(&payload.username)
-        .bind(&payload.is_ignored)
+        .bind(payload.is_ignored)
         .bind(payload.followers_count)
         .bind(payload.following_count)
         .bind(payload.tweet_count)

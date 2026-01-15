@@ -378,7 +378,7 @@ mod tests {
         // 3. Verify Update in DB
         let updated = repo.find_by_id(&input.id).await.unwrap().unwrap();
 
-        assert_eq!(updated.is_invalid, true);
+        assert!(updated.is_invalid);
 
         // 4. Verify `updated_at` trigger worked
         assert!(

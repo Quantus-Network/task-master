@@ -23,21 +23,15 @@ pub fn extract_jwt_token_from_request(req: &Request) -> Result<String, (StatusCo
         .get(header::AUTHORIZATION)
         .and_then(|auth_header| auth_header.to_str().ok())
         .and_then(|auth_value| {
-            if auth_value.starts_with("Bearer ") {
-                Some(auth_value[7..].to_owned())
-            } else {
-                None
-            }
+            auth_value.strip_prefix("Bearer ").map(|s| s.to_owned())
         });
 
-    let token = token.ok_or_else(|| {
+    token.ok_or_else(|| {
         let json_error = ErrorResponse {
             status: "fail",
             message: "You are not logged in, please provide token".to_string(),
         };
 
         (StatusCode::UNAUTHORIZED, Json(json_error))
-    });
-
-    token
+    })
 }

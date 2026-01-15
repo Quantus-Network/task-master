@@ -1012,7 +1012,7 @@ query GetEventCountByIds($ids: [String!]!) {
             unique_addresses.insert(&transfer.to.id);
         }
 
-        assert!(unique_addresses.len() >= 1);
+        assert!(!unique_addresses.is_empty());
     }
 
     // ============================================================================

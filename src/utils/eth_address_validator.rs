@@ -42,8 +42,8 @@ pub fn is_valid_eth_address(address: &str) -> bool {
     }
 
     // If the address is all lowercase or all uppercase, it's valid (no checksum)
-    let is_all_lowercase = addr_part.chars().all(|c| c.is_lowercase() || c.is_digit(10));
-    let is_all_uppercase = addr_part.chars().all(|c| c.is_uppercase() || c.is_digit(10));
+    let is_all_lowercase = addr_part.chars().all(|c| c.is_lowercase() || c.is_ascii_digit());
+    let is_all_uppercase = addr_part.chars().all(|c| c.is_uppercase() || c.is_ascii_digit());
 
     if is_all_lowercase || is_all_uppercase {
         return true;

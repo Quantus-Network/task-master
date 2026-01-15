@@ -83,7 +83,7 @@ impl RaidLeaderboardService {
             .await?;
         if raid_submissions.is_empty() {
             tracing::info!("No raid submissions found yet for current active raid quest.");
-            return Ok(Default::default());
+            return Ok(());
         };
 
         let queries = RaidLeaderboardService::build_batched_tweet_queries(&raid_submissions);
@@ -139,7 +139,7 @@ impl RaidLeaderboardService {
             // `for tweet in tweets` consumes the original vector, so we "move"
             // the data instead of cloning it.
             for tweet in tweets {
-                let is_valid_reply = tweet.referenced_tweets.as_ref().map_or(false, |refs| {
+                let is_valid_reply = tweet.referenced_tweets.as_ref().is_some_and(|refs| {
                     // Check if ANY of the referenced IDs exist in our valid set
                     refs.iter().any(|r| valid_raid_ids.contains(&r.id))
                 });
@@ -369,7 +369,7 @@ mod tests {
         let updated_sub = db.raid_submissions.find_by_id(sub_id).await.unwrap().unwrap();
 
         assert!(updated_sub.updated_at > updated_sub.created_at);
-        assert_eq!(updated_sub.is_invalid, false);
+        assert!(!updated_sub.is_invalid);
         assert_eq!(updated_sub.impression_count, 100);
         assert_eq!(updated_sub.like_count, 50);
     }
@@ -430,7 +430,7 @@ mod tests {
         let updated_sub = db.raid_submissions.find_by_id(sub_id).await.unwrap().unwrap();
 
         assert!(updated_sub.updated_at > updated_sub.created_at);
-        assert_eq!(updated_sub.is_invalid, true);
+        assert!(updated_sub.is_invalid);
         assert_eq!(updated_sub.impression_count, 0);
         assert_eq!(updated_sub.like_count, 0);
     }

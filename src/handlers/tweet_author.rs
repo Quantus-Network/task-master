@@ -423,7 +423,7 @@ mod tests {
 
         let author = state.db.tweet_authors.find_by_id("hello").await.unwrap().unwrap();
 
-        assert_eq!(author.is_ignored, true);
+        assert!(author.is_ignored);
     }
 
     #[tokio::test]

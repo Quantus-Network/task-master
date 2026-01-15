@@ -54,6 +54,12 @@ pub struct Metrics {
     pub registry: Arc<Registry>,
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Metrics {
     pub fn new() -> Self {
         let registry = Registry::new();
