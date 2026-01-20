@@ -582,7 +582,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED); // Note: Handler returns CREATED (201), your assert was checking 200
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         // 6. Verify in DB
         let sub = state.db.raid_submissions.find_by_id("999999999").await.unwrap();
@@ -646,7 +646,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED); // Note: Handler returns CREATED (201), your assert was checking 200
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         // 6. Verify in DB
         let sub = state.db.raid_submissions.find_by_id("999999999").await.unwrap();
