@@ -193,7 +193,7 @@ pub async fn handle_create_raid_submission(
             "Couldn't parse tweet reply link".to_string(),
         )));
     };
-    if user_x.username != reply_username {
+    if user_x.username.to_lowercase() != reply_username.to_lowercase() {
         return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
             "Only tweet reply author is eligible to submit".to_string(),
         ))));
@@ -582,7 +582,71 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED); // Note: Handler returns CREATED (201), your assert was checking 200
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        // 6. Verify in DB
+        let sub = state.db.raid_submissions.find_by_id("999999999").await.unwrap();
+        assert!(sub.is_some());
+        let sub = sub.unwrap();
+        assert_eq!(sub.raid_id, raid_id);
+        assert_eq!(&sub.id, "999999999");
+        assert!(sub.target_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_create_raid_submission_case_insensitive_success() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        // 1. Setup Active Raid
+        let raid_id = state
+            .db
+            .raid_quests
+            .create(&CreateRaidQuest { name: "Active".into() })
+            .await
+            .unwrap();
+
+        // 2. Setup User
+        let user = create_persisted_address(&state.db.addresses, "submitter").await;
+
+        // 3. Seed Target Tweet (Required for Foreign Key)
+        let target_tweet_id = "1868000000000000000";
+        seed_target_tweet(&state, target_tweet_id).await;
+
+        // 4. Setup X Association
+        // The handler requires the user to have an X account, and that account
+        // must match the username in the 'tweet_reply_link' (which is "me" below).
+        sqlx::query("INSERT INTO x_associations (quan_address, username, created_at) VALUES ($1, $2, NOW())")
+            .bind(&user.quan_address.0)
+            .bind("wao") // Must match the username in the payload URL
+            .execute(&state.db.pool)
+            .await
+            .expect("Failed to create X association");
+
+        let router = Router::new()
+            .route("/submissions", post(handle_create_raid_submission))
+            .layer(Extension(user))
+            .with_state(state.clone());
+
+        // 5. Payload
+        // Reply Link -> ID 999999999, Username "me"
+        let payload = RaidSubmissionInput {
+            tweet_reply_link: "https://x.com/WaO/status/999999999".to_string(),
+        };
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/submissions")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_string(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         // 6. Verify in DB
         let sub = state.db.raid_submissions.find_by_id("999999999").await.unwrap();

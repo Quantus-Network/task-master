@@ -204,7 +204,7 @@ impl Default for Config {
                 webhook_url: "https://your-webhook-url.com".to_string(),
             },
             x_association: XAssociationConfig {
-                keywords: "Quantus".to_string(),
+                keywords: "quantus".to_string(),
             },
         }
     }
