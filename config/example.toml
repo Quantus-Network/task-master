@@ -65,7 +65,7 @@ client_id = "example-id"
 client_secret = "example-secret"
 
 [x_association]
-keywords = "quantus"
+keywords = "@quantusnetwork"
 
 [tweet_sync]
 api_key = "some-key"

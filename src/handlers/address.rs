@@ -258,12 +258,12 @@ pub async fn associate_x_handle(
         )))
     })?;
 
-    let name = twitter_user.name;
+    let bio = twitter_user.description.unwrap_or_default();
     let x_association_keywords = state.config.get_x_association_keywords();
-    if !name.to_lowercase().contains(&x_association_keywords.to_lowercase()) {
+    if !bio.to_lowercase().contains(&x_association_keywords.to_lowercase()) {
         return Err(AppError::Handler(HandlerError::Address(
             AddressHandlerError::Unauthorized(format!(
-                "Twitter name must contain '{}' to verify ownership",
+                "Twitter bio must mention '{}' to verify ownership",
                 x_association_keywords
             )),
         )));
@@ -436,7 +436,7 @@ mod tests {
             Ok(TwitterApiResponse {
                 data: Some(User {
                     id: "u1".to_string(),
-                    name: format!("Test User {}", x_association_keywords),
+                    name: "Test User".to_string(),
                     username: "test_user".to_string(),
                     description: Some(format!("I love {}", x_association_keywords)), // Contains keyword from config
                     public_metrics: None,

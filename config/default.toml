@@ -55,7 +55,7 @@ client_id = "WlVrcm4xSEpXQ2l3TURFM3lLZnE6MTpjaQ"
 client_secret = "lfXc45dZLqYTzP62Ms32EhXinGQzxcIP9TvjJml2B-h0T1nIJK"
 
 [x_association]
-keywords = "quantus"
+keywords = "@quantusnetwork"
 
 [tweet_sync]
 api_key = "some-key"
