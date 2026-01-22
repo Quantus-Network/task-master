@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::http_server::AppState;
+use rusx::error::SdkError;
 
 // Define comprehensive metrics for REST API monitoring
 lazy_static! {
@@ -216,12 +217,32 @@ pub async fn track_metrics(req: Request, next: Next) -> Response {
     response
 }
 
-/// Track Twitter API call metrics
+fn extract_sdk_error_type(err: &SdkError) -> &'static str {
+    match err {
+        SdkError::Api { status, .. } => {
+            // Categorize based on HTTP status code
+            // Match specific status codes first, then ranges
+            match *status {
+                400 => "bad_request",
+                401 => "unauthorized",
+                403 => "forbidden",
+                404 => "not_found",
+                429 => "rate_limit",
+                500..=599 => "server_error",
+                402 | 405..=428 | 430..=499 => "client_error",
+                _ => "twitter_api_error",
+            }
+        }
+        _ => "sdk_error",
+    }
+}
+
+/// Track Twitter API call metrics with error type detection
 ///
 /// This function should be called around Twitter API calls to track:
 /// - API call duration
 /// - Number of tweets pulled
-/// - Errors
+/// - Errors with specific error types extracted from SdkError
 ///
 /// # Arguments
 /// * `operation` - The type of operation (e.g., "search_recent", "tweets_get_many")
@@ -229,9 +250,9 @@ pub async fn track_metrics(req: Request, next: Next) -> Response {
 ///
 /// # Returns
 /// The result of the API call, with metrics automatically tracked
-pub async fn track_twitter_api_call<T, E, F>(operation: &str, f: F) -> Result<T, E>
+pub async fn track_twitter_api_call<T, F>(operation: &str, f: F) -> Result<T, SdkError>
 where
-    F: std::future::Future<Output = Result<T, E>>,
+    F: std::future::Future<Output = Result<T, SdkError>>,
 {
     let start = Instant::now();
 
@@ -246,10 +267,11 @@ where
         .with_label_values(&[operation])
         .observe(duration);
 
-    // Track errors if any
-    if result.is_err() {
+    // Track errors with specific error types
+    if let Err(ref err) = result {
+        let error_type = extract_sdk_error_type(err);
         TWITTER_API_ERRORS_TOTAL
-            .with_label_values(&[operation, "api_error"])
+            .with_label_values(&[operation, error_type])
             .inc();
     }
 
@@ -266,14 +288,12 @@ where
 /// * `operation` - The type of operation (e.g., "search_recent", "tweets_get_many")
 /// * `tweet_count` - Number of tweets returned by the API call
 pub fn track_tweets_pulled(operation: &str, tweet_count: usize) {
-    if tweet_count > 0 {
-        TWITTER_TWEETS_PULLED_TOTAL
-            .with_label_values(&[operation])
-            .inc_by(tweet_count as u64);
-        TWITTER_TWEETS_PER_CALL
-            .with_label_values(&[operation])
-            .observe(tweet_count as f64);
-    }
+    TWITTER_TWEETS_PULLED_TOTAL
+        .with_label_values(&[operation])
+        .inc_by(tweet_count as u64);
+    TWITTER_TWEETS_PER_CALL
+        .with_label_values(&[operation])
+        .observe(tweet_count as f64);
 }
 
 pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
