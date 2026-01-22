@@ -10,6 +10,7 @@ use rusx::{
 
 use crate::{
     db_persistence::DbPersistence,
+    metrics::{track_tweets_pulled, track_twitter_api_call},
     models::raid_submission::{RaidSubmission, UpdateRaidSubmissionStats},
     services::alert_service::AlertService,
     AppError, AppResult, Config,
@@ -105,20 +106,26 @@ impl RaidLeaderboardService {
         for query in queries {
             rate_limiter.tick().await;
 
-            let response = self
-                .twitter_gateway
-                .tweets()
-                .get_many(query, Some(params.clone()))
-                .await?;
+            // Track Twitter API call with metrics
+            let response = track_twitter_api_call("tweets_get_many", async {
+                self.twitter_gateway
+                    .tweets()
+                    .get_many(query, Some(params.clone()))
+                    .await
+            })
+            .await?;
 
             let Some(tweets) = &response.data else {
                 tracing::info!("No tweets found!.");
                 continue;
             };
 
-            // Track Twitter API usage
-            let tweets_pulled = tweets.len() as i32;
-            self.alert_service.track_and_alert_usage(tweets_pulled).await?;
+            // Track Twitter API usage (for alerting)
+            let tweets_pulled = tweets.len();
+            self.alert_service.track_and_alert_usage(tweets_pulled as i32).await?;
+
+            // Track metrics for tweets pulled
+            track_tweets_pulled("tweets_get_many", tweets_pulled);
 
             // EXTRACT: Collect all referenced IDs from the fetched tweets
             // We use a HashSet immediately to remove duplicates before sending to DB

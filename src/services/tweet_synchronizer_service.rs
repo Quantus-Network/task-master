@@ -11,6 +11,7 @@ use rusx::{
 
 use crate::{
     db_persistence::DbPersistence,
+    metrics::{track_tweets_pulled, track_twitter_api_call},
     models::{relevant_tweet::NewTweetPayload, tweet_author::NewAuthorPayload},
     services::{alert_service::AlertService, telegram_service::TelegramService},
     utils::x_url::build_x_status_url,
@@ -204,14 +205,21 @@ impl TweetSynchronizerService {
                 tracing::info!("No history found, performing full 7-day fetch.");
             }
 
-            let response = self.twitter_gateway.search().recent(params).await?;
+            // Track Twitter API call with metrics
+            let response = track_twitter_api_call("search_recent", async {
+                self.twitter_gateway.search().recent(params).await
+            })
+            .await?;
 
             let tweet_authors = self.process_tweet_authors(&response).await?;
             let relevant_tweets = self.process_relevant_tweets(&response).await?;
 
-            // Track Twitter API usage
-            let tweets_pulled = relevant_tweets.len() as i32;
-            self.alert_service.track_and_alert_usage(tweets_pulled).await?;
+            // Track Twitter API usage (for alerting)
+            let tweets_pulled = relevant_tweets.len();
+            self.alert_service.track_and_alert_usage(tweets_pulled as i32).await?;
+
+            // Track metrics for tweets pulled
+            track_tweets_pulled("search_recent", tweets_pulled);
 
             self.process_sending_raid_targets(&tweet_authors, &relevant_tweets)
                 .await?;

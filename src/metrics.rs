@@ -5,6 +5,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use lazy_static::lazy_static;
+#[cfg(target_os = "linux")]
+use prometheus::process_collector::ProcessCollector;
 use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
 use std::sync::Arc;
 use std::time::Instant;
@@ -47,6 +49,35 @@ lazy_static! {
         &["method", "endpoint", "status"]
     )
     .unwrap();
+
+    // Twitter API metrics
+    pub static ref TWITTER_API_CALLS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("twitter_api_calls_total", "Total number of Twitter API calls"),
+        &["operation"]
+    )
+    .unwrap();
+    pub static ref TWITTER_API_CALL_DURATION: HistogramVec = HistogramVec::new(
+        HistogramOpts::new("twitter_api_call_duration_seconds", "Twitter API call duration in seconds")
+            .buckets(vec![0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0]),
+        &["operation"]
+    )
+    .unwrap();
+    pub static ref TWITTER_TWEETS_PULLED_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("twitter_tweets_pulled_total", "Total number of tweets pulled from Twitter API"),
+        &["operation"]
+    )
+    .unwrap();
+    pub static ref TWITTER_API_ERRORS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("twitter_api_errors_total", "Total number of Twitter API errors"),
+        &["operation", "error_type"]
+    )
+    .unwrap();
+    pub static ref TWITTER_TWEETS_PER_CALL: HistogramVec = HistogramVec::new(
+        HistogramOpts::new("twitter_tweets_per_call", "Number of tweets returned per API call")
+            .buckets(vec![0.0, 1.0, 5.0, 10.0, 25.0, 50.0, 100.0]),
+        &["operation"]
+    )
+    .unwrap();
 }
 
 #[derive(Debug, Clone)]
@@ -64,13 +95,29 @@ impl Metrics {
     pub fn new() -> Self {
         let registry = Registry::new();
 
-        // Register all metrics
+        // Register OS/machine metrics collector (Linux only)
+        #[cfg(target_os = "linux")]
+        {
+            let process_collector = ProcessCollector::for_self();
+            registry.register(Box::new(process_collector)).unwrap();
+        }
+
+        // Register all custom HTTP metrics
         registry.register(Box::new(HTTP_REQUESTS_TOTAL.clone())).unwrap();
         registry.register(Box::new(HTTP_REQUEST_DURATION.clone())).unwrap();
         registry.register(Box::new(HTTP_REQUESTS_IN_FLIGHT.clone())).unwrap();
         registry.register(Box::new(HTTP_REQUEST_SIZE_BYTES.clone())).unwrap();
         registry.register(Box::new(HTTP_RESPONSE_SIZE_BYTES.clone())).unwrap();
         registry.register(Box::new(HTTP_ERRORS_TOTAL.clone())).unwrap();
+
+        // Register Twitter API metrics
+        registry.register(Box::new(TWITTER_API_CALLS_TOTAL.clone())).unwrap();
+        registry.register(Box::new(TWITTER_API_CALL_DURATION.clone())).unwrap();
+        registry
+            .register(Box::new(TWITTER_TWEETS_PULLED_TOTAL.clone()))
+            .unwrap();
+        registry.register(Box::new(TWITTER_API_ERRORS_TOTAL.clone())).unwrap();
+        registry.register(Box::new(TWITTER_TWEETS_PER_CALL.clone())).unwrap();
 
         Self {
             registry: Arc::new(registry),
@@ -167,6 +214,66 @@ pub async fn track_metrics(req: Request, next: Next) -> Response {
     HTTP_REQUESTS_IN_FLIGHT.dec();
 
     response
+}
+
+/// Track Twitter API call metrics
+///
+/// This function should be called around Twitter API calls to track:
+/// - API call duration
+/// - Number of tweets pulled
+/// - Errors
+///
+/// # Arguments
+/// * `operation` - The type of operation (e.g., "search_recent", "tweets_get_many")
+/// * `f` - The async function that makes the Twitter API call
+///
+/// # Returns
+/// The result of the API call, with metrics automatically tracked
+pub async fn track_twitter_api_call<T, E, F>(operation: &str, f: F) -> Result<T, E>
+where
+    F: std::future::Future<Output = Result<T, E>>,
+{
+    let start = Instant::now();
+
+    // Track API call attempt
+    TWITTER_API_CALLS_TOTAL.with_label_values(&[operation]).inc();
+
+    let result = f.await;
+
+    // Record duration
+    let duration = start.elapsed().as_secs_f64();
+    TWITTER_API_CALL_DURATION
+        .with_label_values(&[operation])
+        .observe(duration);
+
+    // Track errors if any
+    if let Err(_) = &result {
+        TWITTER_API_ERRORS_TOTAL
+            .with_label_values(&[operation, "api_error"])
+            .inc();
+    }
+
+    result
+}
+
+/// Track tweets pulled from a Twitter API call
+///
+/// Call this after successfully getting tweets from the API to track:
+/// - Total tweets pulled
+/// - Tweets per call distribution
+///
+/// # Arguments
+/// * `operation` - The type of operation (e.g., "search_recent", "tweets_get_many")
+/// * `tweet_count` - Number of tweets returned by the API call
+pub fn track_tweets_pulled(operation: &str, tweet_count: usize) {
+    if tweet_count > 0 {
+        TWITTER_TWEETS_PULLED_TOTAL
+            .with_label_values(&[operation])
+            .inc_by(tweet_count as u64);
+        TWITTER_TWEETS_PER_CALL
+            .with_label_values(&[operation])
+            .observe(tweet_count as f64);
+    }
 }
 
 pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
