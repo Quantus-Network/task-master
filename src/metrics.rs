@@ -247,7 +247,7 @@ where
         .observe(duration);
 
     // Track errors if any
-    if let Err(_) = &result {
+    if result.is_err() {
         TWITTER_API_ERRORS_TOTAL
             .with_label_values(&[operation, "api_error"])
             .inc();
