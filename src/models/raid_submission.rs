@@ -91,3 +91,9 @@ pub struct RaiderSubmissions {
     pub current_raid: RaidQuest,
     pub submissions: Vec<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
+pub struct ValidRaidSubmissionWithRaiderUsername {
+    pub raid_submission_id: String,
+    pub raider_username: String,
+}

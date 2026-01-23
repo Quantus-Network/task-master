@@ -4,14 +4,14 @@ use std::{
 };
 
 use rusx::{
-    resources::{tweet::TweetParams, TweetField},
+    resources::{tweet::TweetParams, TweetExpansion, TweetField},
     TwitterGateway,
 };
 
 use crate::{
     db_persistence::DbPersistence,
     metrics::{track_tweets_pulled, track_twitter_api_call},
-    models::raid_submission::{RaidSubmission, UpdateRaidSubmissionStats},
+    models::raid_submission::{UpdateRaidSubmissionStats, ValidRaidSubmissionWithRaiderUsername},
     services::alert_service::AlertService,
     AppError, AppResult, Config,
 };
@@ -25,13 +25,13 @@ pub struct RaidLeaderboardService {
 }
 
 impl RaidLeaderboardService {
-    fn build_batched_tweet_queries(submissions: &[RaidSubmission]) -> Vec<Vec<String>> {
+    fn build_batched_tweet_queries(submissions: &[ValidRaidSubmissionWithRaiderUsername]) -> Vec<Vec<String>> {
         // Twitter's limit for the get ids result
         const TWEET_GET_MAX_IDS: usize = 100;
 
         submissions
             .chunks(TWEET_GET_MAX_IDS)
-            .map(|chunk| chunk.iter().map(|s| s.id.clone()).collect())
+            .map(|chunk| chunk.iter().map(|s| s.raid_submission_id.clone()).collect())
             .collect()
     }
 
@@ -88,7 +88,10 @@ impl RaidLeaderboardService {
         };
 
         let queries = RaidLeaderboardService::build_batched_tweet_queries(&raid_submissions);
-        let raider_map: HashMap<String, String> = raid_submissions.into_iter().map(|s| (s.id, s.raider_id)).collect();
+        let submission_to_x_username_map: HashMap<String, String> = raid_submissions
+            .into_iter()
+            .map(|s| (s.raid_submission_id, s.raider_username))
+            .collect();
 
         let mut params = TweetParams::new();
         params.tweet_fields = Some(vec![
@@ -98,6 +101,7 @@ impl RaidLeaderboardService {
             TweetField::InReplyToUserId,
             TweetField::ReferencedTweets,
         ]);
+        params.expansions = Some(vec![TweetExpansion::AuthorId]);
 
         // X Api Request Limit: 15 requests / 15 mins.
         // We set interval to 1 min (~1 req/min) to be safe.
@@ -119,6 +123,17 @@ impl RaidLeaderboardService {
                 tracing::info!("No tweets found!.");
                 continue;
             };
+            let Some(includes) = &response.includes else {
+                tracing::info!("No includes found!.");
+                continue;
+            };
+            let Some(users) = &includes.users else {
+                tracing::info!("No users found!.");
+                continue;
+            };
+
+            let user_id_to_username_map: HashMap<String, String> =
+                users.iter().map(|u| (u.id.clone(), u.username.clone())).collect();
 
             // Track Twitter API usage (for alerting)
             let tweets_pulled = tweets.len();
@@ -150,7 +165,13 @@ impl RaidLeaderboardService {
                     // Check if ANY of the referenced IDs exist in our valid set
                     refs.iter().any(|r| valid_raid_ids.contains(&r.id))
                 });
-                let is_eligible_owner = raider_map.get(&tweet.id) == tweet.author_id.as_ref();
+                let is_eligible_owner = match (
+                    tweet.author_id.as_ref().and_then(|id| user_id_to_username_map.get(id)),
+                    submission_to_x_username_map.get(&tweet.id),
+                ) {
+                    (Some(author), Some(expected)) => author.eq_ignore_ascii_case(expected),
+                    _ => false,
+                };
 
                 if is_valid_reply && is_eligible_owner {
                     valid_tweets.push(tweet);
@@ -193,7 +214,8 @@ mod tests {
     use rusx::{
         resources::{
             tweet::{ReferenceType, ReferencedTweet, Tweet, TweetApi, TweetPublicMetrics},
-            TwitterApiResponse,
+            user::User,
+            Includes, TwitterApiResponse,
         },
         MockTweetApi, MockTwitterGateway,
     };
@@ -242,6 +264,8 @@ mod tests {
         raid_id: i32,
         target_id: &str,
         submission_id: &str,
+        x_username: &str,
+        x_user_id: &str,
     ) {
         // 1. Seed Raider (Address)
         // Handle constraint if address already exists from previous calls in same test
@@ -252,22 +276,34 @@ mod tests {
         .execute(&db.pool)
         .await;
 
-        // 2. Seed Tweet Author (Foreign Key for RelevantTweet)
+        // 2. Seed X Association (Required for raider_id to X user ID mapping)
         let _ = sqlx::query(
-            "INSERT INTO tweet_authors (id, name, username) VALUES ('auth_1', 'Auth', 'auth') ON CONFLICT DO NOTHING",
+            "INSERT INTO x_associations (quan_address, username) VALUES ($1, $2) ON CONFLICT (quan_address) DO UPDATE SET username = EXCLUDED.username",
         )
+        .bind(raider_id)
+        .bind(x_username)
         .execute(&db.pool)
         .await;
 
-        // 3. Seed Relevant Tweet (Target)
+        // 3. Seed Tweet Author (Foreign Key for RelevantTweet)
         let _ = sqlx::query(
-            "INSERT INTO relevant_tweets (id, author_id, text, created_at) VALUES ($1, 'auth_1', 'Target', NOW())",
+            "INSERT INTO tweet_authors (id, name, username) VALUES ($1, 'Auth', $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(x_user_id)
+        .bind(x_username)
+        .execute(&db.pool)
+        .await;
+
+        // 4. Seed Relevant Tweet (Target)
+        let _ = sqlx::query(
+            "INSERT INTO relevant_tweets (id, author_id, text, created_at) VALUES ($1, $2, 'Target', NOW())",
         )
         .bind(target_id)
+        .bind(x_user_id)
         .execute(&db.pool)
         .await;
 
-        // 4. Create Submission
+        // 5. Create Submission
         let _ = sqlx::query(
             "INSERT INTO raid_submissions (id, raid_id, raider_id, impression_count, like_count) 
              VALUES ($1, $2, $3, 0, 0)",
@@ -337,28 +373,42 @@ mod tests {
         let raider_id = "0xRaider";
         let sub_id = "12345_submission";
         let target_id = "target_12345_submission";
-        seed_submission(&db, raider_id, raid_id, target_id, sub_id).await;
+        let x_username = "test_raider";
+        let x_user_id = "1234567890"; // X user ID
+        seed_submission(&db, raider_id, raid_id, target_id, sub_id, x_username, x_user_id).await;
 
         // 3. Setup Mocks
         let mut mock_gateway = MockTwitterGateway::new();
         let mut mock_tweet_api = MockTweetApi::new();
 
         // Expect get_many to be called with the submission ID
+        let x_user_id_clone = x_user_id.to_string();
+        let target_id_clone = target_id.to_string();
+        let sub_id_clone = sub_id.to_string();
         mock_tweet_api
             .expect_get_many()
             .with(predicate::eq(vec![sub_id.to_string()]), predicate::always())
             .times(1)
-            .returning(|_, _| {
+            .returning(move |_, _| {
                 Ok(TwitterApiResponse {
                     // Return UPDATED stats (100 impressions, 50 likes)
                     data: Some(vec![create_mock_tweet(
-                        sub_id,
-                        target_id.to_string(),
-                        raider_id.to_string(),
+                        &sub_id_clone,
+                        target_id_clone.clone(),
+                        x_user_id_clone.clone(), // Use X user ID, not raider_id
                         100,
                         50,
                     )]),
-                    includes: None,
+                    includes: Some(Includes {
+                        users: Some(vec![User {
+                            id: x_user_id_clone.clone(),
+                            username: x_username.to_string(),
+                            name: "Test User".to_string(),
+                            description: None,
+                            public_metrics: None,
+                        }]),
+                        tweets: None,
+                    }),
                     meta: None,
                 })
             });
@@ -398,28 +448,41 @@ mod tests {
         let raider_id = "0xRaider";
         let sub_id = "12345_submission";
         let target_id = "target_12345_submission";
-        seed_submission(&db, raider_id, raid_id, target_id, sub_id).await;
+        let x_username = "test_raider";
+        let x_user_id = "1234567890"; // X user ID
+        seed_submission(&db, raider_id, raid_id, target_id, sub_id, x_username, x_user_id).await;
 
         // 3. Setup Mocks
         let mut mock_gateway = MockTwitterGateway::new();
         let mut mock_tweet_api = MockTweetApi::new();
 
         // Expect get_many to be called with the submission ID
+        let x_user_id_clone = x_user_id.to_string();
+        let sub_id_clone = sub_id.to_string();
         mock_tweet_api
             .expect_get_many()
             .with(predicate::eq(vec![sub_id.to_string()]), predicate::always())
             .times(1)
-            .returning(|_, _| {
+            .returning(move |_, _| {
                 Ok(TwitterApiResponse {
                     // Return UPDATED stats (100 impressions, 50 likes)
                     data: Some(vec![create_mock_tweet(
-                        sub_id,
+                        &sub_id_clone,
                         "invalid_id".to_string(),
-                        raider_id.to_string(),
+                        x_user_id_clone.clone(), // Use X user ID, not raider_id
                         100,
                         50,
                     )]),
-                    includes: None,
+                    includes: Some(Includes {
+                        users: Some(vec![User {
+                            id: x_user_id_clone.clone(),
+                            username: "invalid_username".to_string(),
+                            name: "Test User".to_string(),
+                            description: None,
+                            public_metrics: None,
+                        }]),
+                        tweets: None,
+                    }),
                     meta: None,
                 })
             });
@@ -460,9 +523,20 @@ mod tests {
         // We just need unique IDs.
         let mut all_ids = Vec::new();
         let raider_id = "0xRaider";
+        let x_username = "test_raider";
+        let x_user_id = "1234567890"; // X user ID
         for i in 0..150 {
             let id = format!("sub_{}", i);
-            seed_submission(&db, raider_id, raid_id, &format!("target_{}", id), &id).await;
+            seed_submission(
+                &db,
+                raider_id,
+                raid_id,
+                &format!("target_{}", id),
+                &id,
+                x_username,
+                x_user_id,
+            )
+            .await;
             all_ids.push(id);
         }
 
@@ -473,11 +547,12 @@ mod tests {
         // We expect `get_many` to be called 2 times.
         // 1st time: 100 IDs
         // 2nd time: 50 IDs
-        mock_tweet_api.expect_get_many().times(2).returning(|ids, _| {
+        let x_user_id_clone = x_user_id.to_string();
+        mock_tweet_api.expect_get_many().times(2).returning(move |ids, _| {
             // Return valid responses for whatever IDs were requested
             let tweets = ids
                 .iter()
-                .map(|id| create_mock_tweet(id, format!("target_{}", id), raider_id.to_string(), 10, 1))
+                .map(|id| create_mock_tweet(id, format!("target_{}", id), x_user_id_clone.clone(), 10, 1))
                 .collect();
             Ok(TwitterApiResponse {
                 data: Some(tweets),

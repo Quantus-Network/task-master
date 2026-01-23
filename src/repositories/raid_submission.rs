@@ -2,7 +2,9 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
-    models::raid_submission::{CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats},
+    models::raid_submission::{
+        CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats, ValidRaidSubmissionWithRaiderUsername,
+    },
     repositories::DbResult,
 };
 
@@ -62,12 +64,12 @@ impl RaidSubmissionRepository {
         Ok(submission)
     }
 
-    pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<RaidSubmission>> {
-        let mut qb = Self::create_select_base_query();
-        qb.push(" WHERE raid_id = ");
+    pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<ValidRaidSubmissionWithRaiderUsername>> {
+        let mut qb = QueryBuilder::new("SELECT rs.id as raid_submission_id, x.username as raider_username FROM raid_submissions rs LEFT JOIN x_associations x ON rs.raider_id = x.quan_address");
+        qb.push(" WHERE rs.raid_id = ");
         qb.push_bind(raid_id);
-        qb.push(" AND NOT is_invalid");
-        qb.push(" ORDER BY created_at DESC");
+        qb.push(" AND NOT rs.is_invalid");
+        qb.push(" ORDER BY rs.created_at DESC");
 
         let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
 
@@ -314,9 +316,15 @@ mod tests {
 
         // Verify Sorting: Query uses "ORDER BY created_at DESC"
         // So sub3 (newest) should be first
-        assert_eq!(results[0].id, sub3.id, "Newest submission should be first");
-        assert_eq!(results[1].id, sub2.id);
-        assert_eq!(results[2].id, sub1.id, "Oldest submission should be last");
+        assert_eq!(
+            results[0].raid_submission_id, sub3.id,
+            "Newest submission should be first"
+        );
+        assert_eq!(results[1].raid_submission_id, sub2.id);
+        assert_eq!(
+            results[2].raid_submission_id, sub1.id,
+            "Oldest submission should be last"
+        );
     }
 
     #[tokio::test]
