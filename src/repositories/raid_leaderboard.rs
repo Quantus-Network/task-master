@@ -41,7 +41,9 @@ impl RaidLeaderboardRepository {
                 FROM raid_leaderboards l
                 WHERE l.raid_id = ",
         );
+
         qb.push_bind(raid_id);
+        qb.push(" AND l.total_impressions > 0 ");
         qb.push(" ) ");
 
         qb.push(
@@ -103,7 +105,7 @@ impl RaidLeaderboardRepository {
                 a.referrals_count
             FROM ranked_entries r
             JOIN addresses a ON r.raider_id = a.quan_address
-            WHERE r.raider_id = $2
+            WHERE r.raider_id = $2 AND r.total_impressions > 0
         ";
 
         let entry = sqlx::query_as::<_, RaidLeaderboard>(query)
@@ -124,6 +126,8 @@ impl RaidLeaderboardRepository {
 
         qb.push(" WHERE l.raid_id = ");
         qb.push_bind(raid_id);
+
+        qb.push(" AND l.total_impressions > 0 ");
 
         if let Some(code) = referral_code {
             qb.push(" AND a.referral_code ILIKE ");
@@ -191,6 +195,7 @@ mod tests {
             ("user_high", "REF_HIGH", 1000), // 1000 Impressions
             ("user_mid", "REF_MID", 500),    // 500 Impressions
             ("user_low", "REF_LOW", 100),    // 100 Impressions
+            ("user_zero", "REF_ZERO", 0),    // 0 Impressions (Ignored)
         ];
 
         for (uid, ref_code, impressions) in &users {
