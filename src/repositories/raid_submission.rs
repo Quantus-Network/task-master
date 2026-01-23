@@ -65,7 +65,7 @@ impl RaidSubmissionRepository {
     }
 
     pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<ValidRaidSubmissionWithRaiderUsername>> {
-        let mut qb = QueryBuilder::new("SELECT rs.id as raid_submission_id, x.username as raider_username FROM raid_submissions rs LEFT JOIN x_associations x ON rs.raider_id = x.quan_address");
+        let mut qb = QueryBuilder::new("SELECT rs.id as raid_submission_id, x.username as raider_username FROM raid_submissions rs INNER JOIN x_associations x ON rs.raider_id = x.quan_address");
         qb.push(" WHERE rs.raid_id = ");
         qb.push_bind(raid_id);
         qb.push(" AND NOT rs.is_invalid");
