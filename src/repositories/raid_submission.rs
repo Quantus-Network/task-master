@@ -2,7 +2,9 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
-    models::raid_submission::{CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats},
+    models::raid_submission::{
+        CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats, ValidRaidSubmissionWithRaiderUsername,
+    },
     repositories::DbResult,
 };
 
@@ -62,12 +64,12 @@ impl RaidSubmissionRepository {
         Ok(submission)
     }
 
-    pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<RaidSubmission>> {
-        let mut qb = Self::create_select_base_query();
-        qb.push(" WHERE raid_id = ");
+    pub async fn find_valid_only_by_raid(&self, raid_id: i32) -> DbResult<Vec<ValidRaidSubmissionWithRaiderUsername>> {
+        let mut qb = QueryBuilder::new("SELECT rs.id as raid_submission_id, x.username as raider_username FROM raid_submissions rs INNER JOIN x_associations x ON rs.raider_id = x.quan_address");
+        qb.push(" WHERE rs.raid_id = ");
         qb.push_bind(raid_id);
-        qb.push(" AND NOT is_invalid");
-        qb.push(" ORDER BY created_at DESC");
+        qb.push(" AND NOT rs.is_invalid");
+        qb.push(" ORDER BY rs.created_at DESC");
 
         let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
 
@@ -295,6 +297,15 @@ mod tests {
         let repo = setup_test_repository().await;
         let seed = seed_dependencies(&repo.pool).await;
 
+        // Seed x_association for the raider so the query can retrieve the username
+        let x_username = "test_raider_username";
+        sqlx::query("INSERT INTO x_associations (quan_address, username) VALUES ($1, $2)")
+            .bind(&seed.raider_id)
+            .bind(x_username)
+            .execute(&repo.pool)
+            .await
+            .expect("Failed to seed x_association");
+
         // Create 3 submissions with slight delays to ensure distinct created_at timestamps
         let sub1 = create_mock_submission_input(&seed);
         repo.create(&sub1).await.unwrap();
@@ -312,11 +323,22 @@ mod tests {
 
         assert_eq!(results.len(), 3);
 
-        // Verify Sorting: Query uses "ORDER BY created_at DESC"
+        // Verify Sorting: Query uses "ORDER BY rs.created_at DESC"
         // So sub3 (newest) should be first
-        assert_eq!(results[0].id, sub3.id, "Newest submission should be first");
-        assert_eq!(results[1].id, sub2.id);
-        assert_eq!(results[2].id, sub1.id, "Oldest submission should be last");
+        assert_eq!(
+            results[0].raid_submission_id, sub3.id,
+            "Newest submission should be first"
+        );
+        assert_eq!(results[1].raid_submission_id, sub2.id);
+        assert_eq!(
+            results[2].raid_submission_id, sub1.id,
+            "Oldest submission should be last"
+        );
+
+        // Verify that usernames are correctly retrieved
+        assert_eq!(results[0].raider_username, x_username);
+        assert_eq!(results[1].raider_username, x_username);
+        assert_eq!(results[2].raider_username, x_username);
     }
 
     #[tokio::test]

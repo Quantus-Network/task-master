@@ -186,18 +186,13 @@ pub async fn handle_create_raid_submission(
     Extension(user): Extension<Address>,
     extract::Json(payload): Json<RaidSubmissionInput>,
 ) -> Result<(StatusCode, Json<SuccessResponse<String>>), AppError> {
-    let (current_active_raid, user_x) = get_active_raid_and_x_association(&state, &user).await?;
+    let (current_active_raid, _user_x) = get_active_raid_and_x_association(&state, &user).await?;
 
-    let Some((reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
+    let Some((_reply_username, reply_id)) = parse_x_status_url(&payload.tweet_reply_link) else {
         return Err(AppError::Handler(HandlerError::InvalidBody(
             "Couldn't parse tweet reply link".to_string(),
         )));
     };
-    if user_x.username.to_lowercase() != reply_username.to_lowercase() {
-        return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
-            "Only tweet reply author is eligible to submit".to_string(),
-        ))));
-    }
 
     let new_raid_submission = CreateRaidSubmission {
         id: reply_id,
