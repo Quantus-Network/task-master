@@ -61,6 +61,35 @@ pub async fn handle_get_relevant_tweet_by_id(
     Ok(SuccessResponse::new(tweet))
 }
 
+/// GET /quest-tweets
+/// Public endpoint for fetching raid target tweets (sorted by created_at DESC)
+pub async fn handle_get_quest_tweets(
+    State(state): State<AppState>,
+    Query(params): Query<ListQueryParams<TweetSortColumn>>,
+    Query(filters): Query<TweetFilter>,
+) -> Result<Json<PaginatedResponse<TweetWithAuthor>>, AppError> {
+    validate_pagination_query(params.page, params.page_size)?;
+
+    let total_items = state.db.relevant_tweets.count_filtered(&params, &filters).await? as u32;
+    let total_pages = calculate_total_pages(params.page_size, total_items);
+
+    let tweets = state
+        .db
+        .relevant_tweets
+        .find_all_with_authors(&params, &filters)
+        .await?;
+
+    Ok(Json(PaginatedResponse {
+        data: tweets,
+        meta: PaginationMetadata {
+            page: params.page,
+            page_size: params.page_size,
+            total_items,
+            total_pages,
+        },
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, extract::Request, http::StatusCode, routing::get, Router};
