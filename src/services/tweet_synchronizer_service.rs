@@ -113,11 +113,20 @@ impl TweetSynchronizerService {
 
                 let link = build_x_status_url(author_name, &tweet.id);
 
+                let escaped_link = TelegramService::escape_markdown_v2(&link);
+                let escaped_author = TelegramService::escape_markdown_v2(author_name);
+                let escaped_text = TelegramService::escape_markdown_v2(&tweet.text);
+                let escaped_posted_at = TelegramService::escape_markdown_v2(&tweet.created_at.to_rfc3339());
+
                 let tg_message = format!(
-                    "**Raid Target Found!**\n\n**Link**: {}\n**Author**: {}\n**Text**: {}\n**Impressions**: {}\n**Posted At**: {}",
-                    &link, author_name, &tweet.text, tweet.impression_count, tweet.created_at
+                    "*Raid Target Found\\!*\n\n*Link*: {}\n\n*Author*: {}\n\n*Text*: {}\n\n*Impressions*: {}\n\n*Posted At*: {}",
+                    escaped_link,
+                    escaped_author,
+                    escaped_text,
+                    tweet.impression_count,
+                    escaped_posted_at
                 );
-                messages.push(TelegramService::escape_markdown_v2(&tg_message));
+                messages.push(tg_message);
             }
 
             tokio::spawn(async move {

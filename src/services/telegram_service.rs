@@ -24,7 +24,7 @@ struct MessagePayload<'a> {
 impl TelegramService {
     pub fn escape_markdown_v2(text: &str) -> String {
         text.replace("_", "\\_")
-            .replace("*", "\\*")
+            // .replace("*", "\\*") // We want to allow bolding with **
             .replace("[", "\\[")
             .replace("]", "\\]")
             .replace("(", "\\(")
