@@ -13,10 +13,10 @@ echo "🔧 Generating seed SQL..."
 cat << 'EOF' > $SQL_FILE
 INSERT INTO tweet_authors (
     id, name, username, followers_count, following_count, 
-    tweet_count, listed_count, like_count, media_count, fetched_at
+    tweet_count, listed_count, like_count, media_count, fetched_at, is_ignored
 )
 VALUES 
-('1862779229277954048', 'Yuvi Lightman', 'YuviLightman', 0, 0, 0, 0, 0, 0, NOW())
+('1862779229277954048', 'Yuvi Lightman', 'YuviLightman', 0, 0, 0, 0, 0, 0, NOW(), false)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     username = EXCLUDED.username,
@@ -26,7 +26,8 @@ ON CONFLICT (id) DO UPDATE SET
     listed_count = EXCLUDED.listed_count,
     like_count = EXCLUDED.like_count,
     media_count = EXCLUDED.media_count,
-    fetched_at = NOW();
+    fetched_at = NOW(),
+    is_ignored = EXCLUDED.is_ignored;
 EOF
 
 echo "📦 Copying SQL file into container ($CONTAINER_NAME)..."
