@@ -12,7 +12,6 @@ use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 use crate::{
-    db_persistence::DbError,
     handlers::{HandlerError, SuccessResponse},
     http_server::{AppState, Challenge},
     models::{
@@ -293,10 +292,9 @@ pub async fn handle_admin_login(
         .admin
         .find_by_username(&body.username)
         .await?
-        .ok_or(AppError::Database(DbError::RecordNotFound(format!(
-            "Admin with username {} is not exist",
-            &body.username,
-        ))))?;
+        .ok_or(AppError::Handler(HandlerError::Auth(
+            AuthHandlerError::Unauthorized("Invalid username or password".to_string()),
+        )))?;
 
     let parsed_hash =
         PasswordHash::new(&admin.password).map_err(|_| AppError::Server("Failed generating token".to_string()))?;
@@ -342,7 +340,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        handlers::auth::handle_x_oauth_callback,
+        handlers::auth::{handle_admin_login, handle_x_oauth_callback},
         http_server::AppState,
         models::x_association::XAssociation,
         routes::auth::auth_routes,
@@ -351,7 +349,7 @@ mod tests {
             test_db::{create_persisted_address, reset_database},
         },
     };
-    use axum::{body::Body, http, routing::get};
+    use axum::{body::Body, http, routing::get, routing::post};
     use rusx::{
         auth::TwitterToken,
         resources::{
@@ -606,5 +604,38 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_admin_login_nonexistent_username_returns_401() {
+        let state = create_test_app_state().await;
+        reset_database(&state.db.pool).await;
+
+        let router = axum::Router::new()
+            .route("/auth/admin/login", post(handle_admin_login))
+            .with_state(state);
+
+        let payload = serde_json::json!({
+            "username": "nonexistent_admin",
+            "password": "any_password"
+        });
+
+        let response = router
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/auth/admin/login")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), http::StatusCode::UNAUTHORIZED);
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["error"], "Invalid username or password");
     }
 }
