@@ -292,9 +292,9 @@ pub async fn handle_admin_login(
         .admin
         .find_by_username(&body.username)
         .await?
-        .ok_or(AppError::Handler(HandlerError::Auth(
-            AuthHandlerError::Unauthorized("Invalid username or password".to_string()),
-        )))?;
+        .ok_or(AppError::Handler(HandlerError::Auth(AuthHandlerError::Unauthorized(
+            "Invalid username or password".to_string(),
+        ))))?;
 
     let parsed_hash =
         PasswordHash::new(&admin.password).map_err(|_| AppError::Server("Failed generating token".to_string()))?;
