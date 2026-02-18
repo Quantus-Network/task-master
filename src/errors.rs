@@ -131,7 +131,7 @@ fn map_handler_error(err: HandlerError) -> (StatusCode, String) {
         },
 
         HandlerError::Referral(err) => match err {
-            ReferralHandlerError::ReferralNotFound(err) => (StatusCode::NOT_FOUND, err),
+            ReferralHandlerError::ReferralNotFound(err) => (StatusCode::OK, err),
             ReferralHandlerError::InvalidReferral(err) => (StatusCode::BAD_REQUEST, err),
             ReferralHandlerError::DuplicateReferral(err) => (StatusCode::CONFLICT, err),
         },
@@ -141,7 +141,7 @@ fn map_handler_error(err: HandlerError) -> (StatusCode, String) {
 fn map_db_error(err: DbError) -> (StatusCode, String) {
     match err {
         DbError::UniqueViolation(err) => (StatusCode::CONFLICT, err),
-        DbError::RecordNotFound(err) | DbError::AddressNotFound(err) => (StatusCode::NOT_FOUND, err),
+        DbError::RecordNotFound(err) | DbError::AddressNotFound(err) => (StatusCode::OK, err),
 
         DbError::Database(err) => {
             error!("Database error: {}", err);
