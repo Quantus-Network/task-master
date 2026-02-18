@@ -689,8 +689,11 @@ mod tests {
             .await
             .unwrap();
 
-        // 404/RecordNotFound for No Active Raid
-        assert!(response.status().is_server_error() || response.status() == StatusCode::NOT_FOUND);
+        // 200 OK / Handler Error
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["error"].as_str().unwrap(), "No active raid is found");
     }
 
     #[tokio::test]
@@ -727,8 +730,11 @@ mod tests {
             .await
             .unwrap();
 
-        // 400 Bad Request / Handler Error
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        // 200 OK / Handler Error
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["error"].as_str().unwrap(), "User doesn't have X association");
     }
 
     #[tokio::test]

@@ -359,7 +359,13 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), 404);
+        assert_eq!(response.status(), 200);
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(
+            body["error"].as_str().unwrap(),
+            "Tweet Author non_existent_id not found"
+        );
     }
 
     #[tokio::test]
