@@ -1,20 +1,10 @@
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 use tokio::{sync::mpsc, task::JoinHandle};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "camelCase"))]
-pub struct WalletFeatureFlags {
-    pub enable_test_buttons: bool,
-    pub enable_keystone_hardware_wallet: bool,
-    pub enable_high_security: bool,
-    pub enable_remote_notifications: bool,
-    pub enable_swap: bool,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum WalletFeatureFlagsError {
@@ -30,7 +20,7 @@ pub enum WalletFeatureFlagsError {
 
 #[derive(Debug)]
 pub struct WalletFeatureFlagsService {
-    wallet_feature_flags: Arc<RwLock<WalletFeatureFlags>>,
+    wallet_feature_flags: Arc<RwLock<Value>>,
     _watcher: RecommendedWatcher,
     _watch_task: JoinHandle<()>,
 }
@@ -100,7 +90,7 @@ impl WalletFeatureFlagsService {
         })
     }
 
-    pub fn get_wallet_feature_flags(&self) -> Result<WalletFeatureFlags, WalletFeatureFlagsError> {
+    pub fn get_wallet_feature_flags(&self) -> Result<Value, WalletFeatureFlagsError> {
         let guard = self.wallet_feature_flags.read().map_err(|_| {
             WalletFeatureFlagsError::ReadLock("Failed to read wallet feature flags from lock".to_string())
         })?;
@@ -109,18 +99,18 @@ impl WalletFeatureFlagsService {
     }
 
     // Synchronous read for initial startup
-    fn read_flags_from_file_sync(path: &Path) -> Result<WalletFeatureFlags, WalletFeatureFlagsError> {
+    fn read_flags_from_file_sync(path: &Path) -> Result<Value, WalletFeatureFlagsError> {
         let content = std::fs::read_to_string(path)?;
-        let flags = serde_json::from_str::<WalletFeatureFlags>(&content)?;
+        let flags = serde_json::from_str::<Value>(&content)?;
         Ok(flags)
     }
 
     // Asynchronous read for the background watcher task
-    async fn read_flags_from_file_async(path: &Path) -> Result<WalletFeatureFlags, WalletFeatureFlagsError> {
+    async fn read_flags_from_file_async(path: &Path) -> Result<Value, WalletFeatureFlagsError> {
         let content = tokio::fs::read_to_string(path).await?;
         // For larger JSON payloads, you might want to wrap this next line in spawn_blocking,
         // but for a tiny struct of bools, inline is perfectly fine.
-        let flags = serde_json::from_str::<WalletFeatureFlags>(&content)?;
+        let flags = serde_json::from_str::<Value>(&content)?;
         Ok(flags)
     }
 }
@@ -174,11 +164,11 @@ mod tests {
         let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
         let flags = service.get_wallet_feature_flags().unwrap();
 
-        assert!(!flags.enable_test_buttons);
-        assert!(!flags.enable_keystone_hardware_wallet);
-        assert!(flags.enable_high_security);
-        assert!(flags.enable_remote_notifications);
-        assert!(flags.enable_swap);
+        assert!(!flags["enableTestButtons"].as_bool().unwrap());
+        assert!(!flags["enableKeystoneHardwareWallet"].as_bool().unwrap());
+        assert!(flags["enableHighSecurity"].as_bool().unwrap());
+        assert!(flags["enableRemoteNotifications"].as_bool().unwrap());
+        assert!(flags["enableSwap"].as_bool().unwrap());
 
         std::fs::remove_file(path).ok();
     }
@@ -212,11 +202,11 @@ mod tests {
 
         wait_until(Duration::from_secs(3), || {
             let flags = service.get_wallet_feature_flags().unwrap();
-            flags.enable_test_buttons
-                && flags.enable_keystone_hardware_wallet
-                && !flags.enable_high_security
-                && !flags.enable_remote_notifications
-                && !flags.enable_swap
+            flags["enableTestButtons"].as_bool().unwrap()
+                && flags["enableKeystoneHardwareWallet"].as_bool().unwrap()
+                && !flags["enableHighSecurity"].as_bool().unwrap()
+                && !flags["enableRemoteNotifications"].as_bool().unwrap()
+                && !flags["enableSwap"].as_bool().unwrap()
         })
         .await;
 
@@ -244,14 +234,26 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         let after = service.get_wallet_feature_flags().unwrap();
-        assert_eq!(before.enable_test_buttons, after.enable_test_buttons);
         assert_eq!(
-            before.enable_keystone_hardware_wallet,
-            after.enable_keystone_hardware_wallet
+            before["enableTestButtons"].as_bool().unwrap(),
+            after["enableTestButtons"].as_bool().unwrap()
         );
-        assert_eq!(before.enable_high_security, after.enable_high_security);
-        assert_eq!(before.enable_remote_notifications, after.enable_remote_notifications);
-        assert_eq!(before.enable_swap, after.enable_swap);
+        assert_eq!(
+            before["enableKeystoneHardwareWallet"].as_bool().unwrap(),
+            after["enableKeystoneHardwareWallet"].as_bool().unwrap()
+        );
+        assert_eq!(
+            before["enableHighSecurity"].as_bool().unwrap(),
+            after["enableHighSecurity"].as_bool().unwrap()
+        );
+        assert_eq!(
+            before["enableRemoteNotifications"].as_bool().unwrap(),
+            after["enableRemoteNotifications"].as_bool().unwrap()
+        );
+        assert_eq!(
+            before["enableSwap"].as_bool().unwrap(),
+            after["enableSwap"].as_bool().unwrap()
+        );
 
         std::fs::remove_file(path).ok();
     }
