@@ -164,7 +164,7 @@ impl Config {
         if feature_flags_path.is_absolute() {
             return;
         }
-        let base_dir = Path::new(config_path).parent().unwrap_or(Path::new("."));
+        let base_dir = Path::new(config_path).parent().expect("Failed to get base directory");
         self.feature_flags.wallet_feature_flags_config_file =
             base_dir.join(feature_flags_path).to_string_lossy().to_string();
     }

@@ -16,6 +16,8 @@ pub enum WalletFeatureFlagsError {
     Watcher(#[from] notify::Error),
     #[error("Failed to read wallet feature flags: {0}")]
     ReadLock(String),
+    #[error("Failed to get parent directory")]
+    ParentDirectory,
 }
 
 #[derive(Debug)]
@@ -44,7 +46,7 @@ impl WalletFeatureFlagsService {
 
         let parent_dir = Path::new(&file_path)
             .parent()
-            .unwrap_or(Path::new("wallet_feature_flags"));
+            .ok_or_else(|| WalletFeatureFlagsError::ParentDirectory)?;
         watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
 
         let wallet_feature_flags_clone = wallet_feature_flags.clone();
@@ -112,6 +114,12 @@ impl WalletFeatureFlagsService {
         // but for a tiny struct of bools, inline is perfectly fine.
         let flags = serde_json::from_str::<Value>(&content)?;
         Ok(flags)
+    }
+}
+
+impl Drop for WalletFeatureFlagsService {
+    fn drop(&mut self) {
+        self._watch_task.abort();
     }
 }
 

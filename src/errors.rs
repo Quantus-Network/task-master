@@ -173,10 +173,5 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
 }
 
 fn map_wallet_feature_flags_error(err: WalletFeatureFlagsError) -> (StatusCode, String) {
-    match err {
-        WalletFeatureFlagsError::ReadLock(err) => (StatusCode::INTERNAL_SERVER_ERROR, err),
-        WalletFeatureFlagsError::ReadFile(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        WalletFeatureFlagsError::ParseJson(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        WalletFeatureFlagsError::Watcher(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-    }
+    (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }
