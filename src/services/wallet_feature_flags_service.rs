@@ -7,7 +7,7 @@ use std::{
 use tokio::{sync::mpsc, task::JoinHandle};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(deserialize = "camelCase"))]
 pub struct WalletFeatureFlags {
     pub enable_test_buttons: bool,
     pub enable_keystone_hardware_wallet: bool,
