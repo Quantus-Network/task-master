@@ -1,7 +1,6 @@
 use crate::{
-    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims, Config,
-    GraphqlClient,
-    services::wallet_feature_flags_service::WalletFeatureFlagsService,
+    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims,
+    services::wallet_feature_flags_service::WalletFeatureFlagsService, Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;

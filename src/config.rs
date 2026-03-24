@@ -213,8 +213,7 @@ impl Default for Config {
                 keywords: "quantus".to_string(),
             },
             feature_flags: FeatureFlagsConfig {
-                wallet_feature_flags_config_file: "wallet_feature_flags/default_feature_flags.json"
-                    .to_string(),
+                wallet_feature_flags_config_file: "wallet_feature_flags/default_feature_flags.json".to_string(),
             },
         }
     }

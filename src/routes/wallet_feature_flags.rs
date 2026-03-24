@@ -1,7 +1,4 @@
-use axum::{
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
 
 use crate::{handlers::wallet_feature_flags::handle_get_wallet_feature_flags, http_server::AppState};
 

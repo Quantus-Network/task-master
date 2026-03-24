@@ -244,10 +244,7 @@ mod tests {
             after.enable_keystone_hardware_wallet
         );
         assert_eq!(before.enable_high_security, after.enable_high_security);
-        assert_eq!(
-            before.enable_remote_notifications,
-            after.enable_remote_notifications
-        );
+        assert_eq!(before.enable_remote_notifications, after.enable_remote_notifications);
         assert_eq!(before.enable_swap, after.enable_swap);
 
         std::fs::remove_file(path).ok();
