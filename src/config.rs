@@ -117,7 +117,7 @@ impl Config {
         let test_config_path = "config/test.toml";
         let settings = config::Config::builder()
             // Load the test-specific configuration file
-            .add_source(config::File::with_name("config/test"))
+            .add_source(config::File::new(test_config_path, config::FileFormat::Toml))
             // You can still layer environment variables for testing if you need to
             .add_source(config::Environment::with_prefix("TASKMASTER"))
             .build()?;
