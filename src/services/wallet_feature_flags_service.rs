@@ -46,7 +46,7 @@ impl WalletFeatureFlagsService {
 
         let parent_dir = Path::new(&file_path)
             .parent()
-            .ok_or_else(|| WalletFeatureFlagsError::ParentDirectory)?;
+            .ok_or(WalletFeatureFlagsError::ParentDirectory)?;
         watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
 
         let wallet_feature_flags_clone = wallet_feature_flags.clone();
