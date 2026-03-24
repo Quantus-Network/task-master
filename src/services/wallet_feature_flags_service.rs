@@ -24,6 +24,8 @@ pub enum WalletFeatureFlagsError {
     ParseJson(#[from] serde_json::Error),
     #[error("Failed to initialize file watcher: {0}")]
     Watcher(#[from] notify::Error),
+    #[error("Failed to read wallet feature flags: {0}")]
+    ReadLock(String),
 }
 
 #[derive(Debug)]
@@ -98,8 +100,12 @@ impl WalletFeatureFlagsService {
         })
     }
 
-    pub fn get_wallet_feature_flags(&self) -> WalletFeatureFlags {
-        self.wallet_feature_flags.read().expect("RwLock poisoned").clone()
+    pub fn get_wallet_feature_flags(&self) -> Result<WalletFeatureFlags, WalletFeatureFlagsError> {
+        let guard = self.wallet_feature_flags.read().map_err(|_| {
+            WalletFeatureFlagsError::ReadLock("Failed to read wallet feature flags from lock".to_string())
+        })?;
+
+        Ok(guard.clone())
     }
 
     // Synchronous read for initial startup
@@ -166,7 +172,7 @@ mod tests {
         );
 
         let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
-        let flags = service.get_wallet_feature_flags();
+        let flags = service.get_wallet_feature_flags().unwrap();
 
         assert!(!flags.enable_test_buttons);
         assert!(!flags.enable_keystone_hardware_wallet);
@@ -205,7 +211,7 @@ mod tests {
         );
 
         wait_until(Duration::from_secs(3), || {
-            let flags = service.get_wallet_feature_flags();
+            let flags = service.get_wallet_feature_flags().unwrap();
             flags.enable_test_buttons
                 && flags.enable_keystone_hardware_wallet
                 && !flags.enable_high_security
@@ -232,12 +238,12 @@ mod tests {
         );
 
         let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
-        let before = service.get_wallet_feature_flags();
+        let before = service.get_wallet_feature_flags().unwrap();
 
         write_flags_file(&path, r#"{ invalid json }"#);
         tokio::time::sleep(Duration::from_millis(300)).await;
 
-        let after = service.get_wallet_feature_flags();
+        let after = service.get_wallet_feature_flags().unwrap();
         assert_eq!(before.enable_test_buttons, after.enable_test_buttons);
         assert_eq!(
             before.enable_keystone_hardware_wallet,
