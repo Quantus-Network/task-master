@@ -26,6 +26,6 @@ pub fn api_routes(state: AppState) -> Router<AppState> {
         .merge(auth_routes(state.clone()))
         .merge(relevant_tweet_routes(state.clone()))
         .merge(tweet_author_routes(state.clone()))
-        .merge(wallet_feature_flags_routes(state.clone()))
+        .merge(wallet_feature_flags_routes())
         .merge(raid_quest_routes(state))
 }
