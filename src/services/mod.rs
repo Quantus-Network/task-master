@@ -4,3 +4,4 @@ pub mod raid_leaderboard_service;
 pub mod signature_service;
 pub mod telegram_service;
 pub mod tweet_synchronizer_service;
+pub mod wallet_feature_flags_service;

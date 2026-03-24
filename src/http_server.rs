@@ -13,6 +13,7 @@ use crate::{
     db_persistence::DbPersistence,
     metrics::{metrics_handler, track_metrics, Metrics},
     routes::api_routes,
+    services::wallet_feature_flags_service::WalletFeatureFlagsService,
     Config, GraphqlClient,
 };
 use chrono::{DateTime, Utc};
@@ -23,6 +24,7 @@ pub struct AppState {
     pub db: Arc<DbPersistence>,
     pub metrics: Arc<Metrics>,
     pub graphql_client: Arc<GraphqlClient>,
+    pub wallet_feature_flags_service: Arc<WalletFeatureFlagsService>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
@@ -83,6 +85,9 @@ pub async fn start_server(
         db,
         metrics: Arc::new(Metrics::new()),
         graphql_client,
+        wallet_feature_flags_service: Arc::new(WalletFeatureFlagsService::new(
+            config.feature_flags.wallet_feature_flags_config_file.clone(),
+        )?),
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),

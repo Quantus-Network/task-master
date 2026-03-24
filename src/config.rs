@@ -16,6 +16,12 @@ pub struct Config {
     pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
     pub x_association: XAssociationConfig,
+    pub feature_flags: FeatureFlagsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureFlagsConfig {
+    pub wallet_feature_flags_config_file: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,6 +211,10 @@ impl Default for Config {
             },
             x_association: XAssociationConfig {
                 keywords: "quantus".to_string(),
+            },
+            feature_flags: FeatureFlagsConfig {
+                wallet_feature_flags_config_file: "wallet_feature_flags/default_feature_flags.json"
+                    .to_string(),
             },
         }
     }
