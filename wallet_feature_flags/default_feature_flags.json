@@ -1,0 +1,7 @@
+{
+  "enableTestButtons": false,
+  "enableKeystoneHardwareWallet": false,
+  "enableHighSecurity": true,
+  "enableRemoteNotifications": true,
+  "enableSwap": true
+}

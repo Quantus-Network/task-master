@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use rusx::config::OauthConfig;
 use serde::{Deserialize, Serialize};
 use tokio::time;
@@ -16,6 +18,12 @@ pub struct Config {
     pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
     pub x_association: XAssociationConfig,
+    pub feature_flags: FeatureFlagsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureFlagsConfig {
+    pub wallet_feature_flags_config_file: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,20 +106,25 @@ impl Config {
             .add_source(config::Environment::with_prefix("TASKMASTER"))
             .build()?;
 
-        settings.try_deserialize()
+        let mut config: Self = settings.try_deserialize()?;
+        config.resolve_relative_paths(config_path);
+        Ok(config)
     }
 
     #[cfg(test)]
     pub fn load_test_env() -> Result<Self, config::ConfigError> {
         println!("Loading TEST configuration..."); // For demonstration
+        let test_config_path = "config/test.toml";
         let settings = config::Config::builder()
             // Load the test-specific configuration file
-            .add_source(config::File::with_name("config/test"))
+            .add_source(config::File::new(test_config_path, config::FileFormat::Toml))
             // You can still layer environment variables for testing if you need to
             .add_source(config::Environment::with_prefix("TASKMASTER"))
             .build()?;
 
-        settings.try_deserialize()
+        let mut config: Self = settings.try_deserialize()?;
+        config.resolve_relative_paths(test_config_path);
+        Ok(config)
     }
 
     pub fn get_database_url(&self) -> &str {
@@ -144,6 +157,16 @@ impl Config {
 
     pub fn get_x_association_keywords(&self) -> &str {
         &self.x_association.keywords
+    }
+
+    fn resolve_relative_paths(&mut self, config_path: &str) {
+        let feature_flags_path = Path::new(&self.feature_flags.wallet_feature_flags_config_file);
+        if feature_flags_path.is_absolute() {
+            return;
+        }
+        let base_dir = Path::new(config_path).parent().expect("Failed to get base directory");
+        self.feature_flags.wallet_feature_flags_config_file =
+            base_dir.join(feature_flags_path).to_string_lossy().to_string();
     }
 }
 
@@ -205,6 +228,9 @@ impl Default for Config {
             },
             x_association: XAssociationConfig {
                 keywords: "quantus".to_string(),
+            },
+            feature_flags: FeatureFlagsConfig {
+                wallet_feature_flags_config_file: "wallet_feature_flags/default_feature_flags.json".to_string(),
             },
         }
     }

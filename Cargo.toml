@@ -85,6 +85,7 @@ lazy_static = "1.5.0"
 prometheus = {version = "0.14.0", features = ["process"]}
 subxt = "0.43.0"
 tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+notify = "8.2.0"
 
 [dev-dependencies]
 mockall = "0.13"

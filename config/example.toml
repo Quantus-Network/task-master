@@ -89,6 +89,9 @@ tweets_req_interval_in_secs = 60
 [alert]
 webhook_url = "https://www.webhook_url.com"
 
+[feature_flags]
+wallet_feature_flags_config_file = "../wallet_feature_flags/default_feature_flags.json"
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
