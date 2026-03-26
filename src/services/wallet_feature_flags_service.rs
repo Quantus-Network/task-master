@@ -32,9 +32,7 @@ impl WalletFeatureFlagsService {
     fn is_reload_event_kind(kind: &EventKind) -> bool {
         match kind {
             EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_)) => true,
-            EventKind::Modify(modify_kind) => {
-                !matches!(modify_kind, ModifyKind::Metadata(_) | ModifyKind::Other)
-            }
+            EventKind::Modify(modify_kind) => !matches!(modify_kind, ModifyKind::Metadata(_) | ModifyKind::Other),
             _ => false,
         }
     }
