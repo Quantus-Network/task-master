@@ -1,10 +1,11 @@
-use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{event::ModifyKind, Config as NotifyConfig, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
+    time::Duration,
 };
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{sync::mpsc, task::JoinHandle, time};
 
 #[derive(Debug, thiserror::Error)]
 pub enum WalletFeatureFlagsError {
@@ -28,6 +29,14 @@ pub struct WalletFeatureFlagsService {
 }
 
 impl WalletFeatureFlagsService {
+    fn is_reload_event_kind(kind: &EventKind) -> bool {
+        match kind {
+            EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_)) => true,
+            EventKind::Modify(modify_kind) => !matches!(modify_kind, ModifyKind::Metadata(_) | ModifyKind::Other),
+            _ => false,
+        }
+    }
+
     pub fn new(file_path: impl Into<PathBuf>) -> Result<Self, WalletFeatureFlagsError> {
         let file_path = file_path.into();
 
@@ -50,23 +59,63 @@ impl WalletFeatureFlagsService {
         watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
 
         let wallet_feature_flags_clone = wallet_feature_flags.clone();
+        let watched_file_name = file_path.file_name().map(|n| n.to_os_string());
+        let debounce_duration = Duration::from_millis(250);
 
         let watch_task = tokio::spawn(async move {
-            while let Some(result) = rx.recv().await {
-                match result {
-                    Ok(event) => {
-                        // This ensures Create, Rename, and Modify events triggered by atomic saves are caught.
-                        let should_reload = event.paths.iter().any(|p| p.file_name() == file_path.file_name());
+            // Atomic file saves commonly emit bursts of events (Create/Rename/Modify).
+            // We debounce these bursts to avoid reloading (and logging) repeatedly.
+            let mut reload_pending = false;
+            let reload_sleep = time::sleep(debounce_duration);
+            tokio::pin!(reload_sleep);
 
-                        if !should_reload {
-                            continue;
+            loop {
+                tokio::select! {
+                    biased;
+                    maybe_result = rx.recv() => {
+                        let Some(result) = maybe_result else {
+                            break;
+                        };
+
+                        match result {
+                            Ok(event) => {
+                                if !Self::is_reload_event_kind(&event.kind) {
+                                    continue;
+                                }
+
+                                let should_reload = watched_file_name
+                                    .as_deref()
+                                    .map(|name| event.paths.iter().any(|p| p.file_name() == Some(name)))
+                                    .unwrap_or(false);
+
+                                if !should_reload {
+                                    continue;
+                                }
+
+                                reload_pending = true;
+                                reload_sleep.as_mut().reset(time::Instant::now() + debounce_duration);
+                            }
+                            Err(err) => {
+                                tracing::error!("Wallet feature flags watcher error: {}", err);
+                            }
                         }
+                    }
+                    _ = &mut reload_sleep, if reload_pending => {
+                        reload_pending = false;
 
                         match Self::read_flags_from_file_async(&file_path).await {
                             Ok(updated_flags) => {
                                 if let Ok(mut write_guard) = wallet_feature_flags_clone.write() {
+                                    if *write_guard == updated_flags {
+                                        // Avoid noisy log spam when events are emitted without content changes.
+                                        continue;
+                                    }
+
                                     *write_guard = updated_flags;
-                                    tracing::info!("Wallet feature flags reloaded from {}", file_path.display());
+                                    tracing::info!(
+                                        "Wallet feature flags reloaded from {}",
+                                        file_path.display()
+                                    );
                                 }
                             }
                             Err(err) => {
@@ -77,9 +126,6 @@ impl WalletFeatureFlagsService {
                                 );
                             }
                         }
-                    }
-                    Err(err) => {
-                        tracing::error!("Wallet feature flags watcher error: {}", err);
                     }
                 }
             }
