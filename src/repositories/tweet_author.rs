@@ -108,7 +108,7 @@ impl TweetAuthorRepository {
     }
 
     pub async fn get_whitelist(&self) -> Result<Vec<String>, DbError> {
-        let ids = sqlx::query_scalar::<_, String>("SELECT id FROM tweet_authors WHERE is_ignored = false")
+        let ids = sqlx::query_scalar::<_, String>("SELECT username FROM tweet_authors WHERE is_ignored = false")
             .fetch_all(&self.pool)
             .await?;
 
