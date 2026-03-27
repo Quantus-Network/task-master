@@ -1,6 +1,6 @@
 use crate::{
     db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims,
-    services::wallet_feature_flags_service::WalletFeatureFlagsService, Config, GraphqlClient,
+    services::wallet_config_service::WalletConfigService, Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;
@@ -18,8 +18,8 @@ pub async fn create_test_app_state() -> AppState {
         db,
         metrics: Arc::new(Metrics::new()),
         graphql_client: Arc::new(graphql_client),
-        wallet_feature_flags_service: Arc::new(
-            WalletFeatureFlagsService::new(config.feature_flags.wallet_feature_flags_config_file.clone()).unwrap(),
+        wallet_config_service: Arc::new(
+            WalletConfigService::new(config.remote_configs.wallet_configs_file.clone()).unwrap(),
         ),
         config: Arc::new(config),
         twitter_gateway: Arc::new(twitter_gateway),

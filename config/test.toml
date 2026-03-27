@@ -79,5 +79,5 @@ tweets_req_interval_in_secs = 1
 [alert]
 webhook_url = "https://www.webhook_url.com"
 
-[feature_flags]
-wallet_feature_flags_config_file = "../wallet_feature_flags/test_feature_flags.json"
+[remote_configs]
+wallet_configs_file = "../wallet_configs/test_configs.json"

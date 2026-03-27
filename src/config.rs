@@ -18,12 +18,12 @@ pub struct Config {
     pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
     pub x_association: XAssociationConfig,
-    pub feature_flags: FeatureFlagsConfig,
+    pub remote_configs: RemoteConfigsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureFlagsConfig {
-    pub wallet_feature_flags_config_file: String,
+pub struct RemoteConfigsConfig {
+    pub wallet_configs_file: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,13 +160,12 @@ impl Config {
     }
 
     fn resolve_relative_paths(&mut self, config_path: &str) {
-        let feature_flags_path = Path::new(&self.feature_flags.wallet_feature_flags_config_file);
-        if feature_flags_path.is_absolute() {
+        let wallet_configs_path = Path::new(&self.remote_configs.wallet_configs_file);
+        if wallet_configs_path.is_absolute() {
             return;
         }
         let base_dir = Path::new(config_path).parent().expect("Failed to get base directory");
-        self.feature_flags.wallet_feature_flags_config_file =
-            base_dir.join(feature_flags_path).to_string_lossy().to_string();
+        self.remote_configs.wallet_configs_file = base_dir.join(wallet_configs_path).to_string_lossy().to_string();
     }
 }
 
@@ -229,8 +228,8 @@ impl Default for Config {
             x_association: XAssociationConfig {
                 keywords: "quantus".to_string(),
             },
-            feature_flags: FeatureFlagsConfig {
-                wallet_feature_flags_config_file: "wallet_feature_flags/default_feature_flags.json".to_string(),
+            remote_configs: RemoteConfigsConfig {
+                wallet_configs_file: "wallet_configs/default_configs.json".to_string(),
             },
         }
     }
