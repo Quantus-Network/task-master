@@ -1,7 +1,7 @@
 use auth::auth_routes;
 use axum::Router;
+use config::config_routes;
 use referral::referral_routes;
-use wallet_feature_flags::wallet_feature_flags_routes;
 
 use crate::{
     http_server::AppState,
@@ -13,11 +13,11 @@ use crate::{
 
 pub mod address;
 pub mod auth;
+pub mod config;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
 pub mod tweet_author;
-pub mod wallet_feature_flags;
 
 pub fn api_routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -26,6 +26,6 @@ pub fn api_routes(state: AppState) -> Router<AppState> {
         .merge(auth_routes(state.clone()))
         .merge(relevant_tweet_routes(state.clone()))
         .merge(tweet_author_routes(state.clone()))
-        .merge(wallet_feature_flags_routes())
+        .merge(config_routes())
         .merge(raid_quest_routes(state))
 }

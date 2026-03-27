@@ -8,27 +8,27 @@ use std::{
 use tokio::{sync::mpsc, task::JoinHandle, time};
 
 #[derive(Debug, thiserror::Error)]
-pub enum WalletFeatureFlagsError {
-    #[error("Failed to read wallet feature flags file: {0}")]
+pub enum WalletConfigsError {
+    #[error("Failed to read wallet configs file: {0}")]
     ReadFile(#[from] std::io::Error),
-    #[error("Failed to parse wallet feature flags JSON: {0}")]
+    #[error("Failed to parse wallet configs JSON: {0}")]
     ParseJson(#[from] serde_json::Error),
     #[error("Failed to initialize file watcher: {0}")]
     Watcher(#[from] notify::Error),
-    #[error("Failed to read wallet feature flags: {0}")]
+    #[error("Failed to read wallet configs: {0}")]
     ReadLock(String),
     #[error("Failed to get parent directory")]
     ParentDirectory,
 }
 
 #[derive(Debug)]
-pub struct WalletFeatureFlagsService {
-    wallet_feature_flags: Arc<RwLock<Value>>,
+pub struct WalletConfigService {
+    wallet_configs: Arc<RwLock<Value>>,
     _watcher: RecommendedWatcher,
     _watch_task: JoinHandle<()>,
 }
 
-impl WalletFeatureFlagsService {
+impl WalletConfigService {
     fn is_reload_event_kind(kind: &EventKind) -> bool {
         match kind {
             EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_)) => true,
@@ -37,17 +37,17 @@ impl WalletFeatureFlagsService {
         }
     }
 
-    pub fn new(file_path: impl Into<PathBuf>) -> Result<Self, WalletFeatureFlagsError> {
+    pub fn new(file_path: impl Into<PathBuf>) -> Result<Self, WalletConfigsError> {
         let file_path = file_path.into();
 
-        let flags = Self::read_flags_from_file_sync(&file_path)?;
-        let wallet_feature_flags = Arc::new(RwLock::new(flags));
+        let configs = Self::read_flags_from_file_sync(&file_path)?;
+        let wallet_configs = Arc::new(RwLock::new(configs));
 
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut watcher = RecommendedWatcher::new(
             move |result| {
                 if let Err(send_err) = tx.send(result) {
-                    tracing::warn!("Wallet feature flags watcher channel closed: {}", send_err);
+                    tracing::warn!("Wallet configs watcher channel closed: {}", send_err);
                 }
             },
             NotifyConfig::default(),
@@ -55,10 +55,10 @@ impl WalletFeatureFlagsService {
 
         let parent_dir = Path::new(&file_path)
             .parent()
-            .ok_or(WalletFeatureFlagsError::ParentDirectory)?;
+            .ok_or(WalletConfigsError::ParentDirectory)?;
         watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
 
-        let wallet_feature_flags_clone = wallet_feature_flags.clone();
+        let wallet_feature_flags_clone = wallet_configs.clone();
         let watched_file_name = file_path.file_name().map(|n| n.to_os_string());
         let debounce_duration = Duration::from_millis(250);
 
@@ -96,7 +96,7 @@ impl WalletFeatureFlagsService {
                                 reload_sleep.as_mut().reset(time::Instant::now() + debounce_duration);
                             }
                             Err(err) => {
-                                tracing::error!("Wallet feature flags watcher error: {}", err);
+                                tracing::error!("Wallet configs watcher error: {}", err);
                             }
                         }
                     }
@@ -113,14 +113,14 @@ impl WalletFeatureFlagsService {
 
                                     *write_guard = updated_flags;
                                     tracing::info!(
-                                        "Wallet feature flags reloaded from {}",
+                                        "Wallet configs reloaded from {}",
                                         file_path.display()
                                     );
                                 }
                             }
                             Err(err) => {
                                 tracing::warn!(
-                                    "Failed to reload wallet feature flags from {}: {}. Using last known good flags.",
+                                    "Failed to reload wallet configs from {}: {}. Using last known good configs.",
                                     file_path.display(),
                                     err
                                 );
@@ -132,38 +132,39 @@ impl WalletFeatureFlagsService {
         });
 
         Ok(Self {
-            wallet_feature_flags,
+            wallet_configs,
             _watcher: watcher,
             _watch_task: watch_task,
         })
     }
 
-    pub fn get_wallet_feature_flags(&self) -> Result<Value, WalletFeatureFlagsError> {
-        let guard = self.wallet_feature_flags.read().map_err(|_| {
-            WalletFeatureFlagsError::ReadLock("Failed to read wallet feature flags from lock".to_string())
-        })?;
+    pub fn get_wallet_configs(&self) -> Result<Value, WalletConfigsError> {
+        let guard = self
+            .wallet_configs
+            .read()
+            .map_err(|_| WalletConfigsError::ReadLock("Failed to read wallet configs from lock".to_string()))?;
 
         Ok(guard.clone())
     }
 
     // Synchronous read for initial startup
-    fn read_flags_from_file_sync(path: &Path) -> Result<Value, WalletFeatureFlagsError> {
+    fn read_flags_from_file_sync(path: &Path) -> Result<Value, WalletConfigsError> {
         let content = std::fs::read_to_string(path)?;
-        let flags = serde_json::from_str::<Value>(&content)?;
-        Ok(flags)
+        let configs = serde_json::from_str::<Value>(&content)?;
+        Ok(configs)
     }
 
     // Asynchronous read for the background watcher task
-    async fn read_flags_from_file_async(path: &Path) -> Result<Value, WalletFeatureFlagsError> {
+    async fn read_flags_from_file_async(path: &Path) -> Result<Value, WalletConfigsError> {
         let content = tokio::fs::read_to_string(path).await?;
         // For larger JSON payloads, you might want to wrap this next line in spawn_blocking,
         // but for a tiny struct of bools, inline is perfectly fine.
-        let flags = serde_json::from_str::<Value>(&content)?;
-        Ok(flags)
+        let configs = serde_json::from_str::<Value>(&content)?;
+        Ok(configs)
     }
 }
 
-impl Drop for WalletFeatureFlagsService {
+impl Drop for WalletConfigService {
     fn drop(&mut self) {
         self._watch_task.abort();
     }
@@ -176,11 +177,11 @@ mod tests {
     use uuid::Uuid;
 
     fn unique_temp_flags_path() -> PathBuf {
-        std::env::temp_dir().join(format!("wallet-feature-flags-{}.json", Uuid::new_v4()))
+        std::env::temp_dir().join(format!("wallet-configs-{}.json", Uuid::new_v4()))
     }
 
     fn write_flags_file(path: &Path, content: &str) {
-        std::fs::write(path, content).expect("failed to write flags file");
+        std::fs::write(path, content).expect("failed to write configs file");
     }
 
     async fn wait_until<F>(timeout: Duration, mut predicate: F)
@@ -215,14 +216,14 @@ mod tests {
 }"#,
         );
 
-        let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
-        let flags = service.get_wallet_feature_flags().unwrap();
+        let service = WalletConfigService::new(path.clone()).expect("service should initialize");
+        let configs = service.get_wallet_configs().unwrap();
 
-        assert!(!flags["enableTestButtons"].as_bool().unwrap());
-        assert!(!flags["enableKeystoneHardwareWallet"].as_bool().unwrap());
-        assert!(flags["enableHighSecurity"].as_bool().unwrap());
-        assert!(flags["enableRemoteNotifications"].as_bool().unwrap());
-        assert!(flags["enableSwap"].as_bool().unwrap());
+        assert!(!configs["enableTestButtons"].as_bool().unwrap());
+        assert!(!configs["enableKeystoneHardwareWallet"].as_bool().unwrap());
+        assert!(configs["enableHighSecurity"].as_bool().unwrap());
+        assert!(configs["enableRemoteNotifications"].as_bool().unwrap());
+        assert!(configs["enableSwap"].as_bool().unwrap());
 
         std::fs::remove_file(path).ok();
     }
@@ -241,7 +242,7 @@ mod tests {
 }"#,
         );
 
-        let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
+        let service = WalletConfigService::new(path.clone()).expect("service should initialize");
 
         write_flags_file(
             &path,
@@ -255,12 +256,12 @@ mod tests {
         );
 
         wait_until(Duration::from_secs(3), || {
-            let flags = service.get_wallet_feature_flags().unwrap();
-            flags["enableTestButtons"].as_bool().unwrap()
-                && flags["enableKeystoneHardwareWallet"].as_bool().unwrap()
-                && !flags["enableHighSecurity"].as_bool().unwrap()
-                && !flags["enableRemoteNotifications"].as_bool().unwrap()
-                && !flags["enableSwap"].as_bool().unwrap()
+            let configs = service.get_wallet_configs().unwrap();
+            configs["enableTestButtons"].as_bool().unwrap()
+                && configs["enableKeystoneHardwareWallet"].as_bool().unwrap()
+                && !configs["enableHighSecurity"].as_bool().unwrap()
+                && !configs["enableRemoteNotifications"].as_bool().unwrap()
+                && !configs["enableSwap"].as_bool().unwrap()
         })
         .await;
 
@@ -281,13 +282,13 @@ mod tests {
 }"#,
         );
 
-        let service = WalletFeatureFlagsService::new(path.clone()).expect("service should initialize");
-        let before = service.get_wallet_feature_flags().unwrap();
+        let service = WalletConfigService::new(path.clone()).expect("service should initialize");
+        let before = service.get_wallet_configs().unwrap();
 
         write_flags_file(&path, r#"{ invalid json }"#);
         tokio::time::sleep(Duration::from_millis(300)).await;
 
-        let after = service.get_wallet_feature_flags().unwrap();
+        let after = service.get_wallet_configs().unwrap();
         assert_eq!(
             before["enableTestButtons"].as_bool().unwrap(),
             after["enableTestButtons"].as_bool().unwrap()

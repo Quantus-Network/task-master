@@ -9,11 +9,11 @@ use crate::{
 
 pub mod address;
 pub mod auth;
+pub mod config;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
 pub mod tweet_author;
-pub mod wallet_feature_flags;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandlerError {

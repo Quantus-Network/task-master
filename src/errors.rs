@@ -11,7 +11,7 @@ use crate::{
     db_persistence::DbError,
     handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
     models::ModelError,
-    services::{graphql_client::GraphqlError, wallet_feature_flags_service::WalletFeatureFlagsError},
+    services::{graphql_client::GraphqlError, wallet_config_service::WalletConfigsError},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -27,7 +27,7 @@ pub enum AppError {
     #[error("Server error: {0}")]
     Server(String),
     #[error("Wallet feature flags error: {0}")]
-    WalletFeatureFlags(#[from] WalletFeatureFlagsError),
+    WalletConfigs(#[from] WalletConfigsError),
     #[error("Join error: {0}")]
     Join(#[from] tokio::task::JoinError),
     #[error("GraphQL error: {0}")]
@@ -52,7 +52,7 @@ impl IntoResponse for AppError {
             ),
 
             // --- Wallet Feature Flags ---
-            AppError::WalletFeatureFlags(err) => map_wallet_feature_flags_error(err),
+            AppError::WalletConfigs(err) => map_wallet_configs_error(err),
 
             // --- Model ---
             AppError::Model(err) => (StatusCode::BAD_REQUEST, err.to_string()),
@@ -172,6 +172,6 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
     }
 }
 
-fn map_wallet_feature_flags_error(err: WalletFeatureFlagsError) -> (StatusCode, String) {
+fn map_wallet_configs_error(err: WalletConfigsError) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }
