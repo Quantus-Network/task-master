@@ -5,7 +5,7 @@ set -e
 CONTAINER_NAME="task_master_test_db"       # Change if your container is named differently
 DB_USER="postgres"
 DB_NAME="task_master"
-SQL_FILE="seed_authors.sql"
+SQL_FILE="seed_relevant_tweets.sql"
 # --------------------------------------------------
 
 echo "🔧 Generating seed SQL..."
