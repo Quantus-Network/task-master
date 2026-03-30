@@ -28,6 +28,24 @@ ON CONFLICT (id) DO UPDATE SET
     media_count = EXCLUDED.media_count,
     fetched_at = NOW(),
     is_ignored = EXCLUDED.is_ignored;
+
+INSERT INTO tweet_authors (
+    id, name, username, followers_count, following_count, 
+    tweet_count, listed_count, like_count, media_count, fetched_at, is_ignored
+)
+VALUES 
+('420308365', 'nic carter', 'nic_carter', 0, 0, 0, 0, 0, 0, '2026-03-29 12:38:29.166611+00', false)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    username = EXCLUDED.username,
+    followers_count = EXCLUDED.followers_count,
+    following_count = EXCLUDED.following_count,
+    tweet_count = EXCLUDED.tweet_count,
+    listed_count = EXCLUDED.listed_count,
+    like_count = EXCLUDED.like_count,
+    media_count = EXCLUDED.media_count,
+    fetched_at = NOW(),
+    is_ignored = EXCLUDED.is_ignored;
 EOF
 
 echo "📦 Copying SQL file into container ($CONTAINER_NAME)..."
@@ -37,7 +55,7 @@ echo "🚀 Running seed script inside Postgres..."
 podman exec -it "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -f "/$SQL_FILE"
 
 echo "🔍 Verifying result..."
-podman exec -it "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "SELECT * FROM tweet_authors WHERE id = '1862779229277954048';"
+podman exec -it "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "SELECT * FROM tweet_authors;"
 
 rm -rf "$SQL_FILE"
 

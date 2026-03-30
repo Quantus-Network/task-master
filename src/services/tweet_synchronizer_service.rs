@@ -230,8 +230,14 @@ impl TweetSynchronizerService {
             // Track metrics for tweets pulled
             track_tweets_pulled("search_recent", tweets_pulled);
 
-            self.process_sending_raid_targets(&tweet_authors, &relevant_tweets)
-                .await?;
+            // We might get duplicate because X will return the tweet including the since_id not just the new ones.
+            let new_tweets: Vec<NewTweetPayload> = relevant_tweets
+                .iter()
+                .filter(|t| Some(&t.id) != last_id.as_ref())
+                .cloned()
+                .collect();
+
+            self.process_sending_raid_targets(&tweet_authors, &new_tweets).await?;
         }
 
         Ok(())
@@ -240,6 +246,7 @@ impl TweetSynchronizerService {
 
 #[cfg(test)]
 mod tests {
+    // NOTE: These tests share the test DB; run with `cargo test ... -- --test-threads=1` (see scripts/run_non_chain_tests.sh).
     use super::*;
     use crate::config::{Config, TelegramBotConfig};
     use crate::models::raid_quest::CreateRaidQuest;
@@ -494,6 +501,87 @@ mod tests {
         service.sync_relevant_tweets().await.unwrap();
 
         // Wait a bit for the spawned tokio task to fire the http request
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    /// API may repeat the `since_id` tweet; it must not be forwarded to Telegram for raids.
+    #[tokio::test]
+    async fn test_sync_excludes_last_id_from_telegram_when_raid_active() {
+        let (db, mock_tg, telegram_service, alert_service, config) = setup_deps().await;
+
+        let dummy_author = crate::models::tweet_author::NewAuthorPayload {
+            id: "old_u".to_string(),
+            name: "Old".to_string(),
+            username: "old".to_string(),
+            followers_count: 0,
+            following_count: 0,
+            tweet_count: 0,
+            listed_count: 0,
+            like_count: 0,
+            media_count: 0,
+            is_ignored: Some(false),
+        };
+
+        db.tweet_authors.upsert(&dummy_author).await.unwrap();
+
+        let last_tweet_id = "since_id_dup";
+        db.relevant_tweets
+            .upsert_many(&vec![crate::models::relevant_tweet::NewTweetPayload {
+                id: last_tweet_id.to_string(),
+                author_id: dummy_author.id.clone(),
+                text: "Already seen".to_string(),
+                impression_count: 0,
+                reply_count: 0,
+                retweet_count: 0,
+                like_count: 0,
+                created_at: chrono::Utc::now(),
+            }])
+            .await
+            .unwrap();
+
+        db.raid_quests
+            .create(&CreateRaidQuest {
+                name: "Test Raid".to_string(),
+            })
+            .await
+            .unwrap();
+
+        Mock::given(method("POST"))
+            .and(path("/bot123456/sendMessage"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&mock_tg)
+            .await;
+
+        let mut mock_gateway = MockTwitterGateway::new();
+        let mut mock_search = MockSearchApi::new();
+
+        let author = dummy_author.clone();
+        mock_search.expect_recent().returning(move |_| {
+            Ok(TwitterApiResponse {
+                data: Some(vec![create_mock_tweet(last_tweet_id, &author.id)]),
+                includes: Some(Includes {
+                    users: Some(vec![create_mock_user(&author.id, &author.username)]),
+                    tweets: None,
+                }),
+                meta: None,
+            })
+        });
+
+        let search_api_arc: Arc<dyn SearchApi> = Arc::new(mock_search);
+
+        mock_gateway.expect_search().times(1).return_const(search_api_arc);
+
+        let service = TweetSynchronizerService::new(
+            db.clone(),
+            Arc::new(mock_gateway),
+            telegram_service,
+            alert_service,
+            config,
+        );
+
+        service.sync_relevant_tweets().await.unwrap();
+
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
 
