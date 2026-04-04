@@ -19,6 +19,7 @@ pub struct Config {
     pub alert: AlertConfig,
     pub x_association: XAssociationConfig,
     pub remote_configs: RemoteConfigsConfig,
+    pub risk_checker: RiskCheckerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +98,17 @@ pub struct AlertConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XAssociationConfig {
     pub keywords: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskCheckerConfig {
+    pub etherscan_api_key: String,
+    pub etherscan_base_url: String,
+    pub infura_api_key: String,
+    pub infura_base_url: String,
+    /// Maximum Etherscan API calls per second. Used to space out sequential
+    /// calls and stay within the free-tier limit (default: 3).
+    pub etherscan_calls_per_sec: u32,
 }
 
 impl Config {
@@ -230,6 +242,13 @@ impl Default for Config {
             },
             remote_configs: RemoteConfigsConfig {
                 wallet_configs_file: "wallet_configs/default_configs.json".to_string(),
+            },
+            risk_checker: RiskCheckerConfig {
+                etherscan_api_key: "change-me".to_string(),
+                etherscan_base_url: "https://api.etherscan.io/api".to_string(),
+                infura_api_key: "change-me".to_string(),
+                infura_base_url: "https://mainnet.infura.io/v3".to_string(),
+                etherscan_calls_per_sec: 3,
             },
         }
     }
