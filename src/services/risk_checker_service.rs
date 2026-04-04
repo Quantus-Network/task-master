@@ -88,7 +88,7 @@ impl RiskCheckerService {
         );
         let calls_per_sec = config.etherscan_calls_per_sec.max(1) as u64;
         // Add a 20% safety margin on top of the minimum inter-call interval.
-        let etherscan_call_delay = Duration::from_millis(300 / calls_per_sec);
+        let etherscan_call_delay = Duration::from_millis(1000 / calls_per_sec);
         Self {
             client: Client::new(),
             etherscan_api_key: config.etherscan_api_key.clone(),
