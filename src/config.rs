@@ -108,9 +108,8 @@ pub struct RiskCheckerConfig {
     pub etherscan_base_url: String,
     pub infura_api_key: String,
     pub infura_base_url: String,
-    /// Maximum Etherscan API calls per second. Used to space out sequential
-    /// calls and stay within the free-tier limit (default: 3).
     pub etherscan_calls_per_sec: u32,
+    pub max_concurrent_requests: usize,
 }
 
 impl Config {
@@ -260,6 +259,7 @@ impl Default for Config {
                 infura_api_key: "change-me".to_string(),
                 infura_base_url: "https://mainnet.infura.io/v3".to_string(),
                 etherscan_calls_per_sec: 3,
+                max_concurrent_requests: 1,
             },
         }
     }

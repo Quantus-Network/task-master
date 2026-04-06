@@ -99,6 +99,7 @@ etherscan_base_url = "https://api.etherscan.io/v2/api?chainid=1"
 infura_api_key = "change-me"
 infura_base_url = "https://mainnet.infura.io/v3"
 etherscan_calls_per_sec = 3
+max_concurrent_requests = 1
 
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"

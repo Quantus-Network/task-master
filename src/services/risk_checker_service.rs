@@ -1,8 +1,9 @@
 use alloy::{ens::ProviderEnsExt, primitives::Address, providers::ProviderBuilder};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 use thiserror::Error;
+use tokio::sync::Semaphore;
 
 use crate::config::RiskCheckerConfig;
 
@@ -77,6 +78,10 @@ pub struct RiskCheckerService {
     infura_rpc_url: String,
     /// Minimum delay between consecutive Etherscan calls to stay within the rate limit.
     etherscan_call_delay: Duration,
+    /// Global semaphore that caps the number of concurrent `generate_report`
+    /// executions across all inbound requests, preventing outbound Etherscan
+    /// fan-out from overwhelming the API quota.
+    concurrency_limiter: Arc<Semaphore>,
 }
 
 impl RiskCheckerService {
@@ -94,12 +99,15 @@ impl RiskCheckerService {
             .build()
             .expect("TLS backend should be initialized, or the resolver should load the system configuration.");
 
+        let max_concurrent = config.max_concurrent_requests.max(1);
+
         Self {
             client,
             etherscan_api_key: config.etherscan_api_key.clone(),
             etherscan_base_url: config.etherscan_base_url.clone(),
             infura_rpc_url,
             etherscan_call_delay,
+            concurrency_limiter: Arc::new(Semaphore::new(max_concurrent)),
         }
     }
 
@@ -335,10 +343,19 @@ impl RiskCheckerService {
             etherscan_base_url: etherscan_base_url.to_string(),
             infura_rpc_url: infura_rpc_url.to_string(),
             etherscan_call_delay: Duration::ZERO,
+            concurrency_limiter: Arc::new(Semaphore::new(1)),
         }
     }
 
     pub async fn generate_report(&self, input: &str) -> Result<RiskReport, RiskCheckerError> {
+        // Acquire a concurrency permit before touching Etherscan. If all permits
+        // are taken the caller gets an immediate RateLimit error rather than
+        // queuing indefinitely, which protects the outbound API quota.
+        let _permit = self.concurrency_limiter.try_acquire().map_err(|_| {
+            tracing::warn!("Risk checker concurrency limit reached; rejecting request");
+            RiskCheckerError::RateLimit
+        })?;
+
         let resolution = self.resolve_address_or_ens(input).await?;
 
         let (resolved_address, ens_name) = match resolution {
@@ -880,5 +897,64 @@ mod tests {
 
         // Assert
         assert!(matches!(result, Err(RiskCheckerError::RateLimit)));
+    }
+
+    /// Verify that requests beyond the concurrency limit are immediately
+    /// rejected with RateLimit rather than queuing and hammering Etherscan.
+    #[tokio::test]
+    async fn test_generate_report_concurrency_limit_rejects_excess_requests() {
+        use std::sync::Arc;
+        use tokio::sync::Barrier;
+
+        let mock_server = MockServer::start().await;
+        let address = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
+
+        // Respond slowly so the first request holds the permit long enough for
+        // the second to arrive and be rejected.
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(200))
+                    .set_body_json(serde_json::json!({ "status": "0", "message": "NOTOK", "result": "" })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Limit to exactly 1 concurrent request.
+        let service = Arc::new(setup_service(&mock_server).await);
+
+        // Use a barrier so both tasks start at the same instant.
+        let barrier = Arc::new(Barrier::new(2));
+
+        let svc1 = service.clone();
+        let b1 = barrier.clone();
+        let addr = address.to_string();
+        let t1 = tokio::spawn(async move {
+            b1.wait().await;
+            svc1.generate_report(&addr).await
+        });
+
+        let svc2 = service.clone();
+        let b2 = barrier.clone();
+        let addr = address.to_string();
+        let t2 = tokio::spawn(async move {
+            b2.wait().await;
+            svc2.generate_report(&addr).await
+        });
+
+        let (r1, r2) = tokio::join!(t1, t2);
+        let r1 = r1.unwrap();
+        let r2 = r2.unwrap();
+
+        // Exactly one of the two concurrent calls must be rejected with RateLimit.
+        let rate_limited = [&r1, &r2]
+            .iter()
+            .filter(|r| matches!(r, Err(RiskCheckerError::RateLimit)))
+            .count();
+
+        assert_eq!(
+            rate_limited, 1,
+            "expected exactly one request to be rate-limited; got r1={r1:?}, r2={r2:?}"
+        );
     }
 }
