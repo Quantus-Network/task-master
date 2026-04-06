@@ -58,7 +58,7 @@ pub fn create_router(state: AppState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive()),
+                .layer(CorsLayer::permissive().allow_origin(state.config.get_cors_allowed_origins())),
         )
         .layer(CookieManagerLayer::new()) // Enable Cookie support
         .with_state(state)
