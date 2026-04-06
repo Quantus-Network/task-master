@@ -87,10 +87,15 @@ impl RiskCheckerService {
             config.infura_api_key
         );
         let calls_per_sec = config.etherscan_calls_per_sec.max(1) as u64;
-        // Add a 20% safety margin on top of the minimum inter-call interval.
         let etherscan_call_delay = Duration::from_millis(1000 / calls_per_sec);
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("TLS backend should be initialized, or the resolver should load the system configuration.");
+
         Self {
-            client: Client::new(),
+            client,
             etherscan_api_key: config.etherscan_api_key.clone(),
             etherscan_base_url: config.etherscan_base_url.clone(),
             infura_rpc_url,
@@ -303,7 +308,7 @@ impl RiskCheckerService {
         Ok(timestamp)
     }
 
-    pub async fn is_smart_contract(&self, address: &str) -> bool {
+    pub async fn is_smart_contract(&self, address: &str) -> Result<bool, RiskCheckerError> {
         match self
             .fetch_etherscan(&[
                 ("module", "proxy"),
@@ -313,8 +318,8 @@ impl RiskCheckerService {
             ])
             .await
         {
-            Ok(data) => data.result.as_str().map(|code| code.len() > 100).unwrap_or(false),
-            Err(_) => false,
+            Ok(data) => Ok(data.result.as_str().map(|code| code.len() > 100).unwrap_or(false)),
+            Err(e) => return Err(e),
         }
     }
 
@@ -348,7 +353,7 @@ impl RiskCheckerService {
         let has_outgoing_transactions = self.has_any_transactions(&resolved_address).await?;
         tokio::time::sleep(self.etherscan_call_delay).await;
 
-        let is_smart_contract = self.is_smart_contract(&resolved_address).await;
+        let is_smart_contract = self.is_smart_contract(&resolved_address).await?;
         tokio::time::sleep(self.etherscan_call_delay).await;
 
         let balance_eth = Self::wei_to_eth(&balance);
@@ -656,7 +661,7 @@ mod tests {
         let service = setup_service(&mock_server).await;
 
         // Act
-        let result = service.is_smart_contract(address).await;
+        let result = service.is_smart_contract(address).await.unwrap();
 
         // Assert
         assert!(result);
@@ -679,7 +684,7 @@ mod tests {
         let service = setup_service(&mock_server).await;
 
         // Act
-        let result = service.is_smart_contract(address).await;
+        let result = service.is_smart_contract(address).await.unwrap();
 
         // Assert
         assert!(!result);
