@@ -176,7 +176,13 @@ impl Config {
         self.server
             .cors_allowed_origins
             .iter()
-            .map(|o| o.parse().unwrap())
+            .filter_map(|o| match o.parse() {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!("Skipping invalid CORS origin {:?}: {}", o, e);
+                    None
+                }
+            })
             .collect()
     }
 

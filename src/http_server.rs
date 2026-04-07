@@ -1,4 +1,5 @@
 use axum::{middleware, response::Json, routing::get, Router};
+use axum::http::Method;
 use rusx::{PkceCodeVerifier, TwitterGateway};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,7 +8,10 @@ use std::{
 };
 use tower::ServiceBuilder;
 use tower_cookies::CookieManagerLayer;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowHeaders, CorsLayer},
+    trace::TraceLayer,
+};
 
 use crate::{
     db_persistence::DbPersistence,
@@ -58,9 +62,15 @@ pub fn create_router(state: AppState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive().allow_origin(state.config.get_cors_allowed_origins())),
+                .layer(
+                    CorsLayer::new()
+                        .allow_origin(state.config.get_cors_allowed_origins())
+                        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+                        .allow_headers(AllowHeaders::mirror_request())
+                        .allow_credentials(true),
+                ),
         )
-        .layer(CookieManagerLayer::new()) // Enable Cookie support
+        .layer(CookieManagerLayer::new())
         .with_state(state)
 }
 
