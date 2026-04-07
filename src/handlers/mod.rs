@@ -13,6 +13,7 @@ pub mod config;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
+pub mod risk_checker;
 pub mod tweet_author;
 
 #[derive(Debug, thiserror::Error)]

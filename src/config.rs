@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use axum::http::HeaderValue;
 use rusx::config::OauthConfig;
 use serde::{Deserialize, Serialize};
 use tokio::time;
@@ -19,6 +20,7 @@ pub struct Config {
     pub alert: AlertConfig,
     pub x_association: XAssociationConfig,
     pub remote_configs: RemoteConfigsConfig,
+    pub risk_checker: RiskCheckerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +33,7 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub base_api_url: String,
+    pub cors_allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +102,16 @@ pub struct XAssociationConfig {
     pub keywords: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskCheckerConfig {
+    pub etherscan_api_key: String,
+    pub etherscan_base_url: String,
+    pub infura_api_key: String,
+    pub infura_base_url: String,
+    pub etherscan_calls_per_sec: u32,
+    pub max_concurrent_requests: usize,
+}
+
 impl Config {
     pub fn load(config_path: &str) -> Result<Self, config::ConfigError> {
         let settings = config::Config::builder()
@@ -159,6 +172,20 @@ impl Config {
         &self.x_association.keywords
     }
 
+    pub fn get_cors_allowed_origins(&self) -> Vec<HeaderValue> {
+        self.server
+            .cors_allowed_origins
+            .iter()
+            .filter_map(|o| match o.parse() {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!("Skipping invalid CORS origin {:?}: {}", o, e);
+                    None
+                }
+            })
+            .collect()
+    }
+
     fn resolve_relative_paths(&mut self, config_path: &str) {
         let wallet_configs_path = Path::new(&self.remote_configs.wallet_configs_file);
         if wallet_configs_path.is_absolute() {
@@ -176,6 +203,7 @@ impl Default for Config {
                 host: "127.0.0.1".to_string(),
                 port: 3000,
                 base_api_url: "http://127.0.0.1:3000/api".to_string(),
+                cors_allowed_origins: vec!["http://localhost:3000".to_string()],
             },
             blockchain: BlockchainConfig {
                 website_url: "https://www.quantus.com".to_string(),
@@ -230,6 +258,14 @@ impl Default for Config {
             },
             remote_configs: RemoteConfigsConfig {
                 wallet_configs_file: "wallet_configs/default_configs.json".to_string(),
+            },
+            risk_checker: RiskCheckerConfig {
+                etherscan_api_key: "change-me".to_string(),
+                etherscan_base_url: "https://api.etherscan.io/api".to_string(),
+                infura_api_key: "change-me".to_string(),
+                infura_base_url: "https://mainnet.infura.io/v3".to_string(),
+                etherscan_calls_per_sec: 3,
+                max_concurrent_requests: 1,
             },
         }
     }
