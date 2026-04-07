@@ -317,18 +317,16 @@ impl RiskCheckerService {
     }
 
     pub async fn is_smart_contract(&self, address: &str) -> Result<bool, RiskCheckerError> {
-        match self
+        let data = self
             .fetch_etherscan(&[
                 ("module", "proxy"),
                 ("action", "eth_getCode"),
                 ("address", address),
                 ("tag", "latest"),
             ])
-            .await
-        {
-            Ok(data) => Ok(data.result.as_str().map(|code| code.len() > 100).unwrap_or(false)),
-            Err(e) => Err(e),
-        }
+            .await?;
+
+        Ok(data.result.as_str().map(|code| code.len() > 100).unwrap_or(false))
     }
 
     pub fn wei_to_eth(wei: &str) -> f64 {
