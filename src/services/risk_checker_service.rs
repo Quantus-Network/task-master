@@ -327,7 +327,7 @@ impl RiskCheckerService {
             .await
         {
             Ok(data) => Ok(data.result.as_str().map(|code| code.len() > 100).unwrap_or(false)),
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 
