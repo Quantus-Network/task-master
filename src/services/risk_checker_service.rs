@@ -326,7 +326,12 @@ impl RiskCheckerService {
             ])
             .await?;
 
-        Ok(data.result.as_str().map(|code| code.len() > 100).unwrap_or(false))
+        let code = data
+            .result
+            .as_str()
+            .ok_or(RiskCheckerError::Other("Unexpected code response format".to_string()))?;
+
+        Ok(code != "0x")
     }
 
     pub fn wei_to_eth(wei: &str) -> f64 {
