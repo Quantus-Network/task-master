@@ -331,7 +331,7 @@ impl RiskCheckerService {
             .as_str()
             .ok_or(RiskCheckerError::Other("Unexpected code response format".to_string()))?;
 
-        Ok(code != "0x")
+        Ok(code.len() > 100)
     }
 
     pub fn wei_to_eth(wei: &str) -> f64 {
