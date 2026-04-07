@@ -1,5 +1,5 @@
-use axum::{middleware, response::Json, routing::get, Router};
 use axum::http::Method;
+use axum::{middleware, response::Json, routing::get, Router};
 use rusx::{PkceCodeVerifier, TwitterGateway};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -60,15 +60,13 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api", api_routes(state.clone()))
         .layer(middleware::from_fn(track_metrics))
         .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(
-                    CorsLayer::new()
-                        .allow_origin(state.config.get_cors_allowed_origins())
-                        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
-                        .allow_headers(AllowHeaders::mirror_request())
-                        .allow_credentials(true),
-                ),
+            ServiceBuilder::new().layer(TraceLayer::new_for_http()).layer(
+                CorsLayer::new()
+                    .allow_origin(state.config.get_cors_allowed_origins())
+                    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+                    .allow_headers(AllowHeaders::mirror_request())
+                    .allow_credentials(true),
+            ),
         )
         .layer(CookieManagerLayer::new())
         .with_state(state)
