@@ -121,11 +121,11 @@ impl RiskCheckerService {
 
     pub fn is_ens_name(input: &str) -> bool {
         let trimmed = input.trim().to_lowercase();
-        if !trimmed.ends_with(".eth") || trimmed.starts_with("0x") {
+        if !trimmed.ends_with(".eth") || trimmed.starts_with("0x") || trimmed.starts_with("-") {
             return false;
         }
         let label = &trimmed[..trimmed.len() - 4];
-        !label.is_empty() && label.chars().all(|c| c.is_alphanumeric() || c == '-')
+        !label.is_empty() && label.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.')
     }
 
     pub async fn resolve_address_or_ens(&self, input: &str) -> Result<AddressResolution, RiskCheckerError> {
@@ -458,6 +458,11 @@ mod tests {
     }
 
     #[test]
+    fn test_is_ens_name_with_sub_valid() {
+        assert!(RiskCheckerService::is_ens_name("pay.vitalik.eth"));
+    }
+
+    #[test]
     fn test_is_ens_name_with_numbers() {
         assert!(RiskCheckerService::is_ens_name("wallet123.eth"));
     }
@@ -483,6 +488,12 @@ mod tests {
         assert!(!RiskCheckerService::is_ens_name(
             "0xd8da6bf26964af9d7eed9e03e53415d37aa96045.eth"
         ));
+    }
+
+    #[test]
+    fn test_is_ens_name_starts_with_hyphen_rejected() {
+        // Starts with 0x — must not be treated as ENS
+        assert!(!RiskCheckerService::is_ens_name("-alice.eth"));
     }
 
     #[test]
