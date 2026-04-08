@@ -11,7 +11,9 @@ use crate::{
     db_persistence::DbError,
     handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
     models::ModelError,
-    services::{graphql_client::GraphqlError, wallet_config_service::WalletConfigsError},
+    services::{
+        graphql_client::GraphqlError, risk_checker_service::RiskCheckerError, wallet_config_service::WalletConfigsError,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +40,8 @@ pub enum AppError {
     Rusx(#[from] SdkError),
     #[error("Telegram API error: {1}")]
     Telegram(u16, String),
+    #[error("Risk checker error: {0}")]
+    RiskChecker(#[from] RiskCheckerError),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -65,6 +69,9 @@ impl IntoResponse for AppError {
 
             // --- Database ---
             AppError::Database(err) => map_db_error(err),
+
+            // --- Risk Checker ---
+            AppError::RiskChecker(err) => map_risk_checker_error(err),
 
             // --- Everything else ---
             e @ (AppError::Join(_)
@@ -174,4 +181,24 @@ fn map_db_error(err: DbError) -> (StatusCode, String) {
 
 fn map_wallet_configs_error(err: WalletConfigsError) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+fn map_risk_checker_error(err: RiskCheckerError) -> (StatusCode, String) {
+    match err {
+        RiskCheckerError::InvalidInput => (StatusCode::BAD_REQUEST, err.to_string()),
+        RiskCheckerError::EnsNotFound(name) => (
+            StatusCode::NOT_FOUND,
+            format!(
+                "The ENS name \"{}\" could not be resolved to an Ethereum address. Please verify the .eth name is correct.",
+                name
+            ),
+        ),
+        RiskCheckerError::AddressNotFound => (StatusCode::NOT_FOUND, err.to_string()),
+        RiskCheckerError::RateLimit => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
+        RiskCheckerError::NetworkError => (StatusCode::SERVICE_UNAVAILABLE, err.to_string()),
+        RiskCheckerError::Other(msg) => {
+            tracing::error!("Risk checker error: {}", msg);
+            (StatusCode::INTERNAL_SERVER_ERROR, "An internal server error occurred".to_string())
+        }
+    }
 }

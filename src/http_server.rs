@@ -1,3 +1,4 @@
+use axum::http::Method;
 use axum::{middleware, response::Json, routing::get, Router};
 use rusx::{PkceCodeVerifier, TwitterGateway};
 use serde::{Deserialize, Serialize};
@@ -7,13 +8,16 @@ use std::{
 };
 use tower::ServiceBuilder;
 use tower_cookies::CookieManagerLayer;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowHeaders, CorsLayer},
+    trace::TraceLayer,
+};
 
 use crate::{
     db_persistence::DbPersistence,
     metrics::{metrics_handler, track_metrics, Metrics},
     routes::api_routes,
-    services::wallet_config_service::WalletConfigService,
+    services::{risk_checker_service::RiskCheckerService, wallet_config_service::WalletConfigService},
     Config, GraphqlClient,
 };
 use chrono::{DateTime, Utc};
@@ -25,6 +29,7 @@ pub struct AppState {
     pub metrics: Arc<Metrics>,
     pub graphql_client: Arc<GraphqlClient>,
     pub wallet_config_service: Arc<WalletConfigService>,
+    pub risk_checker_service: Arc<RiskCheckerService>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
@@ -55,11 +60,15 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api", api_routes(state.clone()))
         .layer(middleware::from_fn(track_metrics))
         .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive()),
+            ServiceBuilder::new().layer(TraceLayer::new_for_http()).layer(
+                CorsLayer::new()
+                    .allow_origin(state.config.get_cors_allowed_origins())
+                    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+                    .allow_headers(AllowHeaders::mirror_request())
+                    .allow_credentials(true),
+            ),
         )
-        .layer(CookieManagerLayer::new()) // Enable Cookie support
+        .layer(CookieManagerLayer::new())
         .with_state(state)
 }
 
@@ -88,6 +97,7 @@ pub async fn start_server(
         wallet_config_service: Arc::new(WalletConfigService::new(
             config.remote_configs.wallet_configs_file.clone(),
         )?),
+        risk_checker_service: Arc::new(RiskCheckerService::new(&config.risk_checker)),
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),

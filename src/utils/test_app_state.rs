@@ -1,6 +1,10 @@
 use crate::{
-    db_persistence::DbPersistence, http_server::AppState, metrics::Metrics, models::auth::TokenClaims,
-    services::wallet_config_service::WalletConfigService, Config, GraphqlClient,
+    db_persistence::DbPersistence,
+    http_server::AppState,
+    metrics::Metrics,
+    models::auth::TokenClaims,
+    services::{risk_checker_service::RiskCheckerService, wallet_config_service::WalletConfigService},
+    Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use rusx::RusxGateway;
@@ -11,7 +15,7 @@ pub async fn create_test_app_state() -> AppState {
     let db = DbPersistence::new(config.get_database_url()).await.unwrap();
     let twitter_gateway = RusxGateway::new(config.x_oauth.clone(), None).unwrap();
     let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
-
+    let risk_checker_service = RiskCheckerService::new(&config.risk_checker);
     let db = Arc::new(db);
 
     AppState {
@@ -21,6 +25,7 @@ pub async fn create_test_app_state() -> AppState {
         wallet_config_service: Arc::new(
             WalletConfigService::new(config.remote_configs.wallet_configs_file.clone()).unwrap(),
         ),
+        risk_checker_service: Arc::new(risk_checker_service),
         config: Arc::new(config),
         twitter_gateway: Arc::new(twitter_gateway),
         oauth_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
