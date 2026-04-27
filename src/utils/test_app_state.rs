@@ -3,7 +3,10 @@ use crate::{
     http_server::AppState,
     metrics::Metrics,
     models::auth::TokenClaims,
-    services::{risk_checker_service::RiskCheckerService, wallet_config_service::WalletConfigService},
+    services::{
+        exchange_rate_service::ExchangeRateService, risk_checker_service::RiskCheckerService,
+        wallet_config_service::WalletConfigService,
+    },
     Config, GraphqlClient,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
@@ -16,6 +19,7 @@ pub async fn create_test_app_state() -> AppState {
     let twitter_gateway = RusxGateway::new(config.x_oauth.clone(), None).unwrap();
     let graphql_client = GraphqlClient::new(db.clone(), config.candidates.graphql_url.clone());
     let risk_checker_service = RiskCheckerService::new(&config.risk_checker);
+    let exchange_rate_service = ExchangeRateService::new(&config.exchange_rate.api_key);
     let db = Arc::new(db);
 
     AppState {
@@ -26,6 +30,7 @@ pub async fn create_test_app_state() -> AppState {
             WalletConfigService::new(config.remote_configs.wallet_configs_file.clone()).unwrap(),
         ),
         risk_checker_service: Arc::new(risk_checker_service),
+        exchange_rate_service: Arc::new(exchange_rate_service),
         config: Arc::new(config),
         twitter_gateway: Arc::new(twitter_gateway),
         oauth_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),

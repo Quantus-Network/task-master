@@ -51,6 +51,7 @@ impl SignatureService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use qp_rusty_crystals_dilithium::SensitiveBytes32;
     use quantus_cli::qp_dilithium_crypto::types::DilithiumPublic;
     use sp_core::crypto::Ss58Codec;
     use std::convert::TryFrom;
@@ -68,11 +69,11 @@ mod tests {
     #[test]
     fn sign_and_verify_roundtrip() {
         let msg = b"quantus-signature-test";
-        let entropy = [7u8; 32];
+        let entropy = SensitiveBytes32::from(&mut [7u8; 32]);
         let hedge = [2u8; 32];
-        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(&entropy);
+        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(entropy);
         let pk = kp.public.to_bytes();
-        let sig = kp.sign(msg, None, Some(hedge));
+        let sig = kp.sign(msg, None, Some(hedge)).unwrap();
         let pk_hex = hex::encode(pk);
         let sig_hex = hex::encode(sig);
         assert!(SignatureService::verify_message(msg, &sig_hex, &pk_hex).unwrap());

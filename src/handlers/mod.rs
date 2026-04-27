@@ -10,6 +10,7 @@ use crate::{
 pub mod address;
 pub mod auth;
 pub mod config;
+pub mod exchange_rate;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;

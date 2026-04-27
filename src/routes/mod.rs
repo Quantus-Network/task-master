@@ -7,14 +7,15 @@ use risk_checker::risk_checker_routes;
 use crate::{
     http_server::AppState,
     routes::{
-        address::address_routes, raid_quest::raid_quest_routes, relevant_tweet::relevant_tweet_routes,
-        tweet_author::tweet_author_routes,
+        address::address_routes, exchange_rate::exchange_rate_routes, raid_quest::raid_quest_routes,
+        relevant_tweet::relevant_tweet_routes, tweet_author::tweet_author_routes,
     },
 };
 
 pub mod address;
 pub mod auth;
 pub mod config;
+pub mod exchange_rate;
 pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
@@ -31,4 +32,5 @@ pub fn api_routes(state: AppState) -> Router<AppState> {
         .merge(config_routes())
         .merge(raid_quest_routes(state))
         .merge(risk_checker_routes())
+        .merge(exchange_rate_routes())
 }
