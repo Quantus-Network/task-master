@@ -21,32 +21,32 @@ path = "src/bin/create_raid.rs"
 
 [dependencies]
 # Quantus crates
-qp-human-checkphrase = "2.0.0"
+qp-human-checkphrase = { git = "https://github.com/Quantus-Network/qp-human-checkphrase", tag = "v2.0.1" }
 qp-rusty-crystals-dilithium = "2.4.0"
 quantus-cli = "1.3.3"
-rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.6.1"}
+rusx = { git = "https://github.com/Quantus-Network/rusx", tag = "v0.6.1" }
 
 # Async runtime
-tokio = {version = "1.46", features = ["full", "test-util"]}
+tokio = { version = "1.46", features = ["full", "test-util"] }
 
 # HTTP server
-axum = {version = "0.7", features = ["tokio"]}
+axum = { version = "0.7", features = ["tokio"] }
 tower = "0.4"
 tower-cookies = "0.10"
-tower-http = {version = "0.5", features = ["cors", "trace"]}
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Serialization
-serde = {version = "1.0.228", features = ["derive"]}
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 
 # Database
-sqlx = {version = "0.7", features = [
+sqlx = { version = "0.7", features = [
   "runtime-tokio-rustls",
   "chrono",
   "postgres",
   "uuid",
   "migrate",
-]}
+] }
 
 # Signature verification
 # Using quantus-cli's dilithium crypto for signature verification
@@ -55,26 +55,26 @@ sp-core = "39.0.0"
 sp-runtime = "45.0.0"
 
 # Configuration
-clap = {version = "4.5", features = ["derive"]}
+clap = { version = "4.5", features = ["derive"] }
 config = "0.14"
 toml = "0.9"
 
 # Time handling
-chrono = {version = "0.4", features = ["serde"]}
+chrono = { version = "0.4", features = ["serde"] }
 
 # Random generation
 rand = "0.9"
-uuid = {version = "1.6", features = ["v4", "serde"]}
+uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # HTTP client for GraphQL
-reqwest = {version = "0.11", features = ["json"]}
+reqwest = { version = "0.11", features = ["json"] }
 
 # Ethereum / ENS
-alloy = {version = "1.8", features = ["providers", "provider-http", "ens"]}
+alloy = { version = "1.8", features = ["providers", "provider-http", "ens"] }
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error handling
 anyhow = "1.0"
@@ -85,13 +85,15 @@ argon2 = "0.5"
 dirs = "6.0"
 jsonwebtoken = "9.3.1"
 lazy_static = "1.5.0"
-prometheus = {version = "0.14.0", features = ["process"]}
+prometheus = { version = "0.14.0", features = ["process"] }
 subxt = "0.43.0"
-tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 notify = "8.2.0"
 
 [dev-dependencies]
 mockall = "0.13"
 wiremock = "0.5"
 # Enable the testing feature ONLY for tests
-rusx = {git = "https://github.com/Quantus-Network/rusx", tag = "v0.6.1", features = ["testing"]}
+rusx = { git = "https://github.com/Quantus-Network/rusx", tag = "v0.6.1", features = [
+  "testing",
+] }

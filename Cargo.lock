@@ -5696,9 +5696,8 @@ dependencies = [
 
 [[package]]
 name = "qp-human-checkphrase"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfbb513548cf4dc69a0e2249d3e18e2001dad4ebc39c008c4f1631504f0bbb2a"
+version = "2.0.1"
+source = "git+https://github.com/Quantus-Network/qp-human-checkphrase?tag=v2.0.1#57ac13fd7f92afe8e89da30b94fc69fd68125f6f"
 dependencies = [
  "hex",
  "hmac 0.12.1",
