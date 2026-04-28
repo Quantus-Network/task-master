@@ -352,6 +352,7 @@ mod tests {
         },
     };
     use axum::{body::Body, http, routing::get};
+    use qp_rusty_crystals_dilithium::SensitiveBytes32;
     use rusx::{
         auth::TwitterToken,
         resources::{
@@ -560,15 +561,15 @@ mod tests {
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let temp_session_id = v["temp_session_id"].as_str().unwrap().to_string();
         let challenge = v["challenge"].as_str().unwrap().to_string();
-        let entropy = [3u8; 32];
-        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(&entropy);
+        let entropy = SensitiveBytes32::from(&mut [3u8; 32]);
+        let kp = qp_rusty_crystals_dilithium::ml_dsa_87::Keypair::generate(entropy);
         let pk_hex = hex::encode(kp.public.to_bytes());
         let addr = quantus_cli::qp_dilithium_crypto::types::DilithiumPublic::try_from(kp.public.to_bytes().as_slice())
             .unwrap()
             .into_account()
             .to_ss58check();
         let msg = format!("taskmaster:login:1|challenge={}|address={}", challenge, addr);
-        let sig_hex = hex::encode(kp.sign(msg.as_bytes(), None, Some([7u8; 32])));
+        let sig_hex = hex::encode(kp.sign(msg.as_bytes(), None, Some([7u8; 32])).unwrap());
 
         let verify_payload = serde_json::json!({
             "temp_session_id": temp_session_id,

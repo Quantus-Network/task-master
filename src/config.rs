@@ -21,6 +21,7 @@ pub struct Config {
     pub x_association: XAssociationConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub risk_checker: RiskCheckerConfig,
+    pub exchange_rate: ExchangeRateConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +111,12 @@ pub struct RiskCheckerConfig {
     pub infura_base_url: String,
     pub etherscan_calls_per_sec: u32,
     pub max_concurrent_requests: usize,
+}
+
+/// Exchange rate API (e.g. [ExchangeRate-API v6](https://www.exchangerate-api.com/)).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExchangeRateConfig {
+    pub api_key: String,
 }
 
 impl Config {
@@ -266,6 +273,9 @@ impl Default for Config {
                 infura_base_url: "https://mainnet.infura.io/v3".to_string(),
                 etherscan_calls_per_sec: 3,
                 max_concurrent_requests: 1,
+            },
+            exchange_rate: ExchangeRateConfig {
+                api_key: "change-me".to_string(),
             },
         }
     }

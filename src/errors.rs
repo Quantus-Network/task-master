@@ -12,7 +12,8 @@ use crate::{
     handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
     models::ModelError,
     services::{
-        graphql_client::GraphqlError, risk_checker_service::RiskCheckerError, wallet_config_service::WalletConfigsError,
+        exchange_rate_service::ExchangeRateError, graphql_client::GraphqlError, risk_checker_service::RiskCheckerError,
+        wallet_config_service::WalletConfigsError,
     },
 };
 
@@ -42,6 +43,8 @@ pub enum AppError {
     Telegram(u16, String),
     #[error("Risk checker error: {0}")]
     RiskChecker(#[from] RiskCheckerError),
+    #[error("Exchange rate error: {0}")]
+    ExchangeRate(#[from] ExchangeRateError),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -72,6 +75,9 @@ impl IntoResponse for AppError {
 
             // --- Risk Checker ---
             AppError::RiskChecker(err) => map_risk_checker_error(err),
+
+            // --- Exchange Rate ---
+            AppError::ExchangeRate(err) => map_exchange_rate_error(err),
 
             // --- Everything else ---
             e @ (AppError::Join(_)
@@ -200,5 +206,13 @@ fn map_risk_checker_error(err: RiskCheckerError) -> (StatusCode, String) {
             tracing::error!("Risk checker error: {}", msg);
             (StatusCode::INTERNAL_SERVER_ERROR, "An internal server error occurred".to_string())
         }
+    }
+}
+
+fn map_exchange_rate_error(err: ExchangeRateError) -> (StatusCode, String) {
+    match err {
+        ExchangeRateError::Api(err) => (StatusCode::BAD_REQUEST, err),
+        ExchangeRateError::Http(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        ExchangeRateError::Json(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     }
 }
