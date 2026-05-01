@@ -1,14 +1,13 @@
 use std::{
     collections::HashMap,
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::Mutex;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExchangeRateSnapshot {
     pub conversion_rates: HashMap<String, f64>,
     pub time_next_update_unix: i64,
@@ -24,6 +23,9 @@ pub enum ExchangeRateError {
 
     #[error("JSON parse error: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("Cache error: {0}")]
+    Cache(String),
 }
 
 #[derive(Debug, Clone)]
@@ -31,7 +33,7 @@ pub struct ExchangeRateService {
     client: reqwest::Client,
     /// Full prefix including key, e.g. `https://v6.exchangerate-api.com/v6/{key}`.
     base_url: String,
-    cache: Arc<Mutex<HashMap<String, ExchangeRateSnapshot>>>,
+    cache: Arc<RwLock<Option<ExchangeRateSnapshot>>>,
     base_currency: String,
 }
 
@@ -41,12 +43,12 @@ impl ExchangeRateService {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .expect("TLS backend should be initialized, or the resolver should load the system configuration.");
 
         Self {
             client,
             base_url,
-            cache: Arc::new(Mutex::new(HashMap::new())),
+            cache: Arc::new(RwLock::new(None)),
             base_currency: "USD".to_string(),
         }
     }
@@ -54,15 +56,24 @@ impl ExchangeRateService {
     pub async fn get_snapshot(&self) -> Result<ExchangeRateSnapshot, ExchangeRateError> {
         let base = normalize_currency_code(&self.base_currency);
 
-        let mut guard = self.cache.lock().await;
-        if let Some(s) = guard.get(&base) {
-            if cache_is_fresh(s) {
-                return Ok(s.clone());
+        {
+            let guard = self
+                .cache
+                .read()
+                .map_err(|_| ExchangeRateError::Cache("Failed to read cache".to_string()))?;
+            if let Some(s) = &*guard {
+                if cache_is_fresh(s) {
+                    return Ok(s.clone());
+                }
             }
-        }
+        } // guard dropped here, before any await point
 
         let snapshot = self.fetch_latest(&base).await?;
-        guard.insert(base, snapshot.clone());
+        let mut write_guard = self
+            .cache
+            .write()
+            .map_err(|_| ExchangeRateError::Cache("Failed to write cache".to_string()))?;
+        *write_guard = Some(snapshot.clone());
         Ok(snapshot)
     }
 
@@ -80,13 +91,15 @@ impl ExchangeRateService {
         let conversion_rates = parsed
             .conversion_rates
             .ok_or_else(|| ExchangeRateError::Api("missing conversion_rates in success body".to_string()))?;
-        let time_next = parsed
+        let time_next_u64 = parsed
             .time_next_update_unix
             .ok_or_else(|| ExchangeRateError::Api("missing time_next_update_unix".to_string()))?;
+        let time_next_i64 = i64::try_from(time_next_u64)
+            .map_err(|_| ExchangeRateError::Api("time_next_update_unix is too large".to_string()))?;
 
         Ok(ExchangeRateSnapshot {
             conversion_rates,
-            time_next_update_unix: i64::try_from(time_next).unwrap_or(i64::MAX),
+            time_next_update_unix: time_next_i64,
         })
     }
 }
@@ -97,11 +110,12 @@ impl ExchangeRateService {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .expect("TLS backend should be initialized, or the resolver should load the system configuration.");
+
         Self {
             client,
             base_url,
-            cache: Arc::new(Mutex::new(HashMap::new())),
+            cache: Arc::new(RwLock::new(None)),
             base_currency: "USD".to_string(),
         }
     }
@@ -115,7 +129,7 @@ fn now_unix_seconds() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+        .expect("Failed to get the duration since the UNIX_EPOCH")
 }
 
 fn cache_is_fresh(snapshot: &ExchangeRateSnapshot) -> bool {
