@@ -107,17 +107,9 @@ impl ExchangeRateService {
 #[cfg(test)]
 impl ExchangeRateService {
     fn new_test(base_url: String) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .expect("TLS backend should be initialized, or the resolver should load the system configuration.");
-
-        Self {
-            client,
-            base_url,
-            cache: Arc::new(RwLock::new(None)),
-            base_currency: "USD".to_string(),
-        }
+        let mut service = Self::new("test-key");
+        service.base_url = base_url;
+        service
     }
 }
 

@@ -211,16 +211,27 @@ fn map_risk_checker_error(err: RiskCheckerError) -> (StatusCode, String) {
 
 fn map_exchange_rate_error(err: ExchangeRateError) -> (StatusCode, String) {
     match err {
-        ExchangeRateError::Api(_) | ExchangeRateError::Http(_) => {
+        ExchangeRateError::Api(detail) => {
+            tracing::error!("Exchange rate API error: {}", detail);
             (StatusCode::BAD_GATEWAY, "Failed to fetch exchange rates".to_string())
         }
-        ExchangeRateError::Json(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to parse exchange rate response".to_string(),
-        ),
-        ExchangeRateError::Cache(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "An internal server error occurred".to_string(),
-        ),
+        ExchangeRateError::Http(e) => {
+            tracing::error!("Exchange rate HTTP error: {}", e.without_url());
+            (StatusCode::BAD_GATEWAY, "Failed to fetch exchange rates".to_string())
+        }
+        ExchangeRateError::Json(e) => {
+            tracing::error!("Exchange rate JSON parse error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to parse exchange rate response".to_string(),
+            )
+        }
+        ExchangeRateError::Cache(detail) => {
+            tracing::error!("Exchange rate cache error: {}", detail);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "An internal server error occurred".to_string(),
+            )
+        }
     }
 }
