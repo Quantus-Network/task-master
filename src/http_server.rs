@@ -13,6 +13,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 
+use crate::services::exchange_rate_service::ExchangeRateService;
 use crate::{
     db_persistence::DbPersistence,
     metrics::{metrics_handler, track_metrics, Metrics},
@@ -30,6 +31,7 @@ pub struct AppState {
     pub graphql_client: Arc<GraphqlClient>,
     pub wallet_config_service: Arc<WalletConfigService>,
     pub risk_checker_service: Arc<RiskCheckerService>,
+    pub exchange_rate_service: Arc<ExchangeRateService>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
     pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
@@ -98,6 +100,7 @@ pub async fn start_server(
             config.remote_configs.wallet_configs_file.clone(),
         )?),
         risk_checker_service: Arc::new(RiskCheckerService::new(&config.risk_checker)),
+        exchange_rate_service: Arc::new(ExchangeRateService::new(&config.exchange_rate.api_key)),
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),

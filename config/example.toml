@@ -101,6 +101,10 @@ infura_base_url = "https://mainnet.infura.io/v3"
 etherscan_calls_per_sec = 3
 max_concurrent_requests = 1
 
+[exchange_rate]
+# https://www.exchangerate-api.com/ — v6 key for latest/{base} rates
+api_key = "change-me"
+
 # Example environment variable overrides:
 # TASKMASTER_BLOCKCHAIN__NODE_URL="ws://remote-node:9944"
 # TASKMASTER_BLOCKCHAIN__WALLET_PASSWORD="super_secure_password"
