@@ -21,7 +21,7 @@ path = "src/bin/create_raid.rs"
 
 [dependencies]
 # Quantus crates
-qp-human-checkphrase = { git = "https://github.com/Quantus-Network/qp-human-checkphrase", tag = "v2.0.1" }
+qp-human-checkphrase = "2.2.0"
 qp-rusty-crystals-dilithium = "2.4.0"
 quantus-cli = "1.3.3"
 rusx = { git = "https://github.com/Quantus-Network/rusx", tag = "v0.6.1" }
