@@ -100,12 +100,6 @@ async fn main() -> AppResult<()> {
     info!("🎯 TaskMaster is now running!");
     info!("HTTP API available at: http://{}", server_address);
 
-    info!(
-        "Candidates refresh interval: {} minutes",
-        config.candidates.refresh_interval_minutes
-    );
-    info!("Reversal period: {} hours", config.blockchain.reversal_period_hours);
-
     // Initialize tweet sync service
     let tweet_synchronizer = TweetSynchronizerService::new(
         db.clone(),

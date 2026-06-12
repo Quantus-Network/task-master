@@ -32,13 +32,11 @@ pub struct RemoteConfigsConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-    pub base_api_url: String,
     pub cors_allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockchainConfig {
-    pub website_url: String,
     pub node_url: String,
     pub wallet_name: String,
     pub wallet_password: String,
@@ -48,7 +46,6 @@ pub struct BlockchainConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandidatesConfig {
     pub graphql_url: String,
-    pub refresh_interval_minutes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,11 +192,9 @@ impl Default for Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 3000,
-                base_api_url: "http://127.0.0.1:3000/api".to_string(),
                 cors_allowed_origins: vec!["http://localhost:3000".to_string()],
             },
             blockchain: BlockchainConfig {
-                website_url: "https://www.quantus.com".to_string(),
                 node_url: "ws://127.0.0.1:9944".to_string(),
                 wallet_name: "task_master_wallet".to_string(),
                 wallet_password: "secure_password_change_me".to_string(),
@@ -207,7 +202,6 @@ impl Default for Config {
             },
             candidates: CandidatesConfig {
                 graphql_url: "http://localhost:4000/graphql".to_string(),
-                refresh_interval_minutes: 30,
             },
             data: DataConfig {
                 database_url: "postgres://postgres:postgres@127.0.0.1:5432/task_master".to_string(),
