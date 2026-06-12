@@ -24,28 +24,6 @@ pub fn raid_quest_routes(state: AppState) -> Router<AppState> {
             ),
         )
         .route(
-            "/raid-quests/submissions",
-            post(
-                handle_create_raid_submission.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
-            ),
-        )
-        .route(
-            "/raid-quests/submissions/me",
-            get(handle_get_active_raid_raider_submissions
-                .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth))),
-        )
-        .route(
-            "/raid-quests/submissions/:id",
-            delete(
-                handle_delete_raid_submission.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)),
-            ),
-        )
-        .route(
-            "/raid-quests/raiders/:raider_id/leaderboards/:raid_id",
-            get(handle_get_specific_raider_raid_leaderboard),
-        )
-        .route("/raid-quests/leaderboards/:raid_id", get(handle_get_raid_leaderboard))
-        .route(
             "/raid-quests/:raid_id",
             delete(handle_delete_raid.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))),
         )

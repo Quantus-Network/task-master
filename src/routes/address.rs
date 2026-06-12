@@ -1,65 +1,10 @@
-use axum::{
-    handler::Handler,
-    middleware,
-    routing::{get, post},
-    Router,
-};
+use axum::{handler::Handler, middleware, routing::get, Router};
 
-use crate::{
-    handlers::address::{
-        associate_eth_address, associate_x_handle, dissociate_eth_address, dissociate_x_account,
-        handle_aggregate_address_stats, handle_get_address_reward_status_by_id, handle_get_address_stats,
-        handle_get_addresses, handle_get_leaderboard, handle_get_opted_in_position, handle_get_opted_in_users,
-        handle_update_reward_program_status, retrieve_associated_accounts, update_eth_address,
-    },
-    http_server::AppState,
-    middlewares::jwt_auth,
-};
+use crate::{handlers::address::handle_get_addresses, http_server::AppState, middlewares::jwt_auth};
 
 pub fn address_routes(state: AppState) -> Router<AppState> {
-    Router::new()
-        .route("/addresses", get(handle_get_addresses.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))))
-        .route("/addresses/leaderboard", get(handle_get_leaderboard))
-        .route("/addresses/opted-in", get(handle_get_opted_in_users))
-        .route(
-            "/addresses/my-position",
-            get(
-                handle_get_opted_in_position.layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    jwt_auth::jwt_auth,
-                )),
-            ),
-        )
-        .route(
-            "/addresses/stats",
-            get(
-                handle_aggregate_address_stats.layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    jwt_auth::jwt_auth,
-                )),
-            ),
-        )
-        .route("/addresses/:id/stats", get(handle_get_address_stats))
-        .route(
-            "/addresses/:id/reward-program",
-            get(handle_get_address_reward_status_by_id).put(
-                handle_update_reward_program_status.layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    jwt_auth::jwt_auth,
-                )),
-            ),
-        )
-        .route("/addresses/associations", get(retrieve_associated_accounts).layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)))
-           .route(
-            "/addresses/associations/eth",
-            post(associate_eth_address
-                .layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)))
-                .put(update_eth_address.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)))
-                .delete(dissociate_eth_address.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth))),
-        )
-           .route(
-            "/addresses/associations/x",
-            post(associate_x_handle.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_auth)))
-                .delete(dissociate_x_account.layer(middleware::from_fn_with_state(state, jwt_auth::jwt_auth))),
-        )
+    Router::new().route(
+        "/addresses",
+        get(handle_get_addresses.layer(middleware::from_fn_with_state(state.clone(), jwt_auth::jwt_admin_auth))),
+    )
 }
