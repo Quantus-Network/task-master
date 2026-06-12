@@ -1,10 +1,12 @@
-use chrono::{DateTime, Utc};
 use rusx::resources::tweet::{Tweet as TwitterTweet, TweetPublicMetrics};
 use serde::{Deserialize, Serialize};
+
+#[cfg(test)]
+use chrono::{DateTime, Utc};
+#[cfg(test)]
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-use crate::models::raid_quest::RaidQuest;
-
+#[cfg(test)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RaidSubmission {
     pub id: String,
@@ -20,6 +22,7 @@ pub struct RaidSubmission {
     pub created_at: DateTime<Utc>,
 }
 
+#[cfg(test)]
 impl<'r> FromRow<'r, PgRow> for RaidSubmission {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         let id = row.try_get("id")?;
@@ -50,16 +53,12 @@ impl<'r> FromRow<'r, PgRow> for RaidSubmission {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateRaidSubmission {
     pub id: String,
     pub raid_id: i32,
     pub raider_id: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RaidSubmissionInput {
-    pub tweet_reply_link: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -84,12 +83,6 @@ impl From<&TwitterTweet> for UpdateRaidSubmissionStats {
             reply_count: public_metrics.reply_count as i32,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RaiderSubmissions {
-    pub current_raid: RaidQuest,
-    pub submissions: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]

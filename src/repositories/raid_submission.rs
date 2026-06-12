@@ -1,12 +1,17 @@
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use sqlx::{PgPool, QueryBuilder};
 
 use crate::{
-    db_persistence::DbError,
-    models::raid_submission::{
-        CreateRaidSubmission, RaidSubmission, UpdateRaidSubmissionStats, ValidRaidSubmissionWithRaiderUsername,
-    },
+    models::raid_submission::{UpdateRaidSubmissionStats, ValidRaidSubmissionWithRaiderUsername},
     repositories::DbResult,
 };
+
+#[cfg(test)]
+use crate::{
+    db_persistence::DbError,
+    models::raid_submission::{CreateRaidSubmission, RaidSubmission},
+};
+#[cfg(test)]
+use sqlx::Postgres;
 
 #[derive(Clone, Debug)]
 pub struct RaidSubmissionRepository {
@@ -14,14 +19,16 @@ pub struct RaidSubmissionRepository {
 }
 
 impl RaidSubmissionRepository {
-    fn create_select_base_query<'a>() -> QueryBuilder<'a, Postgres> {
-        QueryBuilder::new("SELECT * FROM raid_submissions")
-    }
-
     pub fn new(pool: &PgPool) -> Self {
         Self { pool: pool.clone() }
     }
 
+    #[cfg(test)]
+    fn create_select_base_query<'a>() -> QueryBuilder<'a, Postgres> {
+        QueryBuilder::new("SELECT * FROM raid_submissions")
+    }
+
+    #[cfg(test)]
     pub async fn create(&self, submission: &CreateRaidSubmission) -> DbResult<String> {
         let created_id = sqlx::query_scalar::<_, String>(
             "
@@ -45,6 +52,7 @@ impl RaidSubmissionRepository {
         }
     }
 
+    #[cfg(test)]
     pub async fn delete(&self, submission_id: &str) -> DbResult<()> {
         sqlx::query("DELETE FROM raid_submissions WHERE id = $1")
             .bind(submission_id)
@@ -54,6 +62,7 @@ impl RaidSubmissionRepository {
         Ok(())
     }
 
+    #[cfg(test)]
     pub async fn find_by_id(&self, id: &str) -> DbResult<Option<RaidSubmission>> {
         let mut qb = Self::create_select_base_query();
         qb.push(" WHERE id = ");
@@ -70,19 +79,6 @@ impl RaidSubmissionRepository {
         qb.push_bind(raid_id);
         qb.push(" AND NOT rs.is_invalid");
         qb.push(" ORDER BY rs.created_at DESC");
-
-        let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
-
-        Ok(submissions)
-    }
-
-    pub async fn find_by_raider(&self, raid_id: i32, raider_id: &str) -> DbResult<Vec<RaidSubmission>> {
-        let mut qb = Self::create_select_base_query();
-        qb.push(" WHERE raid_id = ");
-        qb.push_bind(raid_id);
-        qb.push(" AND raider_id = ");
-        qb.push_bind(raider_id);
-        qb.push(" ORDER BY created_at DESC");
 
         let submissions = qb.build_query_as().fetch_all(&self.pool).await?;
 

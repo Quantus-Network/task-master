@@ -55,9 +55,6 @@ callback_url = "http://localhost:12345/api/auth/x/callback"
 client_id = "test-id"
 client_secret = "test-secret"
 
-[x_association]
-keywords = "@quantusnetwork"
-
 [tweet_sync]
 api_key = "some-key"
 interval_in_hours = 24

@@ -111,47 +111,6 @@ pub struct AddressInput {
     pub referral_code: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct RewardProgramStatusPayload {
-    pub new_status: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AddressStatsResponse {
-    pub referrals: u64,
-    pub referral_events: u64,
-    pub immediate_txs: u64,
-    pub reversible_txs: u64,
-    pub mining_events: u64,
-    pub mining_rewards: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct AggregateStatsQueryParams {
-    #[serde(default)]
-    pub addresses: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OptedInPositionResponse {
-    pub quan_address: String,
-    pub position: i64,
-    pub is_opted_in: bool,
-}
-
-#[derive(sqlx::FromRow, Debug, Clone, Serialize)]
-pub struct AddressWithRank {
-    #[sqlx(flatten)]
-    pub address: Address,
-    pub rank: i64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AssociatedAccountsResponse {
-    pub eth_address: Option<String>,
-    pub x_username: Option<String>,
-}
-
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AddressWithOptInAndAssociations {
     #[sqlx(flatten)]

@@ -9,7 +9,7 @@ use tracing::error;
 
 use crate::{
     db_persistence::DbError,
-    handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
+    handlers::{auth::AuthHandlerError, referral::ReferralHandlerError, HandlerError},
     models::ModelError,
     services::{
         exchange_rate_service::ExchangeRateError, graphql_client::GraphqlError, risk_checker_service::RiskCheckerError,
@@ -140,12 +140,6 @@ fn map_handler_error(err: HandlerError) -> (StatusCode, String) {
 
         HandlerError::Auth(err) => match err {
             AuthHandlerError::Unauthorized(err) => (StatusCode::UNAUTHORIZED, err),
-            AuthHandlerError::OAuth(err) => (StatusCode::BAD_REQUEST, err),
-        },
-
-        HandlerError::Address(err) => match err {
-            AddressHandlerError::InvalidQueryParams(err) => (StatusCode::BAD_REQUEST, err),
-            AddressHandlerError::Unauthorized(err) => (StatusCode::UNAUTHORIZED, err),
         },
 
         HandlerError::Referral(err) => match err {

@@ -27,6 +27,7 @@ impl ReferralRepository {
         Ok(created_id)
     }
 
+    #[cfg(test)]
     pub async fn find_all_by_referrer(&self, quan_address: String) -> DbResult<Vec<Referral>> {
         let referrals = sqlx::query_as::<_, Referral>("SELECT * FROM referrals WHERE referrer_address = $1")
             .bind(quan_address)
@@ -34,15 +35,6 @@ impl ReferralRepository {
             .await?;
 
         Ok(referrals)
-    }
-
-    pub async fn count_by_referrer(&self, quan_address: String) -> DbResult<i64> {
-        let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM referrals WHERE referrer_address = $1")
-            .bind(quan_address)
-            .fetch_one(&self.pool)
-            .await?;
-
-        Ok(count)
     }
 
     pub async fn find_by_referee(&self, quan_address: String) -> DbResult<Option<Referral>> {
@@ -179,54 +171,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn test_count_by_referrer() {
-        let (address_repo, referral_repo) = setup_test_repositories().await;
-
-        let referrer = create_persisted_address(&address_repo, "referrer_02").await;
-        let referee1 = create_persisted_address(&address_repo, "referee_02a").await;
-        let referee2 = create_persisted_address(&address_repo, "referee_02b").await;
-        // This one should not be found in the results
-        let other_referrer = create_persisted_address(&address_repo, "other_referrer").await;
-
-        // Create two referrals from the same referrer
-        referral_repo
-            .create(
-                &Referral::new(ReferralData {
-                    referrer_address: referrer.quan_address.0.clone(),
-                    referee_address: referee1.quan_address.0.clone(),
-                })
-                .unwrap(),
-            )
-            .await
-            .unwrap();
-        referral_repo
-            .create(
-                &Referral::new(ReferralData {
-                    referrer_address: referrer.quan_address.0.clone(),
-                    referee_address: referee2.quan_address.0.clone(),
-                })
-                .unwrap(),
-            )
-            .await
-            .unwrap();
-        // Create an unrelated referral with a different referee
-        let other_referee = create_persisted_address(&address_repo, "other_referee").await;
-        referral_repo
-            .create(
-                &Referral::new(ReferralData {
-                    referrer_address: other_referrer.quan_address.0.clone(),
-                    referee_address: other_referee.quan_address.0.clone(),
-                })
-                .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        let count = referral_repo.count_by_referrer(referrer.quan_address.0).await.unwrap();
-        assert_eq!(count, 2);
     }
 
     #[tokio::test]

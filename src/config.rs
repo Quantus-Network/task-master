@@ -18,7 +18,6 @@ pub struct Config {
     pub tg_bot: TelegramBotConfig,
     pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
-    pub x_association: XAssociationConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub risk_checker: RiskCheckerConfig,
     pub exchange_rate: ExchangeRateConfig,
@@ -99,11 +98,6 @@ pub struct AlertConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XAssociationConfig {
-    pub keywords: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RiskCheckerConfig {
     pub etherscan_api_key: String,
     pub etherscan_base_url: String,
@@ -155,10 +149,6 @@ impl Config {
         format!("{}:{}", self.server.host, self.server.port)
     }
 
-    pub fn get_base_api_url(&self) -> &str {
-        &self.server.base_api_url
-    }
-
     pub fn get_jwt_expiration(&self) -> chrono::Duration {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
@@ -173,10 +163,6 @@ impl Config {
 
     pub fn get_raid_leaderboard_tweets_req_interval(&self) -> time::Duration {
         time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
-    }
-
-    pub fn get_x_association_keywords(&self) -> &str {
-        &self.x_association.keywords
     }
 
     pub fn get_cors_allowed_origins(&self) -> Vec<HeaderValue> {
@@ -259,9 +245,6 @@ impl Default for Config {
             },
             alert: AlertConfig {
                 webhook_url: "https://your-webhook-url.com".to_string(),
-            },
-            x_association: XAssociationConfig {
-                keywords: "quantus".to_string(),
             },
             remote_configs: RemoteConfigsConfig {
                 wallet_configs_file: "wallet_configs/default_configs.json".to_string(),

@@ -1,14 +1,12 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
-    response::{Json, Redirect},
+    response::Json,
     Extension,
 };
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
-use rusx::auth::TwitterCallbackParams;
-use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 use crate::{
@@ -18,11 +16,7 @@ use crate::{
     models::{
         address::{Address, AddressInput},
         admin::{Admin, AdminAuthCheckResponse, AdminClaims, AdminLoginPayload, AdminLoginResponse},
-        auth::{
-            GenerateOAuthLinkResponse, OauthTokenQuery, RequestChallengeBody, RequestChallengeResponse, TokenClaims,
-            VerifyLoginBody, VerifyLoginResponse,
-        },
-        x_association::{XAssociation, XAssociationInput},
+        auth::{RequestChallengeBody, RequestChallengeResponse, TokenClaims, VerifyLoginBody, VerifyLoginResponse},
     },
     services::signature_service::SignatureService,
     utils::{generate_referral_code::generate_referral_code, jwt::get_default_jwt_config},
@@ -34,8 +28,6 @@ use tracing::{debug, warn};
 pub enum AuthHandlerError {
     #[error("Not authorized: {0}")]
     Unauthorized(String),
-    #[error("Oauth error: {0}")]
-    OAuth(String),
 }
 
 pub async fn request_challenge(
@@ -148,140 +140,6 @@ pub async fn auth_me(Extension(address): Extension<Address>) -> Result<Json<Succ
     Ok(SuccessResponse::new(address))
 }
 
-pub async fn handle_x_oauth(
-    State(state): State<AppState>,
-    cookies: Cookies,
-    Query(params): Query<OauthTokenQuery>,
-) -> Result<Redirect, AppError> {
-    tracing::info!("Handling x oauth request...");
-
-    let quan_address = {
-        let Some(address) = state.twitter_oauth_tokens.write().await.remove(&params.token) else {
-            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
-                "Invalid or expired token".to_string(),
-            ))));
-        };
-
-        address
-    };
-
-    tracing::info!("Quan address from token: {}", quan_address);
-
-    let (auth_url, verifier) = state.twitter_gateway.generate_auth_url();
-    let session_id = format!("{}|{}", quan_address, uuid::Uuid::new_v4());
-
-    tracing::info!("Session id in cookies: {}", session_id);
-
-    tracing::info!("Creating oauth session");
-    state
-        .oauth_sessions
-        .lock()
-        .unwrap()
-        .insert(session_id.clone(), verifier);
-    cookies.add(Cookie::new("oauth_session", session_id));
-
-    tracing::info!("Returning oauth url...");
-
-    Ok(Redirect::to(&auth_url))
-}
-
-pub async fn generate_x_oauth_link(
-    State(state): State<AppState>,
-    Extension(user): Extension<Address>,
-) -> Result<Json<GenerateOAuthLinkResponse>, AppError> {
-    tracing::info!("Generating oauth url...");
-
-    let twitter_oauth_token = Uuid::new_v4().to_string();
-    state
-        .twitter_oauth_tokens
-        .write()
-        .await
-        .insert(twitter_oauth_token.clone(), user.quan_address.0.clone());
-
-    tracing::info!("Returning oauth request url...");
-    let request_link = format!(
-        "{}/auth/x?token={}",
-        state.config.get_base_api_url(),
-        twitter_oauth_token
-    );
-
-    Ok(Json(GenerateOAuthLinkResponse { url: request_link }))
-}
-
-pub async fn handle_x_oauth_callback(
-    State(state): State<AppState>,
-    cookies: Cookies,
-    Query(params): Query<TwitterCallbackParams>,
-) -> Result<Redirect, AppError> {
-    tracing::info!("Handling x oauth callback...");
-
-    let session_id = match cookies.get("oauth_session") {
-        Some(cookie) => cookie.value().to_string(),
-        None => {
-            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
-                "No session cookie found. Please try again.".to_string(),
-            ))))
-        }
-    };
-
-    tracing::info!("Session id found: {}", session_id);
-
-    let verifier = {
-        let Some(chal) = state.oauth_sessions.lock().unwrap().remove(&session_id) else {
-            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(format!(
-                "Session {} expired or invalid",
-                &session_id
-            )))));
-        };
-
-        chal
-    };
-
-    tracing::debug!("Exchanging code {} for access token...", params.code);
-    let token = state.twitter_gateway.exchange_code(params.code, verifier).await?;
-    let authenticated_gateway = state.twitter_gateway.with_token(token.access_token)?;
-
-    let user_resp = authenticated_gateway.users().get_me().await?;
-    let x_handle = user_resp
-        .data
-        .ok_or_else(|| {
-            HandlerError::Auth(AuthHandlerError::OAuth(
-                "Failed getting username from twitter API".to_string(),
-            ))
-        })?
-        .username;
-
-    tracing::debug!("Do X association...");
-    let quan_address = {
-        let Some(address) = session_id.split_once('|').map(|(left, _)| left) else {
-            return Err(AppError::Handler(HandlerError::Auth(AuthHandlerError::OAuth(
-                "Session id malformed".to_string(),
-            ))));
-        };
-
-        address.to_string()
-    };
-
-    let new_association = XAssociation::new(XAssociationInput {
-        quan_address,
-        username: x_handle,
-    })?;
-
-    state.db.x_associations.create(&new_association).await?;
-    tracing::info!(
-        "Created association for quan_address {} with X username {}",
-        new_association.quan_address.0,
-        new_association.username
-    );
-
-    let redirect_url = format!(
-        "{}/oauth?platform=x&payload={}",
-        state.config.blockchain.website_url, new_association.username
-    );
-
-    Ok(Redirect::to(&redirect_url))
-}
-
 pub async fn handle_admin_login(
     State(state): State<AppState>,
     Json(body): Json<AdminLoginPayload>,
@@ -339,204 +197,19 @@ pub async fn auth_admin(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
-        handlers::auth::handle_x_oauth_callback,
-        http_server::AppState,
-        models::x_association::XAssociation,
         routes::auth::auth_routes,
-        utils::{
-            test_app_state::create_test_app_state,
-            test_db::{create_persisted_address, reset_database},
-        },
+        utils::test_app_state::create_test_app_state,
     };
-    use axum::{body::Body, http, routing::get};
+    use axum::{body::Body, http};
     use qp_rusty_crystals_dilithium::SensitiveBytes32;
-    use rusx::{
-        auth::TwitterToken,
-        resources::{
-            user::{User, UserApi},
-            TwitterApiResponse,
-        },
-        MockTwitterGateway, MockUserApi, PkceCodeVerifier, TwitterGateway,
-    };
     use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
     use sp_runtime::traits::IdentifyAccount;
     use tower::ServiceExt;
-    use tower_cookies::CookieManagerLayer;
 
     async fn test_app() -> axum::Router {
         let state = create_test_app_state().await;
         auth_routes(state.clone()).with_state(state)
-    }
-
-    fn auth_callback_router(state: AppState) -> axum::Router {
-        axum::Router::new()
-            .route("/auth/x/callback", get(handle_x_oauth_callback))
-            .layer(CookieManagerLayer::new()) // Crucial for testing Cookies
-            .with_state(state)
-    }
-
-    #[tokio::test]
-    async fn test_x_oauth_callback_invalid_session() {
-        let state = create_test_app_state().await;
-        let app = auth_callback_router(state);
-
-        // We send a cookie, but we DO NOT add anything to state.oauth_sessions
-        let response = app
-            .oneshot(
-                http::Request::builder()
-                    .method("GET")
-                    .uri("/auth/x/callback?code=123&state=abc")
-                    .header(http::header::COOKIE, "oauth_session=invalid_session_id")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        // Should fail because session id is not in the HashMap
-        assert_ne!(response.status(), http::StatusCode::SEE_OTHER);
-    }
-
-    #[tokio::test]
-    async fn test_x_oauth_callback_missing_cookie() {
-        let state = create_test_app_state().await;
-        let app = auth_callback_router(state);
-
-        let response = app
-            .oneshot(
-                http::Request::builder()
-                    .method("GET")
-                    // No Cookie Header
-                    .uri("/auth/x/callback?code=123&state=abc")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        // Should fail because cookie is missing
-        // Assuming AppError maps to something other than 307 Redirect (likely 400 or 500)
-        assert_ne!(response.status(), http::StatusCode::SEE_OTHER);
-        assert_ne!(response.status(), http::StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn test_x_oauth_callback_success() {
-        // 1. Setup Data
-        let mut state = create_test_app_state().await;
-        reset_database(&state.db.pool).await;
-
-        let test_user = create_persisted_address(&state.db.addresses, "101").await;
-        let session_uuid = "random-uuid";
-        let session_id = format!("{}|{}", test_user.quan_address.0, session_uuid);
-        let verifier = PkceCodeVerifier::new("random".to_string());
-        let expected_username = "quantus";
-
-        // 2. Prepare Mocks
-
-        // A. Mock the User API
-        let mut mock_user_api = MockUserApi::new();
-        mock_user_api.expect_get_me().times(1).returning(move || {
-            Ok(TwitterApiResponse::<User> {
-                data: Some(User {
-                    id: "101".to_string(),
-                    name: "Quantus Network".to_string(),
-                    username: expected_username.to_string(),
-                    description: Some("Quantus Network".to_string()),
-                    public_metrics: Default::default(),
-                }),
-                includes: Default::default(),
-                meta: Default::default(),
-            })
-        });
-
-        // B. Mock the Authenticated Gateway
-        let mut mock_auth_gateway = MockTwitterGateway::new();
-
-        // Explicit cast to Arc<dyn UserApi> for return_const
-        let user_api_arc: Arc<dyn UserApi> = Arc::new(mock_user_api);
-        mock_auth_gateway.expect_users().times(1).return_const(user_api_arc);
-
-        // Prepare the gateway to be returned by with_token
-        // Note: We also cast this to Arc<dyn TwitterGateway> to ensure the closure return type matches perfectly
-        let auth_gateway_arc: Arc<dyn TwitterGateway> = Arc::new(mock_auth_gateway);
-
-        // C. Mock the Main Gateway (Entry point)
-        let mut mock_main_gateway = MockTwitterGateway::new();
-
-        // Expect code exchange
-        mock_main_gateway
-            .expect_exchange_code()
-            // Use .to_string() inside eq() because the function argument is String
-            .with(
-                mockall::predicate::eq("valid_auth_code".to_string()),
-                mockall::predicate::always(),
-            )
-            .times(1)
-            .returning(|_, _| {
-                Ok(TwitterToken {
-                    access_token: "mock_access_token".to_string(),
-                    refresh_token: None,
-                    expires_in: None,
-                })
-            });
-
-        // Expect transition to authenticated state
-        let result_gateway = auth_gateway_arc.clone();
-        mock_main_gateway
-            .expect_with_token()
-            // Use .to_string() inside eq() here as well
-            .with(mockall::predicate::eq("mock_access_token".to_string()))
-            .times(1)
-            // returning expects a closure that returns SdkResult<Arc<dyn TwitterGateway>>
-            // Since we cast auth_gateway_arc above, this now matches perfectly
-            .returning(move |_| Ok(result_gateway.clone()));
-
-        // 3. Inject the mock!
-        state.twitter_gateway = Arc::new(mock_main_gateway);
-
-        // Populate the session store
-        state
-            .oauth_sessions
-            .lock()
-            .unwrap()
-            .insert(session_id.clone(), verifier);
-
-        // 4. Create Router
-        let app = auth_callback_router(state.clone());
-
-        // 5. Execute Request
-        let response = app
-            .oneshot(
-                http::Request::builder()
-                    .method("GET")
-                    .uri("/auth/x/callback?code=valid_auth_code&state=xyz")
-                    .header(http::header::COOKIE, format!("oauth_session={}", session_id))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        // 6. Assertions
-        assert_eq!(response.status(), http::StatusCode::SEE_OTHER);
-
-        // Check Redirect Location
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
-        assert!(location.contains(&format!("payload={}", expected_username)));
-
-        // Check DB Side Effects
-        let saved_assoc = sqlx::query_as::<_, XAssociation>("SELECT * FROM x_associations WHERE username = $1")
-            .bind(expected_username)
-            .fetch_optional(&state.db.pool)
-            .await
-            .unwrap();
-
-        assert!(saved_assoc.is_some());
-        assert_eq!(saved_assoc.unwrap().quan_address.0, test_user.quan_address.0);
     }
 
     #[tokio::test]

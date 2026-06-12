@@ -1,16 +1,14 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::repositories::admin::AdminRepository;
-use crate::repositories::eth_association::EthAssociationRepository;
 use crate::repositories::raid_leaderboard::RaidLeaderboardRepository;
 use crate::repositories::raid_quest::RaidQuestRepository;
 use crate::repositories::raid_submission::RaidSubmissionRepository;
 use crate::repositories::relevant_tweet::RelevantTweetRepository;
 use crate::repositories::tweet_author::TweetAuthorRepository;
 use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
-use crate::repositories::x_association::XAssociationRepository;
 use crate::repositories::DbResult;
-use crate::repositories::{address::AddressRepository, opt_in::OptInRepository, referral::ReferralRepository};
+use crate::repositories::{address::AddressRepository, referral::ReferralRepository};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -30,9 +28,6 @@ pub enum DbError {
 pub struct DbPersistence {
     pub addresses: AddressRepository,
     pub referrals: ReferralRepository,
-    pub opt_ins: OptInRepository,
-    pub x_associations: XAssociationRepository,
-    pub eth_associations: EthAssociationRepository,
     pub admin: AdminRepository,
     pub relevant_tweets: RelevantTweetRepository,
     pub tweet_authors: TweetAuthorRepository,
@@ -53,9 +48,6 @@ impl DbPersistence {
 
         let addresses = AddressRepository::new(&pool);
         let referrals = ReferralRepository::new(&pool);
-        let opt_ins = OptInRepository::new(&pool);
-        let x_associations = XAssociationRepository::new(&pool);
-        let eth_associations = EthAssociationRepository::new(&pool);
         let admin = AdminRepository::new(&pool);
         let relevant_tweets = RelevantTweetRepository::new(&pool);
         let tweet_authors = TweetAuthorRepository::new(&pool);
@@ -68,9 +60,6 @@ impl DbPersistence {
             pool,
             addresses,
             referrals,
-            opt_ins,
-            x_associations,
-            eth_associations,
             admin,
             relevant_tweets,
             tweet_authors,
