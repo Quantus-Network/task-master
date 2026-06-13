@@ -1,8 +1,8 @@
 //! # TaskMaster Library
 //!
-//! A reward management server that monitors social media interactions and
+//! A task management server that monitors social media interactions and
 //! integrates with the Quantus Network. This library provides the core
-//! functionality for managing rewards and handling HTTP API requests.
+//! functionality for handling HTTP API requests.
 
 pub mod args;
 pub mod config;

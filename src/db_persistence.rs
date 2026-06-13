@@ -1,9 +1,7 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::repositories::admin::AdminRepository;
-use crate::repositories::raid_leaderboard::RaidLeaderboardRepository;
 use crate::repositories::raid_quest::RaidQuestRepository;
-use crate::repositories::raid_submission::RaidSubmissionRepository;
 use crate::repositories::relevant_tweet::RelevantTweetRepository;
 use crate::repositories::tweet_author::TweetAuthorRepository;
 use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
@@ -32,8 +30,6 @@ pub struct DbPersistence {
     pub relevant_tweets: RelevantTweetRepository,
     pub tweet_authors: TweetAuthorRepository,
     pub raid_quests: RaidQuestRepository,
-    pub raid_submissions: RaidSubmissionRepository,
-    pub raid_leaderboards: RaidLeaderboardRepository,
     pub tweet_pull_usage: TweetPullUsageRepository,
 
     /// Used by the `create_admin` binary and integration tests (not the main server binary).
@@ -53,8 +49,6 @@ impl DbPersistence {
         let relevant_tweets = RelevantTweetRepository::new(&pool);
         let tweet_authors = TweetAuthorRepository::new(&pool);
         let raid_quests = RaidQuestRepository::new(&pool);
-        let raid_submissions = RaidSubmissionRepository::new(&pool);
-        let raid_leaderboards = RaidLeaderboardRepository::new(&pool);
         let tweet_pull_usage = TweetPullUsageRepository::new(pool.clone());
 
         Ok(Self {
@@ -65,8 +59,6 @@ impl DbPersistence {
             relevant_tweets,
             tweet_authors,
             raid_quests,
-            raid_submissions,
-            raid_leaderboards,
             tweet_pull_usage,
         })
     }

@@ -6,9 +6,7 @@ pub type DbResult<T> = Result<T, DbError>;
 
 pub mod address;
 pub mod admin;
-pub mod raid_leaderboard;
 pub mod raid_quest;
-pub mod raid_submission;
 pub mod referral;
 pub mod relevant_tweet;
 pub mod tweet_author;

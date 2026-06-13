@@ -12,7 +12,6 @@ pub mod address;
 pub mod admin;
 pub mod auth;
 pub mod raid_quest;
-pub mod raid_submission;
 pub mod referrals;
 pub mod relevant_tweet;
 pub mod tweet_author;

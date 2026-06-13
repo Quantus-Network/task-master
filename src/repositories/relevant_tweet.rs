@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::HashSet;
 
 use sqlx::{PgPool, Postgres, QueryBuilder, Row};
@@ -221,6 +222,7 @@ impl RelevantTweetRepository {
         Ok(tweet)
     }
 
+    #[cfg(test)]
     pub async fn get_existing_ids(&self, ids: &[String]) -> DbResult<HashSet<String>> {
         if ids.is_empty() {
             return Ok(HashSet::new());

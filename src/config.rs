@@ -15,7 +15,6 @@ pub struct Config {
     pub x_oauth: OauthConfig,
     pub tweet_sync: TweetSyncConfig,
     pub tg_bot: TelegramBotConfig,
-    pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub risk_checker: RiskCheckerConfig,
@@ -72,12 +71,6 @@ pub struct TelegramBotConfig {
     pub token: String,
     pub chat_id: String,
     pub message_thread_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RaidLeaderboardConfig {
-    pub sync_interval_in_hours: u64,
-    pub tweets_req_interval_in_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,14 +137,6 @@ impl Config {
         time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
 
-    pub fn get_raid_leaderboard_sync_interval(&self) -> time::Duration {
-        time::Duration::from_secs(self.raid_leaderboard.sync_interval_in_hours * 3600)
-    }
-
-    pub fn get_raid_leaderboard_tweets_req_interval(&self) -> time::Duration {
-        time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
-    }
-
     pub fn get_cors_allowed_origins(&self) -> Vec<HeaderValue> {
         self.server
             .cors_allowed_origins
@@ -216,10 +201,6 @@ impl Default for Config {
                 chat_id: "-0".to_string(),
                 message_thread_id: Some("-0".to_string()),
                 token: "token".to_string(),
-            },
-            raid_leaderboard: RaidLeaderboardConfig {
-                sync_interval_in_hours: 24,
-                tweets_req_interval_in_secs: 60,
             },
             alert: AlertConfig {
                 webhook_url: "https://your-webhook-url.com".to_string(),

@@ -3,8 +3,8 @@ use crate::{
     db_persistence::DbPersistence,
     errors::{AppError, AppResult},
     services::{
-        alert_service::AlertService, graphql_client::GraphqlClient, raid_leaderboard_service::RaidLeaderboardService,
-        telegram_service::TelegramService, tweet_synchronizer_service::TweetSynchronizerService,
+        alert_service::AlertService, graphql_client::GraphqlClient, telegram_service::TelegramService,
+        tweet_synchronizer_service::TweetSynchronizerService,
     },
 };
 
@@ -80,8 +80,8 @@ async fn main() -> AppResult<()> {
     let server_twitter_gateway = twitter_gateway.clone();
     let server_task = tokio::spawn(async move {
         http_server::start_server(server_db, server_twitter_gateway, &server_addr_clone, server_config)
-        .await
-        .map_err(|e| AppError::Server(e.to_string()))
+            .await
+            .map_err(|e| AppError::Server(e.to_string()))
     });
 
     info!("🎯 TaskMaster is now running!");
@@ -96,10 +96,6 @@ async fn main() -> AppResult<()> {
         Arc::new(config.clone()),
     );
 
-    // Initialize raid leaderboard  service
-    let raid_leaderboard_service =
-        RaidLeaderboardService::new(db.clone(), twitter_gateway, alert_service, Arc::new(config.clone()));
-
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {
         result = server_task => {
@@ -108,10 +104,6 @@ async fn main() -> AppResult<()> {
         }
         result = tweet_synchronizer.spawn_tweet_synchronizer() => {
             error!("Tweet synchronizer exited: {:?}", result);
-            result??;
-        }
-        result = raid_leaderboard_service.spawn_raid_leaderboard_synchronizer() => {
-            error!("Raid leaderboard synchronizer exited: {:?}", result);
             result??;
         }
     }
