@@ -115,7 +115,6 @@ impl Config {
 
     #[cfg(test)]
     pub fn load_test_env() -> Result<Self, config::ConfigError> {
-        println!("Loading TEST configuration..."); // For demonstration
         let test_config_path = "config/test.toml";
         let settings = config::Config::builder()
             // Load the test-specific configuration file

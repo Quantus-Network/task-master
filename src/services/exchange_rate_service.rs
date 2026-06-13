@@ -136,8 +136,6 @@ struct ExchangeRateApiV6Response {
     result: String,
     conversion_rates: Option<HashMap<String, f64>>,
     time_next_update_unix: Option<u64>,
-    #[allow(dead_code)]
-    time_last_update_unix: Option<u64>,
     #[serde(rename = "error-type", default)]
     error_type: Option<String>,
 }

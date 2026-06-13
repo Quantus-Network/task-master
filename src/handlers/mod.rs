@@ -119,6 +119,6 @@ pub fn validate_pagination_query(page: u32, page_size: u32) -> Result<(), AppErr
     Ok(())
 }
 
-fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
+pub(crate) fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
     ((total_items as f64) / (page_size as f64)).ceil() as u32
 }
