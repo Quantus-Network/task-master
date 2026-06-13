@@ -4,7 +4,6 @@ use rusx::TwitterGateway;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
-use tower_cookies::CookieManagerLayer;
 use tower_http::{
     cors::{AllowHeaders, CorsLayer},
     trace::TraceLayer,
@@ -63,7 +62,6 @@ pub fn create_router(state: AppState) -> Router {
                     .allow_credentials(true),
             ),
         )
-        .layer(CookieManagerLayer::new())
         .with_state(state)
 }
 
