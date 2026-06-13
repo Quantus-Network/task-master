@@ -8,7 +8,6 @@ use tokio::time;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub blockchain: BlockchainConfig,
     pub candidates: CandidatesConfig,
     pub data: DataConfig,
     pub logging: LoggingConfig,
@@ -33,14 +32,6 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub cors_allowed_origins: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockchainConfig {
-    pub node_url: String,
-    pub wallet_name: String,
-    pub wallet_password: String,
-    pub reversal_period_hours: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,12 +184,6 @@ impl Default for Config {
                 host: "127.0.0.1".to_string(),
                 port: 3000,
                 cors_allowed_origins: vec!["http://localhost:3000".to_string()],
-            },
-            blockchain: BlockchainConfig {
-                node_url: "ws://127.0.0.1:9944".to_string(),
-                wallet_name: "task_master_wallet".to_string(),
-                wallet_password: "secure_password_change_me".to_string(),
-                reversal_period_hours: 12,
             },
             candidates: CandidatesConfig {
                 graphql_url: "http://localhost:4000/graphql".to_string(),

@@ -37,7 +37,6 @@ pub async fn request_challenge(
     let temp_session_id = Uuid::new_v4().to_string();
     let challenge = Uuid::new_v4().to_string();
     let entry = Challenge {
-        id: temp_session_id.clone(),
         challenge: challenge.clone(),
         created_at: Utc::now(),
     };

@@ -37,18 +37,7 @@ async fn main() -> AppResult<()> {
     let args = Args::parse();
 
     // Load configuration from --config path (defaults to config/default.toml)
-    let mut config = Config::load(&args.config).map_err(AppError::Config)?;
-
-    // Apply CLI overrides
-    if let Some(wallet_name) = args.wallet_name {
-        config.blockchain.wallet_name = wallet_name;
-    }
-    if let Some(wallet_password) = args.wallet_password {
-        config.blockchain.wallet_password = wallet_password;
-    }
-    if let Some(node_url) = args.node_url {
-        config.blockchain.node_url = node_url;
-    }
+    let config = Config::load(&args.config).map_err(AppError::Config)?;
 
     crypto::set_default_ss58_version(Ss58AddressFormat::custom(189));
     // Initialize logging
@@ -56,8 +45,6 @@ async fn main() -> AppResult<()> {
 
     info!("🚀 Starting TaskMaster v{}", env!("CARGO_PKG_VERSION"));
     info!("Configuration loaded from: {}", args.config);
-    info!("Node URL: {}", config.blockchain.node_url);
-    info!("Wallet: {}", config.blockchain.wallet_name);
 
     // Initialize database persistence
     let db_url = config.get_database_url();

@@ -35,7 +35,6 @@ pub struct AppState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Challenge {
-    pub id: String,
     pub challenge: String,
     pub created_at: DateTime<Utc>,
 }

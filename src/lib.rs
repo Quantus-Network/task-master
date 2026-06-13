@@ -2,8 +2,7 @@
 //!
 //! A reward management server that monitors social media interactions and
 //! integrates with the Quantus Network. This library provides the core
-//! functionality for managing rewards, interacting with the blockchain,
-//! and handling HTTP API requests.
+//! functionality for managing rewards and handling HTTP API requests.
 
 pub mod args;
 pub mod config;
@@ -21,14 +20,9 @@ pub mod utils;
 
 // Re-export commonly used types
 pub use config::Config;
+pub use db_persistence::DbError;
 pub use errors::{AppError, AppResult};
 pub use http_server::AppState;
-pub use services::graphql_client::{GraphqlClient, Transfer};
-
-// Re-export errors
-pub use db_persistence::DbError;
-pub use services::graphql_client::GraphqlError;
-pub use services::signature_service::SigServiceError;
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

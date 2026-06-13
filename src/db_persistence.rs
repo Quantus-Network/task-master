@@ -36,6 +36,7 @@ pub struct DbPersistence {
     pub raid_leaderboards: RaidLeaderboardRepository,
     pub tweet_pull_usage: TweetPullUsageRepository,
 
+    /// Exposed for binaries (`create_admin`) and integration tests.
     #[allow(dead_code)]
     pub pool: PgPool,
 }
