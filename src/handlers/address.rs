@@ -52,7 +52,9 @@ mod tests {
         models::admin::Admin,
         utils::{
             test_app_state::create_test_app_state,
-            test_db::{create_persisted_address, create_persisted_eth_association, create_persisted_opt_in, reset_database},
+            test_db::{
+                create_persisted_address, create_persisted_eth_association, create_persisted_opt_in, reset_database,
+            },
         },
     };
     use axum::{

@@ -1,10 +1,5 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    Extension,
-};
+use axum::{extract::State, http::StatusCode, response::Json, Extension};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use uuid::Uuid;
@@ -196,10 +191,7 @@ pub async fn auth_admin(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        routes::auth::auth_routes,
-        utils::test_app_state::create_test_app_state,
-    };
+    use crate::{routes::auth::auth_routes, utils::test_app_state::create_test_app_state};
     use axum::{body::Body, http};
     use qp_rusty_crystals_dilithium::SensitiveBytes32;
     use sp_core::crypto::{self, Ss58AddressFormat, Ss58Codec};
