@@ -81,6 +81,12 @@ lazy_static! {
     .unwrap();
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Metrics {
     pub registry: Arc<Registry>,
