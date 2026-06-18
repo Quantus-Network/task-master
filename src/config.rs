@@ -8,7 +8,6 @@ use tokio::time;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub blockchain: BlockchainConfig,
     pub candidates: CandidatesConfig,
     pub data: DataConfig,
     pub logging: LoggingConfig,
@@ -16,9 +15,7 @@ pub struct Config {
     pub x_oauth: OauthConfig,
     pub tweet_sync: TweetSyncConfig,
     pub tg_bot: TelegramBotConfig,
-    pub raid_leaderboard: RaidLeaderboardConfig,
     pub alert: AlertConfig,
-    pub x_association: XAssociationConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub risk_checker: RiskCheckerConfig,
     pub exchange_rate: ExchangeRateConfig,
@@ -33,23 +30,12 @@ pub struct RemoteConfigsConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-    pub base_api_url: String,
     pub cors_allowed_origins: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockchainConfig {
-    pub website_url: String,
-    pub node_url: String,
-    pub wallet_name: String,
-    pub wallet_password: String,
-    pub reversal_period_hours: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandidatesConfig {
     pub graphql_url: String,
-    pub refresh_interval_minutes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,19 +74,8 @@ pub struct TelegramBotConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RaidLeaderboardConfig {
-    pub sync_interval_in_hours: u64,
-    pub tweets_req_interval_in_secs: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertConfig {
     pub webhook_url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XAssociationConfig {
-    pub keywords: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,7 +108,6 @@ impl Config {
 
     #[cfg(test)]
     pub fn load_test_env() -> Result<Self, config::ConfigError> {
-        println!("Loading TEST configuration..."); // For demonstration
         let test_config_path = "config/test.toml";
         let settings = config::Config::builder()
             // Load the test-specific configuration file
@@ -155,28 +129,12 @@ impl Config {
         format!("{}:{}", self.server.host, self.server.port)
     }
 
-    pub fn get_base_api_url(&self) -> &str {
-        &self.server.base_api_url
-    }
-
     pub fn get_jwt_expiration(&self) -> chrono::Duration {
         chrono::Duration::hours(self.jwt.exp_in_hours)
     }
 
     pub fn get_tweet_sync_interval(&self) -> time::Duration {
         time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
-    }
-
-    pub fn get_raid_leaderboard_sync_interval(&self) -> time::Duration {
-        time::Duration::from_secs(self.raid_leaderboard.sync_interval_in_hours * 3600)
-    }
-
-    pub fn get_raid_leaderboard_tweets_req_interval(&self) -> time::Duration {
-        time::Duration::from_secs(self.raid_leaderboard.tweets_req_interval_in_secs)
-    }
-
-    pub fn get_x_association_keywords(&self) -> &str {
-        &self.x_association.keywords
     }
 
     pub fn get_cors_allowed_origins(&self) -> Vec<HeaderValue> {
@@ -200,83 +158,5 @@ impl Config {
         }
         let base_dir = Path::new(config_path).parent().expect("Failed to get base directory");
         self.remote_configs.wallet_configs_file = base_dir.join(wallet_configs_path).to_string_lossy().to_string();
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig {
-                host: "127.0.0.1".to_string(),
-                port: 3000,
-                base_api_url: "http://127.0.0.1:3000/api".to_string(),
-                cors_allowed_origins: vec!["http://localhost:3000".to_string()],
-            },
-            blockchain: BlockchainConfig {
-                website_url: "https://www.quantus.com".to_string(),
-                node_url: "ws://127.0.0.1:9944".to_string(),
-                wallet_name: "task_master_wallet".to_string(),
-                wallet_password: "secure_password_change_me".to_string(),
-                reversal_period_hours: 12,
-            },
-            candidates: CandidatesConfig {
-                graphql_url: "http://localhost:4000/graphql".to_string(),
-                refresh_interval_minutes: 30,
-            },
-            data: DataConfig {
-                database_url: "postgres://postgres:postgres@127.0.0.1:5432/task_master".to_string(),
-            },
-            logging: LoggingConfig {
-                level: "info".to_string(),
-            },
-            jwt: JwtConfig {
-                admin_secret: "Also-change-in-production".to_string(),
-                secret: "Change-in-production".to_string(),
-                exp_in_hours: 24,
-            },
-            x_oauth: OauthConfig {
-                callback_url: "example".to_string(),
-                client_id: "example".to_string(),
-                client_secret: "example".to_string(),
-            },
-            tweet_sync: TweetSyncConfig {
-                interval_in_hours: 24,
-                keywords: "hello".to_string(),
-                api_key: "key".to_string(),
-                monthly_limit: 15000,
-                alert_threshold: 13000,
-                reset_day: 1,
-            },
-            tg_bot: TelegramBotConfig {
-                base_url: "https://api.telegram.org".to_string(),
-                chat_id: "-0".to_string(),
-                message_thread_id: Some("-0".to_string()),
-                token: "token".to_string(),
-            },
-            raid_leaderboard: RaidLeaderboardConfig {
-                sync_interval_in_hours: 24,
-                tweets_req_interval_in_secs: 60,
-            },
-            alert: AlertConfig {
-                webhook_url: "https://your-webhook-url.com".to_string(),
-            },
-            x_association: XAssociationConfig {
-                keywords: "quantus".to_string(),
-            },
-            remote_configs: RemoteConfigsConfig {
-                wallet_configs_file: "wallet_configs/default_configs.json".to_string(),
-            },
-            risk_checker: RiskCheckerConfig {
-                etherscan_api_key: "change-me".to_string(),
-                etherscan_base_url: "https://api.etherscan.io/api".to_string(),
-                infura_api_key: "change-me".to_string(),
-                infura_base_url: "https://mainnet.infura.io/v3".to_string(),
-                etherscan_calls_per_sec: 3,
-                max_concurrent_requests: 1,
-            },
-            exchange_rate: ExchangeRateConfig {
-                api_key: "change-me".to_string(),
-            },
-        }
     }
 }

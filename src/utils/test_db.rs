@@ -6,12 +6,8 @@ use crate::{
     models::{
         address::{Address, AddressInput},
         admin::Admin,
-        eth_association::{EthAssociation, EthAssociationInput},
-        x_association::{XAssociation, XAssociationInput},
     },
-    repositories::{
-        address::AddressRepository, eth_association::EthAssociationRepository, x_association::XAssociationRepository,
-    },
+    repositories::address::AddressRepository,
 };
 
 pub async fn reset_database(pool: &PgPool) {
@@ -19,13 +15,6 @@ pub async fn reset_database(pool: &PgPool) {
         .execute(pool)
         .await
         .expect("Failed to truncate tables for tests");
-
-    // Refresh the materialized view to clear the stale snapshot
-    // Since the source tables are now empty, this will result in an empty view.
-    sqlx::query("REFRESH MATERIALIZED VIEW raid_leaderboards")
-        .execute(pool)
-        .await
-        .expect("Failed to refresh materialized view for tests");
 }
 
 pub async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Address {
@@ -38,36 +27,30 @@ pub async fn create_persisted_address(repo: &AddressRepository, id: &str) -> Add
     address
 }
 
-pub async fn create_persisted_x_association(
-    repo: &XAssociationRepository,
-    address: &str,
-    username: &str,
-) -> XAssociation {
-    let input = XAssociationInput {
-        quan_address: address.to_string(),
-        username: username.to_string(),
-    };
-    let new_association = XAssociation::new(input).unwrap();
-
-    repo.create(&new_association).await.unwrap();
-
-    new_association
+pub async fn create_persisted_opt_in(pool: &PgPool, quan_address: &str) {
+    sqlx::query("INSERT INTO opt_ins (quan_address) VALUES ($1)")
+        .bind(quan_address)
+        .execute(pool)
+        .await
+        .expect("Failed to create opt-in");
 }
 
-pub async fn create_persisted_eth_association(
-    repo: &EthAssociationRepository,
-    quan_address: &str,
-    eth_address: &str,
-) -> EthAssociation {
-    let input = EthAssociationInput {
-        quan_address: quan_address.to_string(),
-        eth_address: eth_address.to_string(),
-    };
-    let new_association = EthAssociation::new(input).unwrap();
+pub async fn create_persisted_x_association(pool: &PgPool, quan_address: &str, username: &str) {
+    sqlx::query("INSERT INTO x_associations (quan_address, username) VALUES ($1, $2)")
+        .bind(quan_address)
+        .bind(username)
+        .execute(pool)
+        .await
+        .expect("Failed to create x association");
+}
 
-    repo.create(&new_association).await.unwrap();
-
-    new_association
+pub async fn create_persisted_eth_association(pool: &PgPool, quan_address: &str, eth_address: &str) {
+    sqlx::query("INSERT INTO eth_associations (quan_address, eth_address) VALUES ($1, $2)")
+        .bind(quan_address)
+        .bind(eth_address)
+        .execute(pool)
+        .await
+        .expect("Failed to create eth association");
 }
 
 pub fn create_mock_admin() -> Admin {

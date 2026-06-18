@@ -1,13 +1,9 @@
 use axum::http::Method;
 use axum::{middleware, response::Json, routing::get, Router};
-use rusx::{PkceCodeVerifier, TwitterGateway};
+use rusx::TwitterGateway;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 use tower::ServiceBuilder;
-use tower_cookies::CookieManagerLayer;
 use tower_http::{
     cors::{AllowHeaders, CorsLayer},
     trace::TraceLayer,
@@ -19,7 +15,7 @@ use crate::{
     metrics::{metrics_handler, track_metrics, Metrics},
     routes::api_routes,
     services::{risk_checker_service::RiskCheckerService, wallet_config_service::WalletConfigService},
-    Config, GraphqlClient,
+    Config,
 };
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
@@ -28,20 +24,16 @@ use tokio::sync::RwLock;
 pub struct AppState {
     pub db: Arc<DbPersistence>,
     pub metrics: Arc<Metrics>,
-    pub graphql_client: Arc<GraphqlClient>,
     pub wallet_config_service: Arc<WalletConfigService>,
     pub risk_checker_service: Arc<RiskCheckerService>,
     pub exchange_rate_service: Arc<ExchangeRateService>,
     pub config: Arc<Config>,
     pub challenges: Arc<RwLock<HashMap<String, Challenge>>>,
-    pub oauth_sessions: Arc<Mutex<HashMap<String, PkceCodeVerifier>>>,
-    pub twitter_oauth_tokens: Arc<RwLock<HashMap<String, String>>>,
     pub twitter_gateway: Arc<dyn TwitterGateway>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Challenge {
-    pub id: String,
     pub challenge: String,
     pub created_at: DateTime<Utc>,
 }
@@ -70,7 +62,6 @@ pub fn create_router(state: AppState) -> Router {
                     .allow_credentials(true),
             ),
         )
-        .layer(CookieManagerLayer::new())
         .with_state(state)
 }
 
@@ -87,7 +78,6 @@ async fn health_check() -> Json<HealthResponse> {
 /// Start the HTTP server
 pub async fn start_server(
     db: Arc<DbPersistence>,
-    graphql_client: Arc<GraphqlClient>,
     twitter_gateway: Arc<dyn TwitterGateway>,
     bind_address: &str,
     config: Arc<Config>,
@@ -95,7 +85,6 @@ pub async fn start_server(
     let state = AppState {
         db,
         metrics: Arc::new(Metrics::new()),
-        graphql_client,
         wallet_config_service: Arc::new(WalletConfigService::new(
             config.remote_configs.wallet_configs_file.clone(),
         )?),
@@ -104,8 +93,6 @@ pub async fn start_server(
         config,
         twitter_gateway,
         challenges: Arc::new(RwLock::new(HashMap::new())),
-        oauth_sessions: Arc::new(Mutex::new(HashMap::new())),
-        twitter_oauth_tokens: Arc::new(RwLock::new(HashMap::new())),
     };
     let app = create_router(state);
 

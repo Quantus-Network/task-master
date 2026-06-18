@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use crate::{
-    handlers::{address::AddressHandlerError, auth::AuthHandlerError, referral::ReferralHandlerError},
+    handlers::{auth::AuthHandlerError, referral::ReferralHandlerError},
     AppError,
 };
 
@@ -21,8 +21,6 @@ pub mod tweet_author;
 pub enum HandlerError {
     #[error("Referral handler error")]
     Referral(#[from] ReferralHandlerError),
-    #[error("Address handler error")]
-    Address(#[from] AddressHandlerError),
     #[error("Auth handler error")]
     Auth(#[from] AuthHandlerError),
 
@@ -95,17 +93,6 @@ pub struct ListQueryParams<T> {
     pub order: SortDirection,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct LeaderboardQueryParams {
-    #[serde(default = "default_page")]
-    pub page: u32,
-
-    #[serde(default = "default_page_size")]
-    pub page_size: u32,
-
-    pub referral_code: Option<String>,
-}
-
 fn default_page() -> u32 {
     1
 }
@@ -132,6 +119,6 @@ pub fn validate_pagination_query(page: u32, page_size: u32) -> Result<(), AppErr
     Ok(())
 }
 
-fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
+pub(crate) fn calculate_total_pages(page_size: u32, total_items: u32) -> u32 {
     ((total_items as f64) / (page_size as f64)).ceil() as u32
 }

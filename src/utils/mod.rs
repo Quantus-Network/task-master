@@ -1,4 +1,3 @@
-pub mod eth_address_validator;
 pub mod generate_referral_code;
 pub mod jwt;
 pub mod x_url;

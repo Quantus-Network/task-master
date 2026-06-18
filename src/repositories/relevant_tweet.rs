@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 
 use crate::{
@@ -220,19 +218,6 @@ impl RelevantTweetRepository {
 
         Ok(tweet)
     }
-
-    pub async fn get_existing_ids(&self, ids: &[String]) -> DbResult<HashSet<String>> {
-        if ids.is_empty() {
-            return Ok(HashSet::new());
-        }
-
-        let rows: Vec<String> = sqlx::query_scalar("SELECT id FROM relevant_tweets WHERE id = ANY($1)")
-            .bind(ids)
-            .fetch_all(&self.pool)
-            .await?;
-
-        Ok(rows.into_iter().collect())
-    }
 }
 
 #[cfg(test)]
@@ -326,25 +311,6 @@ mod tests {
             updated.impression_count, 999,
             "Should update existing record on conflict"
         );
-    }
-
-    #[tokio::test]
-    async fn test_get_existing_ids() {
-        let (repo, author_repo) = setup_test_repository().await;
-        seed_author(&author_repo, "a1", "user1").await;
-
-        let t1 = create_payload("t1", "a1", "one");
-        let t2 = create_payload("t2", "a1", "two");
-        repo.upsert_many(&vec![t1, t2]).await.unwrap();
-
-        // Check for t1, t2 and a non-existent t3
-        let check_ids = vec!["t1".to_string(), "t2".to_string(), "t3".to_string()];
-        let existing = repo.get_existing_ids(&check_ids).await.unwrap();
-
-        assert_eq!(existing.len(), 2);
-        assert!(existing.contains("t1"));
-        assert!(existing.contains("t2"));
-        assert!(!existing.contains("t3"));
     }
 
     #[tokio::test]

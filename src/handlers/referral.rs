@@ -127,8 +127,6 @@ mod tests {
         // Act: Call the handler function directly.
         let result = handle_add_referral(State(state.clone()), Extension(auth_user), Json(input.clone())).await;
 
-        print!("result: {:?}", result);
-
         // Assert: Check the handler's response.
         assert!(result.is_ok());
         let response = result.unwrap();

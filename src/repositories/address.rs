@@ -2,8 +2,8 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
-    handlers::{LeaderboardQueryParams, ListQueryParams},
-    models::address::{Address, AddressFilter, AddressSortColumn, AddressWithOptInAndAssociations, AddressWithRank},
+    handlers::ListQueryParams,
+    models::address::{Address, AddressFilter, AddressSortColumn, AddressWithOptInAndAssociations},
     repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
@@ -75,19 +75,6 @@ impl AddressRepository {
             } else {
                 query_builder.push_condition(" x.username IS NULL ", &mut where_started);
             }
-        }
-    }
-
-    fn push_leaderboard_base_query<'a>(qb: &mut QueryBuilder<'a, sqlx::Postgres>) {
-        qb.push(" FROM addresses WHERE referrals_count > 0");
-    }
-
-    fn push_leaderboard_filter_query_if_possible<'a>(
-        qb: &mut QueryBuilder<'a, sqlx::Postgres>,
-        with_referral_code: Option<String>,
-    ) {
-        if let Some(code) = with_referral_code {
-            qb.push(" AND referral_code ILIKE ").push_bind(format!("{}%", code));
         }
     }
 
@@ -190,48 +177,11 @@ impl AddressRepository {
         Ok(address)
     }
 
-    pub async fn get_leaderboard_total_items(&self, with_referral_code: Option<String>) -> DbResult<i64> {
-        let mut qb = QueryBuilder::new("SELECT COUNT(*) ");
-        AddressRepository::push_leaderboard_base_query(&mut qb);
-        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, with_referral_code);
-
-        let total_items = qb.build_query_scalar().fetch_one(&self.pool).await?;
-
-        Ok(total_items)
-    }
-
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub async fn find_all(&self) -> DbResult<Vec<Address>> {
         let addresses = sqlx::query_as::<_, Address>("SELECT * FROM addresses")
             .fetch_all(&self.pool)
             .await?;
-
-        Ok(addresses)
-    }
-
-    pub async fn get_leaderboard_entries(&self, params: &LeaderboardQueryParams) -> DbResult<Vec<AddressWithRank>> {
-        let mut qb = QueryBuilder::new(
-            "WITH ranked_addresses AS (
-            SELECT 
-                *,
-                ROW_NUMBER() OVER (ORDER BY referrals_count DESC) as rank
-        ",
-        );
-
-        AddressRepository::push_leaderboard_base_query(&mut qb);
-        qb.push(") SELECT * FROM ranked_addresses WHERE 1=1");
-
-        AddressRepository::push_leaderboard_filter_query_if_possible(&mut qb, params.referral_code.clone());
-
-        let offset = calculate_page_offset(params.page, params.page_size);
-        qb.push(" ORDER BY rank LIMIT ")
-            .push_bind(params.page_size as i64)
-            .push(" OFFSET ")
-            .push_bind(offset as i64);
-
-        let query = qb.build_query_as::<AddressWithRank>();
-
-        let addresses = query.fetch_all(&self.pool).await?;
 
         Ok(addresses)
     }
@@ -305,7 +255,8 @@ mod tests {
     use crate::models::address::{Address, AddressInput};
     use crate::utils::test_app_state::create_test_app_state;
     use crate::utils::test_db::{
-        create_persisted_address, create_persisted_eth_association, create_persisted_x_association, reset_database,
+        create_persisted_address, create_persisted_eth_association, create_persisted_opt_in,
+        create_persisted_x_association, reset_database,
     };
     use sqlx::PgPool;
 
@@ -332,18 +283,6 @@ mod tests {
         Address::new(input).unwrap()
     }
 
-    fn create_mock_address_with_referrals_count(id: &str, code: &str, referrals_count: i32) -> Address {
-        let input = AddressInput {
-            quan_address: format!("qz_test_address_{}", id),
-            referral_code: code.to_string(),
-        };
-
-        let mut address = Address::new(input).unwrap();
-        address.referrals_count = referrals_count;
-
-        address
-    }
-
     #[tokio::test]
     async fn test_create_and_find_by_id() {
         let repo = setup_test_repository().await;
@@ -355,122 +294,6 @@ mod tests {
         let found = repo.find_by_id(&created_id).await.unwrap().unwrap();
         assert_eq!(found.quan_address.0, address.quan_address.0);
         assert_eq!(found.referral_code, "ref001");
-    }
-
-    #[tokio::test]
-    async fn test_create_many_and_get_total_items() {
-        let repo = setup_test_repository().await;
-        let address = create_mock_address("001", "REF001");
-        let address2 = create_mock_address_with_referrals_count("002", "REF002", 9);
-        let address3 = create_mock_address_with_referrals_count("003", "REF003", 10);
-        let address4 = create_mock_address_with_referrals_count("004", "REF004", 11);
-
-        repo.create_many([address, address2, address3, address4].to_vec())
-            .await
-            .unwrap();
-
-        let total_items = repo.get_leaderboard_total_items(None).await.unwrap();
-        assert_eq!(total_items, 3);
-    }
-
-    #[tokio::test]
-    async fn test_get_total_items_with_referral_code_filter() {
-        let repo = setup_test_repository().await;
-        let address = create_mock_address("001", "REF001");
-        let address2 = create_mock_address_with_referrals_count("002", "REF002", 9);
-        let address3 = create_mock_address_with_referrals_count("003", "REF003", 10);
-        let address4 = create_mock_address_with_referrals_count("004", "REF004", 11);
-
-        repo.create_many([address, address2, address3, address4].to_vec())
-            .await
-            .unwrap();
-
-        let total_items = repo
-            .get_leaderboard_total_items(Some(String::from("REF003")))
-            .await
-            .unwrap();
-        assert_eq!(total_items, 1);
-    }
-
-    #[tokio::test]
-    async fn test_get_leaderboard() {
-        let repo = setup_test_repository().await;
-        let address1 = create_mock_address_with_referrals_count("001", "REF001", 0);
-        let address2 = create_mock_address_with_referrals_count("002", "REF002", 10);
-        let address3 = create_mock_address_with_referrals_count("003", "REF003", 5);
-        let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
-
-        repo.create_many(vec![address1, address2.clone(), address3, address4])
-            .await
-            .unwrap();
-
-        let addresses = repo
-            .get_leaderboard_entries(&LeaderboardQueryParams {
-                page: 1,
-                page_size: 1,
-                referral_code: None,
-            })
-            .await
-            .unwrap();
-        assert_eq!(addresses.len(), 1);
-
-        let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.address.quan_address.0, address2.quan_address.0);
-    }
-
-    #[tokio::test]
-    async fn test_get_leaderboard_omit_zero_referral() {
-        let repo = setup_test_repository().await;
-        let address1 = create_mock_address_with_referrals_count("001", "REF001", 0);
-        let address2 = create_mock_address_with_referrals_count("002", "REF002", 10);
-        let address3 = create_mock_address_with_referrals_count("003", "REF003", 5);
-        let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
-
-        repo.create_many(vec![address1, address2.clone(), address3, address4])
-            .await
-            .unwrap();
-
-        let addresses = repo
-            .get_leaderboard_entries(&LeaderboardQueryParams {
-                page: 1,
-                page_size: 4,
-                referral_code: None,
-            })
-            .await
-            .unwrap();
-        assert_eq!(addresses.len(), 3);
-
-        let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.address.quan_address.0, address2.quan_address.0);
-    }
-
-    #[tokio::test]
-    async fn test_get_leaderboard_with_referral_code_filter() {
-        let repo = setup_test_repository().await;
-        let address1 = create_mock_address_with_referrals_count("001", "REF001", 0);
-        let address2 = create_mock_address_with_referrals_count("002", "REF002", 10);
-        let address3 = create_mock_address_with_referrals_count("003", "REF003", 5);
-        let address4 = create_mock_address_with_referrals_count("004", "REF004", 8);
-        let address5 = create_mock_address_with_referrals_count("005", "REF005", 7);
-
-        repo.create_many(vec![address1, address2, address3.clone(), address4, address5.clone()])
-            .await
-            .unwrap();
-
-        let addresses = repo
-            .get_leaderboard_entries(&LeaderboardQueryParams {
-                page: 1,
-                page_size: 4,
-                referral_code: Some(String::from("REF005")),
-            })
-            .await
-            .unwrap();
-        assert_eq!(addresses.len(), 1);
-
-        let first_index_address = addresses.first().unwrap();
-        assert_eq!(first_index_address.address.quan_address.0, address5.quan_address.0);
-
-        assert_eq!(first_index_address.rank, 3);
     }
 
     #[tokio::test]
@@ -584,17 +407,17 @@ mod tests {
         reset_database(&state.db.pool).await;
 
         let address = create_persisted_address(&state.db.addresses, "REF501").await;
-        state.db.opt_ins.create(&address.quan_address.0).await.unwrap();
-        create_persisted_x_association(&state.db.x_associations, &address.quan_address.0, "address-1").await;
+        create_persisted_opt_in(&state.db.pool, &address.quan_address.0).await;
+        create_persisted_x_association(&state.db.pool, &address.quan_address.0, "address-1").await;
         create_persisted_eth_association(
-            &state.db.eth_associations,
+            &state.db.pool,
             &address.quan_address.0,
             "0x00000000219ab540356cBB839Cbe05303d7705Fa",
         )
         .await;
 
         let address2 = create_persisted_address(&state.db.addresses, "REF502").await;
-        create_persisted_x_association(&state.db.x_associations, &address2.quan_address.0, "address-2").await;
+        create_persisted_x_association(&state.db.pool, &address2.quan_address.0, "address-2").await;
 
         let address3 = create_persisted_address(&state.db.addresses, "REF503").await;
 

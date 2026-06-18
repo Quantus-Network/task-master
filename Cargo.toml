@@ -1,7 +1,7 @@
 [package]
 authors = ["TaskMaster Team"]
 default-run = "task-master"
-description = "Task management server with reversible blockchain transactions"
+description = "Task management server"
 edition = "2021"
 license = "Apache-2.0"
 name = "task-master"
@@ -32,7 +32,6 @@ tokio = { version = "1.46", features = ["full", "test-util"] }
 # HTTP server
 axum = { version = "0.7", features = ["tokio"] }
 tower = "0.4"
-tower-cookies = "0.10"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Serialization
@@ -57,13 +56,10 @@ sp-runtime = "45.0.0"
 # Configuration
 clap = { version = "4.5", features = ["derive"] }
 config = "0.14"
-toml = "0.9"
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 
-# Random generation
-rand = "0.9"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # HTTP client for GraphQL
@@ -77,17 +73,13 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error handling
-anyhow = "1.0"
 thiserror = "2.0"
 
 # Additional utilities
 argon2 = "0.5"
-dirs = "6.0"
 jsonwebtoken = "9.3.1"
 lazy_static = "1.5.0"
 prometheus = { version = "0.14.0", features = ["process"] }
-subxt = "0.43.0"
-tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 notify = "8.2.0"
 
 [dev-dependencies]

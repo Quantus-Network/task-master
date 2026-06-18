@@ -59,8 +59,6 @@ impl RaidQuestRepository {
         params: &ListQueryParams<RaidQuestSortColumn>,
         filters: &RaidQuestFilter,
     ) -> Result<Vec<RaidQuest>, DbError> {
-        // Select all tweet columns + author name/username
-        // We use aliases that match the TweetWithAuthor struct expectations
         let mut query_builder = QueryBuilder::new(
             r#"
             SELECT 
