@@ -3,13 +3,18 @@
     "minerStats": [
       {
         "id": "qzjVZ8E957sD3cp8XS8Cf3bD4qLZPjYsdm6NSm5ZbA2o5BDZj",
-        "totalMinedBlocks": 73105,
-        "totalRewards": "28155121276846947"
+        "totalMinedBlocks": 73694,
+        "totalRewards": "28376089888111304"
       },
       {
         "id": "qznaZcifLXCN9M6cWeJ91XsGQ7NCbkiZCwaLouUSP5YMiMzyQ",
         "totalMinedBlocks": 26614,
         "totalRewards": "10256707989777470"
+      },
+      {
+        "id": "qzjtwGuPGLy1C8mkpc7hp4ZyiK3WxaPJ5yg2dZtUnGprqZ84r",
+        "totalMinedBlocks": 21915,
+        "totalRewards": "8314555233784975"
       },
       {
         "id": "qzqDMhonEncjXczzbaxXYTsFkh2MMDVSpCQXamVvK7EE6NSpY",
@@ -22,14 +27,19 @@
         "totalRewards": "7286394758724671"
       },
       {
-        "id": "qzjtwGuPGLy1C8mkpc7hp4ZyiK3WxaPJ5yg2dZtUnGprqZ84r",
-        "totalMinedBlocks": 17816,
-        "totalRewards": "6791663597286986"
+        "id": "qzozjfZd8vfVFdoKbtmezfMWV21ngt2Qc429Df1uT8u5CMeWZ",
+        "totalMinedBlocks": 15521,
+        "totalRewards": "5895941706884002"
+      },
+      {
+        "id": "qzpciM4tLqLHhiRczjKd2kSwSWAncCYkuU6PdDyjZE37cbyMv",
+        "totalMinedBlocks": 15158,
+        "totalRewards": "5696855812252608"
       },
       {
         "id": "qzoe6nFgmXGwHA5zyUKwwGaiwFZjUBCvmXWCvZsnVA1LHEuHt",
-        "totalMinedBlocks": 14174,
-        "totalRewards": "5433573819629701"
+        "totalMinedBlocks": 14234,
+        "totalRewards": "5455371457947781"
       },
       {
         "id": "qzq92jufqAi6mq6NejVjbnFSHmWGp2btEz7jyCbqW2t2NAYZw",
@@ -37,24 +47,24 @@
         "totalRewards": "5141084520099119"
       },
       {
+        "id": "qzogGp7Wf1UJn9gWNr6qbEhHtyvVPFXq4ResHiCRnTNVX73Yy",
+        "totalMinedBlocks": 12877,
+        "totalRewards": "4931526374411870"
+      },
+      {
         "id": "qzoUXSq3JiS3FNWLT1sX93orRW8iub9jijuKNs162oYf7gcmH",
         "totalMinedBlocks": 12655,
         "totalRewards": "4902730825106734"
       },
       {
-        "id": "qzozjfZd8vfVFdoKbtmezfMWV21ngt2Qc429Df1uT8u5CMeWZ",
-        "totalMinedBlocks": 12639,
-        "totalRewards": "4820581667301216"
-      },
-      {
         "id": "qzk5T5k7XV5UwErhdCadnr5YG12rd7ZwXXMdQ9jKU8j1Qs8z6",
-        "totalMinedBlocks": 11782,
-        "totalRewards": "4716136748065193"
+        "totalMinedBlocks": 11943,
+        "totalRewards": "4776499298088691"
       },
       {
-        "id": "qzogGp7Wf1UJn9gWNr6qbEhHtyvVPFXq4ResHiCRnTNVX73Yy",
-        "totalMinedBlocks": 11307,
-        "totalRewards": "4347312148743515"
+        "id": "qzq3yzbR7iXgkAEWdANe7WkvCvHqZVsmTJVQ9qkWax28wKQ1d",
+        "totalMinedBlocks": 10973,
+        "totalRewards": "4166966593871356"
       },
       {
         "id": "qzpkSBJZ2seaisouXx5r9HnhMzFUNrx8FdLTQLcE27veKurTc",
@@ -62,19 +72,14 @@
         "totalRewards": "4255608072981682"
       },
       {
-        "id": "qzoqy3pcLsBcPpGFqj9BTv3UyvRB9o8ScnKqcQfSbQTR6odnu",
-        "totalMinedBlocks": 9936,
-        "totalRewards": "3813518767117941"
-      },
-      {
         "id": "qzoGZBgSuPqRLLHe5E3MWR2Az3bLXdiobDJN56KdMoF5tyKhc",
-        "totalMinedBlocks": 9557,
-        "totalRewards": "3745411546476269"
+        "totalMinedBlocks": 10214,
+        "totalRewards": "3985157815853676"
       },
       {
-        "id": "qzq3yzbR7iXgkAEWdANe7WkvCvHqZVsmTJVQ9qkWax28wKQ1d",
-        "totalMinedBlocks": 9252,
-        "totalRewards": "3526115255654701"
+        "id": "qzoqy3pcLsBcPpGFqj9BTv3UyvRB9o8ScnKqcQfSbQTR6odnu",
+        "totalMinedBlocks": 9972,
+        "totalRewards": "3827256458762906"
       },
       {
         "id": "qzoh8Nvauqx6fHiFftu8UU3vJncL23sZY9sP9PjxX8NtbbU71",
@@ -82,14 +87,19 @@
         "totalRewards": "3508256206841844"
       },
       {
+        "id": "qznf9mQwGAX7oqmyiNQ4cAm68d2S9Ayx8oV5dirMFPHFYgNPf",
+        "totalMinedBlocks": 8968,
+        "totalRewards": "3410993001476997"
+      },
+      {
+        "id": "qzneChhG2NKkVycgweCDuBvksh4mvwNn58ySTcD6GYBHW5yLZ",
+        "totalMinedBlocks": 8943,
+        "totalRewards": "3390740681253703"
+      },
+      {
         "id": "qzk8ik4XDs99LechSUQ7X4UcsEn3x5G2K6HVAh12VGaeLKCaE",
         "totalMinedBlocks": 8839,
         "totalRewards": "3399258452975923"
-      },
-      {
-        "id": "qzpciM4tLqLHhiRczjKd2kSwSWAncCYkuU6PdDyjZE37cbyMv",
-        "totalMinedBlocks": 8579,
-        "totalRewards": "3250242216745716"
       },
       {
         "id": "qzkkAjRoQckvDiHHVod21JBK9VwAHDxqACD44PUyhqckGokaD",
@@ -100,16 +110,6 @@
         "id": "qzphpYvryvfgPhykRHGA6dfNJggCyuWkLqrtbVG2fL7UMd2s3",
         "totalMinedBlocks": 8193,
         "totalRewards": "3470948060606317"
-      },
-      {
-        "id": "qznf9mQwGAX7oqmyiNQ4cAm68d2S9Ayx8oV5dirMFPHFYgNPf",
-        "totalMinedBlocks": 7675,
-        "totalRewards": "2929094094881623"
-      },
-      {
-        "id": "qzneChhG2NKkVycgweCDuBvksh4mvwNn58ySTcD6GYBHW5yLZ",
-        "totalMinedBlocks": 7516,
-        "totalRewards": "2858811280107912"
       },
       {
         "id": "qzpo2n7PByDUB8MP5jyqVh5NqRdCPQ418xB1ywEKFcShD7bPu",
@@ -137,6 +137,11 @@
         "totalRewards": "2304120180809783"
       },
       {
+        "id": "qzptQjWMTh95vs4w8fp6Mp3nvBc6LNJLpdPNXGPi9xRbLWraX",
+        "totalMinedBlocks": 5852,
+        "totalRewards": "2209480703349384"
+      },
+      {
         "id": "qzmBUdwKPZtkNMpUZTcuTdAgxzumJ3VBSrK2Z3jq3Wiv4fpNM",
         "totalMinedBlocks": 5704,
         "totalRewards": "2276383415528588"
@@ -148,8 +153,8 @@
       },
       {
         "id": "qzntXFHNziRKXNRKDke7eugWHfGbsAdLY76MnpmPpq6GfnSsL",
-        "totalMinedBlocks": 4798,
-        "totalRewards": "1833515371259147"
+        "totalMinedBlocks": 5426,
+        "totalRewards": "2066253233713921"
       },
       {
         "id": "qzkpjqTqAkt7khy1QF1xophcFRMvEvnoC2P3cTD13yXjTxnL4",
@@ -162,19 +167,24 @@
         "totalRewards": "2033638591043509"
       },
       {
+        "id": "qzjYMpbcejXW1d26G8MGVo9hAVWhc29EgwK8rQhZvQQUfvKcE",
+        "totalMinedBlocks": 4249,
+        "totalRewards": "1583101372132984"
+      },
+      {
         "id": "qzoA7nYHPcDgoh5CoS6yokCjBbS4Krxgock8WACw3di9fhfMR",
         "totalMinedBlocks": 4141,
         "totalRewards": "1672339487774016"
       },
       {
-        "id": "qzptQjWMTh95vs4w8fp6Mp3nvBc6LNJLpdPNXGPi9xRbLWraX",
-        "totalMinedBlocks": 3910,
-        "totalRewards": "1487978541493078"
-      },
-      {
         "id": "qzngBkeSDRAU4aE4YzNSMBhgi6L6HoWVNopgpeDUWz7xZF3Yr",
         "totalMinedBlocks": 3793,
         "totalRewards": "1452794536995697"
+      },
+      {
+        "id": "qzmkLmZ8L8pQCZhYqVsYrwjeNWt2aw8BCBAzP9YGbKCWtQrjj",
+        "totalMinedBlocks": 3546,
+        "totalRewards": "1316933636493658"
       },
       {
         "id": "qznAFkJZAFTWeLx7uszSRUMdEoSSE2fbXCfcEZSXLngE2sVyw",
@@ -202,6 +212,11 @@
         "totalRewards": "1142537407304423"
       },
       {
+        "id": "qzkxev6EzBfPY8ehVoesywRqcYQzR3WA3WaXDUHhX6F9AkEJ7",
+        "totalMinedBlocks": 2975,
+        "totalRewards": "1106767545741472"
+      },
+      {
         "id": "qzjfjzcmfeZ8Gmx3TRJQHA6Z7ps4LdKBSxJ86FXW6CYM4PhkX",
         "totalMinedBlocks": 2923,
         "totalRewards": "1120655325144894"
@@ -227,6 +242,16 @@
         "totalRewards": "905127182548260"
       },
       {
+        "id": "qznaH1f7pzGjRLo3GVwJdvtxJibUfHStGYcvEao3hYCy8CtTY",
+        "totalMinedBlocks": 2292,
+        "totalRewards": "867302277754749"
+      },
+      {
+        "id": "qzmyJZ6rpZ7ia27SPMKJkBBZsSxvtbwNDkYVcCfNE7W5bSqCJ",
+        "totalMinedBlocks": 2134,
+        "totalRewards": "805662823492341"
+      },
+      {
         "id": "qzmDt1Nwq2L776DPH2czsfSpTvGZzGoTtsT5Xec1Lvt4U1uyL",
         "totalMinedBlocks": 1936,
         "totalRewards": "747568252484612"
@@ -242,19 +267,19 @@
         "totalRewards": "695296774916488"
       },
       {
-        "id": "qznaH1f7pzGjRLo3GVwJdvtxJibUfHStGYcvEao3hYCy8CtTY",
-        "totalMinedBlocks": 1680,
-        "totalRewards": "641370857022187"
-      },
-      {
-        "id": "qzmyJZ6rpZ7ia27SPMKJkBBZsSxvtbwNDkYVcCfNE7W5bSqCJ",
-        "totalMinedBlocks": 1613,
-        "totalRewards": "612657861325861"
-      },
-      {
         "id": "qzmX7W95uX4LS1Eoe7qJ2ffpvXt9zyeuBDDDAxELJrnJ5LAAh",
-        "totalMinedBlocks": 1580,
-        "totalRewards": "605352565478830"
+        "totalMinedBlocks": 1736,
+        "totalRewards": "663451660241403"
+      },
+      {
+        "id": "qzkhJXmG9MaC5aF3A7WF2hr8hLzCjyqAYYUwvUWXzKuaXXSSv",
+        "totalMinedBlocks": 1651,
+        "totalRewards": "626901191481491"
+      },
+      {
+        "id": "qznjVeZD28Z3Vo8dkb2o95si7pEgQ6PgdjczmiWZHHSk7zQZv",
+        "totalMinedBlocks": 1577,
+        "totalRewards": "588109025902047"
       },
       {
         "id": "qzppKy8m9ETWMV8TUWmE3P5AuFTxka3ocKZ2wdg4whgHHigP5",
@@ -265,11 +290,6 @@
         "id": "qzoFgxG8X5CvDFeZva9CtxYG3xqufvhojzJQvCymHGbxjop5P",
         "totalMinedBlocks": 1405,
         "totalRewards": "535924366032179"
-      },
-      {
-        "id": "qzkhJXmG9MaC5aF3A7WF2hr8hLzCjyqAYYUwvUWXzKuaXXSSv",
-        "totalMinedBlocks": 1368,
-        "totalRewards": "521436421412360"
       },
       {
         "id": "qznZttca6MzPdsEaSC289BjqpxZzs4tpa7TWQ9xzzMZBNWc3W",
@@ -292,9 +312,9 @@
         "totalRewards": "381271600640084"
       },
       {
-        "id": "qzjYMpbcejXW1d26G8MGVo9hAVWhc29EgwK8rQhZvQQUfvKcE",
-        "totalMinedBlocks": 910,
-        "totalRewards": "342237739014083"
+        "id": "qzowe2f4RP29RQChSvhMeSZVq1j2JeuzM2aVurTY2Vqx3WZuj",
+        "totalMinedBlocks": 919,
+        "totalRewards": "352519823517145"
       },
       {
         "id": "qzmMixDP4ZsZgXEKEzMjLoLLRhJkupyjHBv8AUwB4eTGDZDfg",
@@ -307,19 +327,14 @@
         "totalRewards": "335786135471082"
       },
       {
-        "id": "qzowe2f4RP29RQChSvhMeSZVq1j2JeuzM2aVurTY2Vqx3WZuj",
-        "totalMinedBlocks": 805,
-        "totalRewards": "311211272667049"
-      },
-      {
-        "id": "qznjVeZD28Z3Vo8dkb2o95si7pEgQ6PgdjczmiWZHHSk7zQZv",
-        "totalMinedBlocks": 717,
-        "totalRewards": "269637809644717"
-      },
-      {
         "id": "qznRv1Rs4SmSroEDGW8yfLELrUnSCesDF5vkBatasUpqY64Fg",
         "totalMinedBlocks": 691,
         "totalRewards": "262856277627171"
+      },
+      {
+        "id": "qzpcuyNw8yNqTBnRzA7vQ5Uz4iCXWmGXKfCpn5qRjcM5uQ7gF",
+        "totalMinedBlocks": 667,
+        "totalRewards": "253646316332708"
       },
       {
         "id": "qzmAmnxxYyq3fqBP55eHPXiNWMCmvVe2YEx5o9H7M9xFm6hET",
@@ -335,11 +350,6 @@
         "id": "qzoomLZaNLK84UmcaxjiLXmPhwE5X3eETC1YNyAe55qe379S4",
         "totalMinedBlocks": 555,
         "totalRewards": "212925870811736"
-      },
-      {
-        "id": "qzpcuyNw8yNqTBnRzA7vQ5Uz4iCXWmGXKfCpn5qRjcM5uQ7gF",
-        "totalMinedBlocks": 525,
-        "totalRewards": "199799252779523"
       },
       {
         "id": "qznJJmLc72y56wLzKjopYVwY2oa8jSodCfmxtqU2VjCs1jZXZ",
@@ -367,14 +377,34 @@
         "totalRewards": "169091352281627"
       },
       {
+        "id": "qzjVXZ4jz2PsFyJo11PoSp793QJAkpHCKk4sCxo48DFSQ7sfY",
+        "totalMinedBlocks": 441,
+        "totalRewards": "167056310294406"
+      },
+      {
+        "id": "qzjZfskbfWNH7AzHCQfCWia1wai1KDz1kynfufQDWqf7wZqER",
+        "totalMinedBlocks": 438,
+        "totalRewards": "165003321977536"
+      },
+      {
+        "id": "qzoAWNYxGSvurncNDmLraamni2rh2xztbj9pfBRRxtxpJy9kR",
+        "totalMinedBlocks": 408,
+        "totalRewards": "153531779911381"
+      },
+      {
         "id": "qzkjftZ5PLzzhjxTyp9byWVxWaaHFE4jDQJ9tXnJa2fLmVXTh",
         "totalMinedBlocks": 386,
         "totalRewards": "146855885593131"
       },
       {
-        "id": "qzjVXZ4jz2PsFyJo11PoSp793QJAkpHCKk4sCxo48DFSQ7sfY",
+        "id": "qzo5Rt6taAj74KmzWGXH4Wz8aSAoUHmJzUn8NZFaufxE3XwDu",
         "totalMinedBlocks": 373,
-        "totalRewards": "142204821756720"
+        "totalRewards": "140235895765809"
+      },
+      {
+        "id": "qzpKpUGF8PzRwdYAJ9nJdytSTNs3za9WiCqZRnvkXczcDXfFB",
+        "totalMinedBlocks": 372,
+        "totalRewards": "140280350840697"
       },
       {
         "id": "qzk6Bdtc1h93BGKkaYV8URjhs3cYgmzBVTGtE9RposguauoNt",
@@ -392,24 +422,19 @@
         "totalRewards": "136191234600847"
       },
       {
-        "id": "qzkxev6EzBfPY8ehVoesywRqcYQzR3WA3WaXDUHhX6F9AkEJ7",
-        "totalMinedBlocks": 281,
-        "totalRewards": "107014472120585"
-      },
-      {
-        "id": "qzjZfskbfWNH7AzHCQfCWia1wai1KDz1kynfufQDWqf7wZqER",
-        "totalMinedBlocks": 276,
-        "totalRewards": "105740813820475"
-      },
-      {
-        "id": "qzoAWNYxGSvurncNDmLraamni2rh2xztbj9pfBRRxtxpJy9kR",
-        "totalMinedBlocks": 262,
-        "totalRewards": "99275035964130"
-      },
-      {
         "id": "qzk6kUXgqo2mg3FYp7HejWzN2y89ZTUWxY1JfSghv7pJ25ZiJ",
-        "totalMinedBlocks": 258,
-        "totalRewards": "98135102852897"
+        "totalMinedBlocks": 327,
+        "totalRewards": "122999312096622"
+      },
+      {
+        "id": "qzpW7oZydqZGGacSiQ96Jw7fzhRbQiCynt1LGhYSqHAsyehLv",
+        "totalMinedBlocks": 317,
+        "totalRewards": "120027513067755"
+      },
+      {
+        "id": "qzjV98C5Wsf3AFp5GuSypPVBqZ2b98T61CnW2ua5ABCULv14W",
+        "totalMinedBlocks": 285,
+        "totalRewards": "106268558943533"
       },
       {
         "id": "qzkZZKyU5f85w5texCMYtLnG4wn7XmP6LbJPheJ1B4mYQiTdS",
@@ -417,14 +442,19 @@
         "totalRewards": "94529401222813"
       },
       {
-        "id": "qzpW7oZydqZGGacSiQ96Jw7fzhRbQiCynt1LGhYSqHAsyehLv",
-        "totalMinedBlocks": 245,
-        "totalRewards": "93646717582774"
+        "id": "qzkgH7zXgRmH94viJPwmZCEDirtCsKchd9ycMaLaMryjdsdwQ",
+        "totalMinedBlocks": 246,
+        "totalRewards": "93073727233672"
       },
       {
         "id": "qzpPZywsNZY4BhajHqDuL7SEkPQfJCJDcuPMQzosPX5bQmHFd",
         "totalMinedBlocks": 204,
         "totalRewards": "78605067187148"
+      },
+      {
+        "id": "qzncaYTNReUpKQTV8oPn9V12dswi1NxrqQnmSjxNnv1dZFAdc",
+        "totalMinedBlocks": 190,
+        "totalRewards": "70359412391201"
       },
       {
         "id": "qzkfsjmauTtbEgAsX8hLYoWKkZUgn5E8HGd8Ra7uceUMAwa9D",
@@ -435,21 +465,6 @@
         "id": "qzmkuZHCkSxKsdiLft6itvokgcoVGY4LCEnHTqrqDLE5LW8ST",
         "totalMinedBlocks": 180,
         "totalRewards": "67806400773847"
-      },
-      {
-        "id": "qzmkLmZ8L8pQCZhYqVsYrwjeNWt2aw8BCBAzP9YGbKCWtQrjj",
-        "totalMinedBlocks": 160,
-        "totalRewards": "60030408654099"
-      },
-      {
-        "id": "qzpKpUGF8PzRwdYAJ9nJdytSTNs3za9WiCqZRnvkXczcDXfFB",
-        "totalMinedBlocks": 155,
-        "totalRewards": "57764154900257"
-      },
-      {
-        "id": "qzkgH7zXgRmH94viJPwmZCEDirtCsKchd9ycMaLaMryjdsdwQ",
-        "totalMinedBlocks": 143,
-        "totalRewards": "54858413194509"
       },
       {
         "id": "qznWni9oj1YhEQWmwxH6EN6G9AH5Mor8qexsFWhjqysH77Hpq",
@@ -482,11 +497,6 @@
         "totalRewards": "36760474856366"
       },
       {
-        "id": "qzjV98C5Wsf3AFp5GuSypPVBqZ2b98T61CnW2ua5ABCULv14W",
-        "totalMinedBlocks": 93,
-        "totalRewards": "35182786770354"
-      },
-      {
         "id": "qzpjRZgATwh8YX8RNGdVxkEJH3HbP6uANBfDzv16emghLNc1d",
         "totalMinedBlocks": 89,
         "totalRewards": "32433007887830"
@@ -500,6 +510,11 @@
         "id": "qzmeLpn3zpnr6qByEkezHTxkWbfzHyUazFgXnMzzgWxc1mW1d",
         "totalMinedBlocks": 82,
         "totalRewards": "41376453800108"
+      },
+      {
+        "id": "qzkV4WNDjjPhBjHj8fU1DeXjQykuUVFY9mbMJaardkvxGQGVn",
+        "totalMinedBlocks": 75,
+        "totalRewards": "27180628219208"
       },
       {
         "id": "qzkdFgYDxFuA4e7CWCn6UAG51ZqPwbZgRLFGmTHMtr49hrqCf",
@@ -552,24 +567,19 @@
         "totalRewards": "18826268068572"
       },
       {
-        "id": "qzkV4WNDjjPhBjHj8fU1DeXjQykuUVFY9mbMJaardkvxGQGVn",
-        "totalMinedBlocks": 49,
-        "totalRewards": "17623592847195"
-      },
-      {
         "id": "qzmezXnGAqfFMxVVSP9mQLDQ9iVfFCbhVHfcDLgeEfdqD2BWH",
         "totalMinedBlocks": 36,
         "totalRewards": "13973029561194"
       },
       {
-        "id": "qzjcjgUJpc7AdJyE4JFJCvsWUp2cjoNYjL6Aov52NqV5CmuFE",
-        "totalMinedBlocks": 32,
-        "totalRewards": "12422135584027"
-      },
-      {
         "id": "qzoo2z1erAV6UrWvstEYSL5aeTcFH9XK5fk9JyHa8WXt5gF7z",
         "totalMinedBlocks": 32,
         "totalRewards": "12395563606551"
+      },
+      {
+        "id": "qzjcjgUJpc7AdJyE4JFJCvsWUp2cjoNYjL6Aov52NqV5CmuFE",
+        "totalMinedBlocks": 32,
+        "totalRewards": "12422135584027"
       },
       {
         "id": "qzpyGemzsZvXRihgZg1uAGqnQLXBsy213WQGBLDD17hKJ3zpM",
@@ -607,6 +617,11 @@
         "totalRewards": "6933603300934"
       },
       {
+        "id": "qzoHLnyZgjfLnGsFnP9uSEL2gMZZDFzkimQyrxm88Z4aw2K97",
+        "totalMinedBlocks": 16,
+        "totalRewards": "6209031562363"
+      },
+      {
         "id": "qzoFcKVewDKGFMbGVkXNrNoPU4kWw7j67pDjYs9EM3z1o3iN7",
         "totalMinedBlocks": 16,
         "totalRewards": "6185082047899"
@@ -615,11 +630,6 @@
         "id": "qzpRWSWuWhpsFKyu25XS9VGroZGvntCERUg6TbpF6Ra562nsJ",
         "totalMinedBlocks": 16,
         "totalRewards": "6209017311999"
-      },
-      {
-        "id": "qzoHLnyZgjfLnGsFnP9uSEL2gMZZDFzkimQyrxm88Z4aw2K97",
-        "totalMinedBlocks": 16,
-        "totalRewards": "6209031562363"
       },
       {
         "id": "qzkUuwqEMxxGSwfZyrnYveXiMufyMrCsiBzqq8ziGAWcnfU2b",
@@ -662,11 +672,6 @@
         "totalRewards": "3105094607786"
       },
       {
-        "id": "qzpcRZmNX4suvzHRWcwbj2kqtGrgxTP8n8cPvQYDswsL1Hrtj",
-        "totalMinedBlocks": 7,
-        "totalRewards": "2677292796833"
-      },
-      {
         "id": "qzjaWjqE8uocSjv7RaiGRbTeCi9APoHrwPGMS7vPnMtDiuEZ8",
         "totalMinedBlocks": 7,
         "totalRewards": "2693071933735"
@@ -677,14 +682,19 @@
         "totalRewards": "2710438196212"
       },
       {
-        "id": "qzjwF7pKyWfBcurxx5qtEB7UZyzTrYJvud1BfnamLb6grQX4p",
-        "totalMinedBlocks": 5,
-        "totalRewards": "1932923083493"
+        "id": "qzpcRZmNX4suvzHRWcwbj2kqtGrgxTP8n8cPvQYDswsL1Hrtj",
+        "totalMinedBlocks": 7,
+        "totalRewards": "2677292796833"
       },
       {
         "id": "qzkjVnqExQRK3SLndRbfi1GT4VdHuroZLeZuuKwnRuAhdmJpg",
         "totalMinedBlocks": 5,
         "totalRewards": "1943375826759"
+      },
+      {
+        "id": "qzjwF7pKyWfBcurxx5qtEB7UZyzTrYJvud1BfnamLb6grQX4p",
+        "totalMinedBlocks": 5,
+        "totalRewards": "1932923083493"
       },
       {
         "id": "qznA4vcMujFgJdog7CxMsiAhKBr5QdhJh6G2sg6zFkp68oPjJ",
@@ -697,24 +707,9 @@
         "totalRewards": "1164384286763"
       },
       {
-        "id": "qznbtSyvbBezyRyo3P2E3t5aN5pGS36k2wyaYM3SsBX5J4t3v",
-        "totalMinedBlocks": 3,
-        "totalRewards": "1158660624354"
-      },
-      {
         "id": "qznKrw41msVGkP5VCCBVxzgzTwXVYtiSPMg5ky2re6VF7MLTE",
         "totalMinedBlocks": 3,
         "totalRewards": "1151318327245"
-      },
-      {
-        "id": "qzpcj5GQKCTrDj5rJEJQoiQqYtMpui3u87TzWreBNtvtDP1F2",
-        "totalMinedBlocks": 3,
-        "totalRewards": "1156429611924"
-      },
-      {
-        "id": "qzpxKxU9R9Wr1PTtaby6vw7EPoTxQTShPKmWJWAv3aLrmU7wV",
-        "totalMinedBlocks": 3,
-        "totalRewards": "1152422879151"
       },
       {
         "id": "qzkHaujm7Y69xc1nd5aMVT7JrTjjX61PQBmtaiNG5849vdQc3",
@@ -722,14 +717,29 @@
         "totalRewards": "1160489609797"
       },
       {
+        "id": "qzpcj5GQKCTrDj5rJEJQoiQqYtMpui3u87TzWreBNtvtDP1F2",
+        "totalMinedBlocks": 3,
+        "totalRewards": "1156429611924"
+      },
+      {
+        "id": "qznbtSyvbBezyRyo3P2E3t5aN5pGS36k2wyaYM3SsBX5J4t3v",
+        "totalMinedBlocks": 3,
+        "totalRewards": "1158660624354"
+      },
+      {
+        "id": "qzk8LDsLdUAiCm9sd3nTu444FYhHf2Ho7PUPZLowycRUUru86",
+        "totalMinedBlocks": 3,
+        "totalRewards": "1145803409994"
+      },
+      {
         "id": "qzndN6KuuwErhK1SHud86KiC9yN16KqNbZj67ZbN3Jbdr4Y8H",
         "totalMinedBlocks": 3,
         "totalRewards": "1160176107455"
       },
       {
-        "id": "qzo87ZwuKz13ayPzDFQcdzpRK8gArkTWdG7dx3yKQgLxkC4kG",
-        "totalMinedBlocks": 2,
-        "totalRewards": "406428185932"
+        "id": "qzpxKxU9R9Wr1PTtaby6vw7EPoTxQTShPKmWJWAv3aLrmU7wV",
+        "totalMinedBlocks": 3,
+        "totalRewards": "1152422879151"
       },
       {
         "id": "qzo1VJSvmRHa547Gamx4HoQT9JeBrgFRTUWghAZWfHqeky1Yq",
@@ -737,9 +747,14 @@
         "totalRewards": "774587559401"
       },
       {
-        "id": "qzk7RfwAxPHAczVqzajyt7upzMLi5UJ85uqaC8eWch3dpQCN9",
+        "id": "qzjtdBwdhUVKtJVi2hatJ3H6XCuEmNxkYCKem5k8se64mz3mE",
         "totalMinedBlocks": 2,
-        "totalRewards": "776941220348"
+        "totalRewards": "773921231960"
+      },
+      {
+        "id": "qzo87ZwuKz13ayPzDFQcdzpRK8gArkTWdG7dx3yKQgLxkC4kG",
+        "totalMinedBlocks": 2,
+        "totalRewards": "406428185932"
       },
       {
         "id": "qznokNSfTTmbQFxdMgZAi18oZa4LAFg9p5ENdQqiQHb8Jzxvg",
@@ -747,9 +762,9 @@
         "totalRewards": "772181397149"
       },
       {
-        "id": "qzjtdBwdhUVKtJVi2hatJ3H6XCuEmNxkYCKem5k8se64mz3mE",
+        "id": "qzk7RfwAxPHAczVqzajyt7upzMLi5UJ85uqaC8eWch3dpQCN9",
         "totalMinedBlocks": 2,
-        "totalRewards": "773921231960"
+        "totalRewards": "776941220348"
       },
       {
         "id": "qzjpNsNa4ieb8x4i7CixThW6wZE981K9WeLkangcND2mbzJ9d",
@@ -760,6 +775,36 @@
         "id": "qzpEYGQmZ3t6Wovy6eXXiRBAXDvSry5vqGZWP7QhyDsMECNps",
         "totalMinedBlocks": 2,
         "totalRewards": "777182810244"
+      },
+      {
+        "id": "qzjpv7vUsyBD6qFu4qu8M4beoDdMf242Kqaobz2TJWK6KQSnv",
+        "totalMinedBlocks": 1,
+        "totalRewards": "383753772939"
+      },
+      {
+        "id": "qzkMjWpxw1zq3dABct4xCpJjJUdVidoUvpJXAfKaYQqt1ZHex",
+        "totalMinedBlocks": 1,
+        "totalRewards": "382423517727"
+      },
+      {
+        "id": "qzkSDCHg2H2neFHNijk6y83Nk7eufKALeu6eLgxp1knVyeb2h",
+        "totalMinedBlocks": 1,
+        "totalRewards": "381791103270"
+      },
+      {
+        "id": "qzp9Wa6EYVMv8fNY2BbegmGAJsP4N3wteqbUF8sgLqkRCSdtj",
+        "totalMinedBlocks": 1,
+        "totalRewards": "385610312846"
+      },
+      {
+        "id": "qznE1MGLKBzbHnnndbEQ6xSn3XkjMQzyRF6Rm5mrd5mhQN1hT",
+        "totalMinedBlocks": 1,
+        "totalRewards": "388460706369"
+      },
+      {
+        "id": "qzmB4sirTy9SbtjG61DvNY5yiW8px9XLHGxo6f9MSLiWyp913",
+        "totalMinedBlocks": 1,
+        "totalRewards": "388088152848"
       },
       {
         "id": "qzkwZ8y7TXR8hw4dKsng9YqypR6buTfFtN6y7NRkDgyf6KujU",
@@ -775,31 +820,6 @@
         "id": "qzq2XqBesLK7NjPmqputmf7SRuYW7RPL6UCZZAHUYcZc7kbUy",
         "totalMinedBlocks": 1,
         "totalRewards": "388493035096"
-      },
-      {
-        "id": "qzjpv7vUsyBD6qFu4qu8M4beoDdMf242Kqaobz2TJWK6KQSnv",
-        "totalMinedBlocks": 1,
-        "totalRewards": "383753772939"
-      },
-      {
-        "id": "qzmB4sirTy9SbtjG61DvNY5yiW8px9XLHGxo6f9MSLiWyp913",
-        "totalMinedBlocks": 1,
-        "totalRewards": "388088152848"
-      },
-      {
-        "id": "qzkMjWpxw1zq3dABct4xCpJjJUdVidoUvpJXAfKaYQqt1ZHex",
-        "totalMinedBlocks": 1,
-        "totalRewards": "382423517727"
-      },
-      {
-        "id": "qznE1MGLKBzbHnnndbEQ6xSn3XkjMQzyRF6Rm5mrd5mhQN1hT",
-        "totalMinedBlocks": 1,
-        "totalRewards": "388460706369"
-      },
-      {
-        "id": "qzp9Wa6EYVMv8fNY2BbegmGAJsP4N3wteqbUF8sgLqkRCSdtj",
-        "totalMinedBlocks": 1,
-        "totalRewards": "385610312846"
       }
     ]
   }
