@@ -102,10 +102,6 @@ async fn main() -> AppResult<()> {
             error!("HTTP server exited: {:?}", result);
             result??;
         }
-        result = tweet_synchronizer.spawn_tweet_synchronizer() => {
-            error!("Tweet synchronizer exited: {:?}", result);
-            result??;
-        }
     }
 
     Ok(())
