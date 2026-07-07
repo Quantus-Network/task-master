@@ -76,6 +76,7 @@ pub struct TweetWithAuthor {
     pub author_username: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct NewTweetPayload {
     pub id: String,

@@ -14,10 +14,6 @@ pub struct RaidQuestRepository {
 }
 
 impl RaidQuestRepository {
-    fn create_select_base_query<'a>() -> QueryBuilder<'a, Postgres> {
-        QueryBuilder::new("SELECT * FROM raid_quests")
-    }
-
     fn create_pagination_base_query<'a>(
         &self,
         query_builder: &mut QueryBuilder<'a, Postgres>,
@@ -139,26 +135,6 @@ impl RaidQuestRepository {
         Ok(quest)
     }
 
-    /// Finds the single currently active raid quest.
-    /// Active = start_date <= NOW and (end_date IS NULL or end_date > NOW)
-    pub async fn find_active(&self) -> DbResult<Option<RaidQuest>> {
-        let mut qb = Self::create_select_base_query();
-        let now = Utc::now();
-
-        qb.push(" WHERE start_date <= ");
-        qb.push_bind(now);
-
-        // Check that it hasn't ended yet
-        qb.push(" AND end_date IS NULL");
-
-        // Order by most recently started just to be safe
-        qb.push(" ORDER BY start_date DESC LIMIT 1");
-
-        let quest = qb.build_query_as().fetch_optional(&self.pool).await?;
-
-        Ok(quest)
-    }
-
     pub async fn finish(&self, id: i32) -> DbResult<()> {
         let result = sqlx::query("UPDATE raid_quests SET end_date = $1 WHERE id = $2")
             .bind(Utc::now())
@@ -219,6 +195,27 @@ impl RaidQuestRepository {
             .map_err(DbError::Database)?;
 
         Ok(count)
+    }
+
+    #[cfg(test)]
+    fn create_select_base_query<'a>() -> QueryBuilder<'a, Postgres> {
+        QueryBuilder::new("SELECT * FROM raid_quests")
+    }
+
+    /// Finds the single currently active raid quest (test helper).
+    #[cfg(test)]
+    pub async fn find_active(&self) -> DbResult<Option<RaidQuest>> {
+        let mut qb = Self::create_select_base_query();
+        let now = Utc::now();
+
+        qb.push(" WHERE start_date <= ");
+        qb.push_bind(now);
+        qb.push(" AND end_date IS NULL");
+        qb.push(" ORDER BY start_date DESC LIMIT 1");
+
+        let quest = qb.build_query_as().fetch_optional(&self.pool).await?;
+
+        Ok(quest)
     }
 }
 

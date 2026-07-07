@@ -155,8 +155,9 @@ impl TweetAuthorRepository {
         Ok(id)
     }
 
-    /// Batch Upsert for Authors
-    pub async fn upsert_many(&self, authors: &Vec<NewAuthorPayload>) -> DbResult<u64> {
+    /// Batch upsert used by integration tests to seed author data.
+    #[cfg(test)]
+    pub async fn upsert_many(&self, authors: &[NewAuthorPayload]) -> DbResult<u64> {
         if authors.is_empty() {
             return Ok(0);
         }

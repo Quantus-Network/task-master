@@ -3,7 +3,7 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 use crate::{
     db_persistence::DbError,
     handlers::ListQueryParams,
-    models::relevant_tweet::{NewTweetPayload, RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
+    models::relevant_tweet::{RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
     repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
@@ -136,8 +136,9 @@ impl RelevantTweetRepository {
         Ok(tweets)
     }
 
-    /// Batch Upsert
-    pub async fn upsert_many(&self, tweets: &Vec<NewTweetPayload>) -> DbResult<u64> {
+    /// Batch upsert used by integration tests to seed tweet data.
+    #[cfg(test)]
+    pub async fn upsert_many(&self, tweets: &[crate::models::relevant_tweet::NewTweetPayload]) -> DbResult<u64> {
         if tweets.is_empty() {
             return Ok(0);
         }
@@ -296,7 +297,7 @@ mod tests {
         // Change metrics and upsert again
         let mut update_payload = payload.clone();
         update_payload.impression_count = 999;
-        repo.upsert_many(&vec![update_payload]).await.unwrap();
+        repo.upsert_many(&[update_payload]).await.unwrap();
 
         let updated = repo.find_by_id(tweet_id).await.unwrap().unwrap();
         assert_eq!(
