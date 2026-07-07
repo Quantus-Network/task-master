@@ -3,7 +3,6 @@ use std::path::Path;
 use axum::http::HeaderValue;
 use rusx::config::OauthConfig;
 use serde::{Deserialize, Serialize};
-use tokio::time;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -13,9 +12,6 @@ pub struct Config {
     pub logging: LoggingConfig,
     pub jwt: JwtConfig,
     pub x_oauth: OauthConfig,
-    pub tweet_sync: TweetSyncConfig,
-    pub tg_bot: TelegramBotConfig,
-    pub alert: AlertConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub risk_checker: RiskCheckerConfig,
     pub exchange_rate: ExchangeRateConfig,
@@ -53,29 +49,6 @@ pub struct JwtConfig {
     pub secret: String,
     pub admin_secret: String,
     pub exp_in_hours: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TweetSyncConfig {
-    pub interval_in_hours: u64,
-    pub keywords: String,
-    pub api_key: String,
-    pub monthly_limit: u32,
-    pub alert_threshold: u32,
-    pub reset_day: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TelegramBotConfig {
-    pub base_url: String,
-    pub token: String,
-    pub chat_id: String,
-    pub message_thread_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlertConfig {
-    pub webhook_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,10 +104,6 @@ impl Config {
 
     pub fn get_jwt_expiration(&self) -> chrono::Duration {
         chrono::Duration::hours(self.jwt.exp_in_hours)
-    }
-
-    pub fn get_tweet_sync_interval(&self) -> time::Duration {
-        time::Duration::from_secs(self.tweet_sync.interval_in_hours * 3600)
     }
 
     pub fn get_cors_allowed_origins(&self) -> Vec<HeaderValue> {

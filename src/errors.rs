@@ -39,8 +39,6 @@ pub enum AppError {
     Http(#[from] axum::http::Error),
     #[error("Rusx error: {0}")]
     Rusx(#[from] SdkError),
-    #[error("Telegram API error: {1}")]
-    Telegram(u16, String),
     #[error("Risk checker error: {0}")]
     RiskChecker(#[from] RiskCheckerError),
     #[error("Exchange rate error: {0}")]
@@ -52,12 +50,6 @@ pub type AppResult<T> = Result<T, AppError>;
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
-            // --- Telegram ---
-            AppError::Telegram(code, err) => (
-                StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                err,
-            ),
-
             // --- Wallet Feature Flags ---
             AppError::WalletConfigs(err) => map_wallet_configs_error(err),
 

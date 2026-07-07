@@ -2,10 +2,7 @@ use crate::{
     args::Args,
     db_persistence::DbPersistence,
     errors::{AppError, AppResult},
-    services::{
-        alert_service::AlertService, graphql_client::GraphqlClient, telegram_service::TelegramService,
-        tweet_synchronizer_service::TweetSynchronizerService,
-    },
+    services::graphql_client::GraphqlClient,
 };
 
 use clap::Parser;
@@ -68,12 +65,7 @@ async fn main() -> AppResult<()> {
     let server_address = config.get_server_address();
     info!("Starting HTTP server on {}", server_address);
 
-    let twitter_gateway = Arc::new(RusxGateway::new(
-        config.x_oauth.clone(),
-        Some(config.tweet_sync.api_key.clone()),
-    )?);
-    let telegram_service = Arc::new(TelegramService::new(config.tg_bot.clone()));
-    let alert_service = Arc::new(AlertService::new(config.clone(), db.tweet_pull_usage.clone()));
+    let twitter_gateway = Arc::new(RusxGateway::new(config.x_oauth.clone(), None)?);
     let server_db = db.clone();
     let server_addr_clone = server_address.clone();
     let server_config = Arc::new(config.clone());
@@ -86,15 +78,6 @@ async fn main() -> AppResult<()> {
 
     info!("🎯 TaskMaster is now running!");
     info!("HTTP API available at: http://{}", server_address);
-
-    // Initialize tweet sync service
-    let tweet_synchronizer = TweetSynchronizerService::new(
-        db.clone(),
-        twitter_gateway.clone(),
-        telegram_service,
-        alert_service.clone(),
-        Arc::new(config.clone()),
-    );
 
     // Wait for any task to complete (they should run forever unless there's an error)
     tokio::select! {

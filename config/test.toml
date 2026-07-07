@@ -27,24 +27,6 @@ callback_url = "http://localhost:12345/api/auth/x/callback"
 client_id = "test-id"
 client_secret = "test-secret"
 
-[tweet_sync]
-api_key = "some-key"
-interval_in_hours = 24
-keywords = "test"
-monthly_limit = 15000
-alert_threshold = 13500
-reset_day = 22
-
-[tg_bot]
-base_url = "https://api.telegram.org"
-chat_id = '-1'
-# This is optional, if you don't need message thread just remove it
-message_thread_id = '1'
-token = "token"
-
-[alert]
-webhook_url = "https://www.webhook_url.com"
-
 [remote_configs]
 wallet_configs_file = "../wallet_configs/test_configs.json"
 
