@@ -27,24 +27,6 @@ callback_url = "http://localhost:3000/api/auth/x/callback"
 client_id = "WlVrcm4xSEpXQ2l3TURFM3lLZnE6MTpjaQ"
 client_secret = "lfXc45dZLqYTzP62Ms32EhXinGQzxcIP9TvjJml2B-h0T1nIJK"
 
-[tweet_sync]
-api_key = "some-key"
-interval_in_hours = 24
-keywords = "quantum"
-monthly_limit = 15000
-alert_threshold = 13500
-reset_day = 22
-
-[tg_bot]
-base_url = "https://api.telegram.org"
-chat_id = "-1"
-# This is optional, if you don't need message thread just remove it
-message_thread_id = "1"
-token = "token"
-
-[alert]
-webhook_url = "https://www.webhook_url.com"
-
 [remote_configs]
 wallet_configs_file = "../wallet_configs/default_configs.json"
 

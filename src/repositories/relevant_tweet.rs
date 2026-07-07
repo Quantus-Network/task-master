@@ -1,9 +1,9 @@
-use sqlx::{PgPool, Postgres, QueryBuilder, Row};
+use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::{
     db_persistence::DbError,
     handlers::ListQueryParams,
-    models::relevant_tweet::{NewTweetPayload, RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
+    models::relevant_tweet::{RelevantTweet, TweetFilter, TweetSortColumn, TweetWithAuthor},
     repositories::{calculate_page_offset, DbResult, QueryBuilderExt},
 };
 
@@ -90,14 +90,6 @@ impl RelevantTweetRepository {
         Ok(count)
     }
 
-    pub async fn get_newest_tweet_id(&self) -> Result<Option<String>, DbError> {
-        let row = sqlx::query("SELECT id FROM relevant_tweets WHERE created_at >= NOW() - INTERVAL '7 days' ORDER BY created_at DESC LIMIT 1")
-            .fetch_optional(&self.pool)
-            .await?;
-
-        Ok(row.map(|r| r.get("id")))
-    }
-
     /// Find all tweets with author details joined
     pub async fn find_all_with_authors(
         &self,
@@ -144,8 +136,9 @@ impl RelevantTweetRepository {
         Ok(tweets)
     }
 
-    /// Batch Upsert
-    pub async fn upsert_many(&self, tweets: &Vec<NewTweetPayload>) -> DbResult<u64> {
+    /// Batch upsert used by integration tests to seed tweet data.
+    #[cfg(test)]
+    pub async fn upsert_many(&self, tweets: &[crate::models::relevant_tweet::NewTweetPayload]) -> DbResult<u64> {
         if tweets.is_empty() {
             return Ok(0);
         }
@@ -229,7 +222,7 @@ mod tests {
         utils::test_db::reset_database,
         Config,
     };
-    use chrono::{Duration, Utc};
+    use chrono::Utc;
     use sqlx::PgPool;
 
     // --- Helpers to create dummy data ---
@@ -304,47 +297,12 @@ mod tests {
         // Change metrics and upsert again
         let mut update_payload = payload.clone();
         update_payload.impression_count = 999;
-        repo.upsert_many(&vec![update_payload]).await.unwrap();
+        repo.upsert_many(&[update_payload]).await.unwrap();
 
         let updated = repo.find_by_id(tweet_id).await.unwrap().unwrap();
         assert_eq!(
             updated.impression_count, 999,
             "Should update existing record on conflict"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_newest_tweet_id_returns_none_when_no_recent_tweets() {
-        let (repo, author_repo) = setup_test_repository().await;
-        let author_id = "author_old";
-        seed_author(&author_repo, author_id, "stale_user").await;
-
-        let mut old_tweet = create_payload("tweet_old", author_id, "stale tweet");
-        old_tweet.created_at = Utc::now() - Duration::days(8);
-        repo.upsert_many(&vec![old_tweet]).await.unwrap();
-
-        let newest_tweet_id = repo.get_newest_tweet_id().await.unwrap();
-        assert_eq!(
-            newest_tweet_id, None,
-            "Should return None when no tweet is within the last 7 days"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_newest_tweet_id_returns_some_when_recent_tweet_exists() {
-        let (repo, author_repo) = setup_test_repository().await;
-        let author_id = "author_recent";
-        seed_author(&author_repo, author_id, "active_user").await;
-
-        let mut recent_tweet = create_payload("tweet_recent", author_id, "recent tweet");
-        recent_tweet.created_at = Utc::now() - Duration::days(2);
-        repo.upsert_many(&vec![recent_tweet]).await.unwrap();
-
-        let newest_tweet_id = repo.get_newest_tweet_id().await.unwrap();
-        assert_eq!(
-            newest_tweet_id,
-            Some("tweet_recent".to_string()),
-            "Should return the newest tweet id when at least one tweet is within the last 7 days"
         );
     }
 }

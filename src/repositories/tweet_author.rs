@@ -107,14 +107,6 @@ impl TweetAuthorRepository {
         Ok(authors)
     }
 
-    pub async fn get_whitelist(&self) -> Result<Vec<String>, DbError> {
-        let usernames = sqlx::query_scalar::<_, String>("SELECT username FROM tweet_authors WHERE is_ignored = false")
-            .fetch_all(&self.pool)
-            .await?;
-
-        Ok(usernames)
-    }
-
     pub async fn set_ignore_status(&self, id: &str, status: bool) -> Result<(), DbError> {
         sqlx::query("UPDATE tweet_authors SET is_ignored = $1 WHERE id = $2")
             .bind(status)
@@ -163,8 +155,9 @@ impl TweetAuthorRepository {
         Ok(id)
     }
 
-    /// Batch Upsert for Authors
-    pub async fn upsert_many(&self, authors: &Vec<NewAuthorPayload>) -> DbResult<u64> {
+    /// Batch upsert used by integration tests to seed author data.
+    #[cfg(test)]
+    pub async fn upsert_many(&self, authors: &[NewAuthorPayload]) -> DbResult<u64> {
         if authors.is_empty() {
             return Ok(0);
         }

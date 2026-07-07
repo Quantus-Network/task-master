@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use rusx::resources::tweet::{Tweet as TwitterTweet, TweetPublicMetrics};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 
@@ -77,6 +76,7 @@ pub struct TweetWithAuthor {
     pub author_username: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct NewTweetPayload {
     pub id: String,
@@ -87,25 +87,4 @@ pub struct NewTweetPayload {
     pub retweet_count: i32,
     pub like_count: i32,
     pub created_at: DateTime<Utc>,
-}
-
-impl NewTweetPayload {
-    pub fn new(tweet: TwitterTweet) -> Self {
-        let public_metrics = tweet
-            .public_metrics
-            .ok_or_else(|| TweetPublicMetrics { ..Default::default() })
-            .unwrap();
-        let created_at = tweet.created_at.ok_or_else(|| chrono::Utc::now().to_rfc3339()).unwrap();
-
-        NewTweetPayload {
-            id: tweet.id,
-            author_id: tweet.author_id.unwrap(),
-            text: tweet.text,
-            impression_count: public_metrics.impression_count as i32,
-            like_count: public_metrics.like_count as i32,
-            retweet_count: public_metrics.retweet_count as i32,
-            reply_count: public_metrics.reply_count as i32,
-            created_at: DateTime::parse_from_rfc3339(&created_at).unwrap().with_timezone(&Utc),
-        }
-    }
 }

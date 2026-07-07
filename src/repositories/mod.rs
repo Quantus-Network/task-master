@@ -10,7 +10,6 @@ pub mod raid_quest;
 pub mod referral;
 pub mod relevant_tweet;
 pub mod tweet_author;
-pub mod tweet_pull_usage;
 
 pub trait QueryBuilderExt {
     fn push_condition(&mut self, sql: &str, where_started: &mut bool);

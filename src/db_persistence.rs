@@ -4,7 +4,6 @@ use crate::repositories::admin::AdminRepository;
 use crate::repositories::raid_quest::RaidQuestRepository;
 use crate::repositories::relevant_tweet::RelevantTweetRepository;
 use crate::repositories::tweet_author::TweetAuthorRepository;
-use crate::repositories::tweet_pull_usage::TweetPullUsageRepository;
 use crate::repositories::DbResult;
 use crate::repositories::{address::AddressRepository, referral::ReferralRepository};
 
@@ -30,7 +29,6 @@ pub struct DbPersistence {
     pub relevant_tweets: RelevantTweetRepository,
     pub tweet_authors: TweetAuthorRepository,
     pub raid_quests: RaidQuestRepository,
-    pub tweet_pull_usage: TweetPullUsageRepository,
 
     /// Used by the `create_admin` binary and integration tests (not the main server binary).
     #[allow(dead_code)]
@@ -49,7 +47,6 @@ impl DbPersistence {
         let relevant_tweets = RelevantTweetRepository::new(&pool);
         let tweet_authors = TweetAuthorRepository::new(&pool);
         let raid_quests = RaidQuestRepository::new(&pool);
-        let tweet_pull_usage = TweetPullUsageRepository::new(pool.clone());
 
         Ok(Self {
             pool,
@@ -59,7 +56,6 @@ impl DbPersistence {
             relevant_tweets,
             tweet_authors,
             raid_quests,
-            tweet_pull_usage,
         })
     }
 }
